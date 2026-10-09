@@ -1,0 +1,19 @@
+[project]
+name = "agi-sidecar"
+version = "0.1.0"
+description = "Local model server for AGI: EmbeddingGemma 2 over localhost HTTP."
+requires-python = ">=3.12"
+dependencies = [
+    "sentence-transformers[image]>=6.1.0",
+    "torch",
+    "transformers",
+]
+
+# Plain PyPI ships CPU-only torch on Windows; pull the CUDA build instead.
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
