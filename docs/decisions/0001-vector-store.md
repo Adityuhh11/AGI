@@ -6,8 +6,8 @@ Date: 2026-10-12. Status: accepted (revisit triggers below). Supersedes an earli
 
 The Python sidecar owns the index. All access goes through a small interface (`add`, `delete`, `search`, metadata
 filters). The first implementation is our own **exact (flat) search engine**: vectors in one memory-mapped file,
-metadata and a SQLite FTS5 keyword index in one SQLite file, search on the GPU when it has room and the CPU otherwise.
-Keyword and vector results are merged by rank fusion. **Chroma** (HNSW) stays only in the benchmark harness as a
+metadata and a SQLite FTS5 keyword index in one SQLite file, exact search on the CPU (decided 2026-10-12 so VRAM stays
+free for models; the GPU benchmark below was run but not adopted). Keyword and vector results are merged by rank fusion. **Chroma** (HNSW) stays only in the benchmark harness as a
 speed/quality baseline. Reasons: retrieval quality matters more than build time, exact search has no recall loss, and one
 store avoids keeping Chroma and SQLite in sync.
 

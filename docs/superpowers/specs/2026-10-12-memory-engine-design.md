@@ -1,6 +1,6 @@
 # Memory Engine: Design Spec
 
-Date: 2026-10-12. Status: draft for owner review. Decisions inherited: [ADR 0001](../../decisions/0001-vector-store.md).
+Date: 2026-10-12. Status: approved 2026-10-12 (search runs on the CPU; the GPU only hosts the embedding model). Decisions inherited: [ADR 0001](../../decisions/0001-vector-store.md).
 
 ## 1. Purpose
 
@@ -22,13 +22,13 @@ spec; this spec ends at a stable, authenticated localhost HTTP API.
 
 ### Non-goals (this spec)
 
-Go/UI work, audio and video, file watching, multi-vector (late interaction), approximate (ANN) indexes, multi-user,
+Go/UI work, audio and video, file watching, multi-vector (late interaction), approximate (ANN) indexes, GPU-side search (benchmarked in ADR 0001, not adopted: VRAM stays free for models), multi-user,
 network access beyond localhost, LLM calls. Each is a later spec; the interfaces below must not block them.
 
 ## 2. Constraints
 
-- Windows 11, RTX 4050 with **6 GB VRAM** shared with a future LLM. The sidecar's GPU budget is **<= 2 GB** (embedding
-  model 0.8-1.4 GB measured, plus the GPU search matrix).
+- Windows 11, RTX 4050 with **6 GB VRAM** shared with a future LLM. The sidecar uses the GPU **only for the embedding
+  model** (0.8-1.4 GB measured); index storage and search run on the CPU and system RAM.
 - Privacy: nothing leaves the machine. No telemetry. Secrets are never indexed (section 6).
 - Determinism: same inputs produce the same chunk ids, the same stored rows and the same ranked results (section 9).
 - Python managed by `uv`; torch from the CUDA index (already configured in `sidecar/pyproject.toml`).
@@ -86,16 +86,18 @@ Index directory: `%LOCALAPPDATA%\AGI\memory\` (override via `AGI_MEMORY_DIR`, us
 - `meta(key, value)`: schema version, embedding model id, dimension, dtype. Opening an index whose model id or dimension
   differs from `Settings` is an error ("reindex required"), never a silent mix.
 
-**`vectors.f16`**: a memory-mapped matrix of shape `(capacity, 256)`, float16, rows L2-normalised, with a fixed 64-byte
+**`vectors.f32`**: a memory-mapped matrix of shape `(capacity, 256)`, float32, rows L2-normalised, with a fixed 64-byte
 header (magic, version, dimension, capacity). Capacity doubles when full. Deleted chunks free their row for reuse.
+Float32 (not float16) because a float32 matrix multiply is the fast CPU path (4.3 ms at 100k, 47 ms at 1M measured); the
+cost is 1 KB per chunk on disk and in RAM (1M chunks = 1 GB).
 
 **Write ordering (crash safety).** For each batch: (1) write vectors into free rows and flush; (2) in one SQLite
 transaction insert/update `chunks`, `files` and FTS. A vector row with no `chunks` entry is garbage and is overwritten
 later; a `chunks` entry always points at a flushed row. Opening the store never needs repair.
 
-**Search matrix.** On open, the vector file loads into a torch fp16 tensor on the GPU if CUDA is available and
-`Settings.gpu_index_budget_mb` (default 1024, about 2M vectors) allows it; otherwise it stays a NumPy memmap on the CPU.
-Both paths are exact and are tested against the same oracle.
+**Search.** Exact search on the CPU: one float32 matrix multiply of the query against the memory-mapped matrix,
+`argpartition` for the top-`N`, then a sort by `(-score, id)`. No GPU copy of the index exists, so VRAM stays free for
+models. Beyond ~5M chunks an approximate index (`hnswlib`) becomes a separate spec.
 
 ## 6. Ingestion
 
@@ -153,9 +155,10 @@ model load (~9-15 s warm), so the launcher must never block on it.
   `@pytest.mark.model` and run on demand.
 - **Ordering**: every ranked list breaks ties by chunk id. Directory walks are sorted.
 - **Oracle**: `FlatStore` search is compared against a plain NumPy brute-force implementation on randomised stores
-  (seeded), for both CPU and GPU paths, including after deletes, upserts and reopen.
-- **Eval runs on CPU float32** for reproducibility; production uses bf16 on GPU. The difference in eval metrics between
-  the two is measured once and recorded.
+  (seeded), including after deletes, upserts and reopen.
+- **Reproducible eval**: the model runs in bf16 on the GPU, which can differ slightly from CPU float32. The eval harness
+  can run the embedder on the CPU in float32 (`--cpu`) for exact reproducibility; the gap between the two modes is measured
+  once and recorded. BLAS thread count is pinned to 1 for eval runs so summation order is stable.
 - Time and randomness are injected (no hidden `time.time()` or unseeded random in logic code).
 
 ## 10. Evaluation harness
@@ -180,8 +183,8 @@ explicit commit.
 
 Shared context lives in the repo, not in anyone's head:
 
-- `AGENTS.md` (repo root): a short pointer for any coding agent: read `CLAUDE.md`, `docs/README.md`, and
-  `docs/STATUS.md` first.
+- `AGENTS.md` (repo root): the single source of project rules for any coding agent; `CLAUDE.md` only imports it
+  (`@AGENTS.md`). It tells agents to read `docs/README.md` and `docs/STATUS.md` first.
 - `docs/README.md`: index of every doc and what it answers.
 - `docs/ARCHITECTURE.md`: living description of modules, data flow, on-disk formats, invariants. Updated with the code.
 - `docs/STATUS.md`: what is done, what is next, known gaps; updated at the end of every phase.
@@ -196,9 +199,9 @@ commit as the code they cover). Each ends with the gate in section 11 and a `doc
 
 | Phase | Deliverable | Gate (beyond section 11) |
 |---|---|---|
-| 0 Foundations | Package skeleton, `Settings`, ruff/pyright/pytest wiring, docs scaffold (`AGENTS.md`, `docs/README.md`, `ARCHITECTURE.md`, `STATUS.md`) | `pytest` runs on an empty-but-real suite |
+| 0 Foundations | Package skeleton, `Settings`, ruff/pyright/pytest wiring, docs scaffold (`docs/README.md`, `ARCHITECTURE.md`, `STATUS.md`) | `pytest` runs on an empty-but-real suite |
 | 1 Embedding | `Embedder` protocol, `FakeEmbedder`, `GemmaEmbedder` (text + image, bf16/GPU, CPU fallback) | Real-model test reproduces spike similarities within tolerance; VRAM <= 1.5 GB |
-| 2 Store | Schema, vector file, `FlatStore` (CPU and GPU), reopen/crash safety | Oracle tests green on CPU and GPU; kill-between-writes test green |
+| 2 Store | Schema, vector file, `FlatStore` (exact CPU search), reopen/crash safety | Oracle tests green; kill-between-writes test green |
 | 3 Ingestion | Ignore rules, chunkers (baseline), `FolderSource`, incremental sync, jobs | Re-index of unchanged folder embeds nothing; `.env` provably never read |
 | 4 Search + eval | FTS5 index, filters, RRF, `Searcher`, eval harness, golden set, first baseline | Baseline recorded; p95 < 50 ms at 100k synthetic items |
 | 5 API | FastAPI app, token + host checks, `/health`, `/sources`, `/jobs`, `/search`, run entry point | API tests green; start/ready/stop contract documented |
@@ -210,8 +213,8 @@ Phases 0-5 are the committed scope. Phase 6 items are ordered hypotheses, not pr
 
 | Risk | Mitigation |
 |---|---|
-| bf16 GPU and CPU float32 rank near-ties differently | Tie-break by id; eval on CPU; measure the gap once |
-| GPU memory contention with a future LLM | Budget setting (default 1 GB for the index), CPU fallback is exact and tested; sidecar can drop its GPU copy on request (post-v1) |
+| bf16 GPU embeddings differ slightly from CPU float32 ones | Tie-break by id; optional CPU-float32 eval mode; measure the gap once |
+| CPU search cost grows with item count | 47 ms at 1M measured; revisit at ~5M (ANN spec); float32 index costs 1 KB of RAM per chunk |
 | `sentence-transformers` / `transformers` major-version API drift (this model is new) | Pin versions in `uv.lock`; real-model smoke test in phase 1 |
 | Index corruption | SQLite as source of truth, write ordering in section 5, crash test |
 | Indexing a secret | Built-in deny list (not overridable), tested; deny list documented in ARCHITECTURE.md |
