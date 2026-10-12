@@ -18,8 +18,8 @@ Dependencies point downward only. Status is `planned` or `built`.
 
 | Module | Job | Status |
 |---|---|---|
-| `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | planned |
-| `config.py` | `Settings`: paths, model id, dimensions, batch sizes | planned |
+| `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | built |
+| `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
 | `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests) | planned |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | planned |
 | `chunking/`, `sources/`, `jobs.py` | Turn files into chunks and index them incrementally | phase 3 |

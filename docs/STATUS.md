@@ -4,7 +4,7 @@ Updated at the end of every phase. Last updated: 2026-10-12.
 
 | Phase | Scope | State |
 |---|---|---|
-| 0 Foundations | Package, tooling, settings, docs scaffold | in progress |
+| 0 Foundations | Package, tooling, settings, docs scaffold | done |
 | 1 Embedding | `Embedder`, `FakeEmbedder`, `GemmaEmbedder` | not started |
 | 2 Store | `FlatStore`: metadata, FTS, exact search, crash safety | not started |
 | 3 Ingestion | Ignore rules, chunkers, incremental sync, jobs | not planned yet |
