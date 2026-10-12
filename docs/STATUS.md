@@ -6,7 +6,7 @@ Updated at the end of every phase. Last updated: 2026-10-12.
 |---|---|---|
 | 0 Foundations | Package, tooling, settings, docs scaffold | done |
 | 1 Embedding | `Embedder`, `FakeEmbedder`, `GemmaEmbedder` | done |
-| 2 Store | `FlatStore`: metadata, FTS, exact search, crash safety | not started |
+| 2 Store | `FlatStore`: metadata, FTS, exact search, crash safety | done |
 | 3 Ingestion | Ignore rules, chunkers, incremental sync, jobs | not planned yet |
 | 4 Search + eval | Keyword + vector fusion, eval harness, baseline | not planned yet |
 | 5 API | Authenticated FastAPI app | not planned yet |
@@ -14,7 +14,7 @@ Updated at the end of every phase. Last updated: 2026-10-12.
 
 ## Next
 
-Execute `superpowers/plans/2026-10-12-memory-engine-phases-0-2.md`.
+Plan phases 3-5 (ingestion, search + eval, API) using what phases 0-2 taught us.
 
 ## Known gaps and deviations from the spec
 
