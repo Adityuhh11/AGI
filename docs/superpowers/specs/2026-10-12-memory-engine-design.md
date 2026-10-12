@@ -76,9 +76,9 @@ Index directory: `%LOCALAPPDATA%\AGI\memory\` (override via `AGI_MEMORY_DIR`, us
 
 **`meta.db` (SQLite, WAL mode, source of truth)**
 
-- `chunks(id TEXT PRIMARY KEY, row INTEGER UNIQUE, kind TEXT, source_id TEXT, uri TEXT, locator TEXT, content_hash TEXT,
-  mtime_ns INTEGER, text TEXT)`. `id` = sha256 of `source_id + uri + locator + content_hash` (hex, `\0`-separated). `row` is the chunk's row in the
-  vector file. `kind` in `code | markdown | pdf_text | pdf_page | image | text`. `locator` is JSON (`{"lines":[1,40]}`,
+- `chunks(rid INTEGER PRIMARY KEY, id TEXT UNIQUE, vec_row INTEGER UNIQUE, kind TEXT, source_id TEXT, uri TEXT,
+  locator TEXT, content_hash TEXT, mtime_ns INTEGER, text TEXT, identifiers TEXT)`. `id` = sha256 of `source_id + uri + locator + content_hash` (hex, `\0`-separated). `vec_row` is the chunk's row in the
+  vector file (`row` is a SQLite keyword). `kind` in `code | markdown | pdf_text | pdf_page | image | text`. `locator` is JSON (`{"lines":[1,40]}`,
   `{"page":3}`).
 - `sources(id, root, last_scan_ns)`; `files(source_id, uri, size, mtime_ns, sha256)` for change detection.
 - `chunks_fts`: FTS5 external-content table over `text` plus an `identifiers` column (camelCase and snake_case split into
