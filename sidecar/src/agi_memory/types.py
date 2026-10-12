@@ -79,3 +79,17 @@ class KeywordHit:
 
     id: str
     score: float  # negated bm25, so higher is better like the vector scores
+
+
+@dataclass(frozen=True, slots=True)
+class SearchHit:
+    """One fused search result, with enough detail to show it and to debug the ranking."""
+
+    id: str
+    uri: str
+    kind: ChunkKind
+    locator: str
+    score: float  # reciprocal-rank-fusion score (relative, not a probability)
+    vector_score: float | None  # cosine similarity; None if the vector search did not return it
+    keyword_rank: int | None  # 1-based bm25 rank; None if the keyword search did not return it
+    snippet: str
