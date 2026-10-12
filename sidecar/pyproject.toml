@@ -5,8 +5,12 @@ description = "Local memory engine for AGI: indexing and search over localhost H
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
+    "pathspec",
     "pillow",
+    "pypdfium2",
+    "pyyaml",
     "sentence-transformers[image]>=6.1.0",
+    "threadpoolctl",
     "torch",
     "transformers",
 ]
@@ -42,8 +46,11 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "D100", "D104"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers -m 'not model'"
-markers = ["model: needs the real embedding model (and a GPU); run with -m model"]
+addopts = "-ra --strict-markers -m 'not model and not perf'"
+markers = [
+    "model: needs the real embedding model (and a GPU); run with -m model",
+    "perf: slow performance checks on 100k chunks; run with -m perf",
+]
 
 [tool.pyright]
 include = ["src"]

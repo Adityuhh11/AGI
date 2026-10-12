@@ -25,6 +25,21 @@ class Settings:
     max_seq_length: int = 512  # 8192 x batch overflows 6 GB VRAM; real chunks are small
     text_batch_size: int = 8
     image_batch_size: int = 4
+    max_text_file_bytes: int = 5 * 1024 * 1024
+    max_media_file_bytes: int = 50 * 1024 * 1024
+    chunk_lines: int = 40
+    chunk_overlap_lines: int = 10  # must stay below chunk_lines
+    max_chunk_chars: int = 6000  # the model also truncates at max_seq_length tokens
+    pdf_render_scale: float = 1.5
+    image_max_side: int = 1024
+    flush_chunks: int = 64  # pending text chunks that trigger one embedding call across files
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.chunk_overlap_lines < self.chunk_lines:
+            raise ValueError(
+                f"chunk_overlap_lines must be in [0, chunk_lines): "
+                f"{self.chunk_overlap_lines} vs {self.chunk_lines}"
+            )
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
