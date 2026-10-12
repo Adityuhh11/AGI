@@ -60,3 +60,14 @@ class VectorHit:
 
     id: str
     score: float  # cosine similarity, because stored rows are unit length
+
+
+@dataclass(frozen=True, slots=True)
+class FileRecord:
+    """What the index remembers about one indexed file, to detect changes cheaply."""
+
+    source_id: str
+    uri: str
+    size: int
+    mtime_ns: int
+    sha256: str

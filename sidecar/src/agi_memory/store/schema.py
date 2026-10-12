@@ -1,10 +1,11 @@
-"""SQL for meta.db, schema version 1: index identity, chunk metadata and the keyword index.
+"""SQL for meta.db, schema version 2: index identity, chunk metadata, the keyword index and the
+source/file catalog.
 
 `chunks.rid` is an explicit integer primary key (not the implicit rowid) so the external-content
 FTS table keeps pointing at the right rows even if the database is ever VACUUMed.
 """
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -26,6 +27,22 @@ CREATE TABLE IF NOT EXISTS chunks (
     identifiers  TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS chunks_source ON chunks(source_id);
+CREATE INDEX IF NOT EXISTS chunks_source_uri ON chunks(source_id, uri);
+
+CREATE TABLE IF NOT EXISTS sources (
+    id           TEXT PRIMARY KEY,
+    root         TEXT NOT NULL,
+    last_scan_ns INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS files (
+    source_id TEXT NOT NULL,
+    uri       TEXT NOT NULL,
+    size      INTEGER NOT NULL,
+    mtime_ns  INTEGER NOT NULL,
+    sha256    TEXT NOT NULL,
+    PRIMARY KEY (source_id, uri)
+);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     text, identifiers,

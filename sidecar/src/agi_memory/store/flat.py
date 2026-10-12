@@ -22,10 +22,11 @@ from pathlib import Path
 
 import numpy as np
 
+from agi_memory.store.catalog import Catalog
 from agi_memory.store.identifiers import split_identifiers
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile, VectorFileError
-from agi_memory.types import Chunk, ChunkKind, Filters, VectorHit
+from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, VectorHit
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
@@ -64,6 +65,7 @@ class FlatStore:
         self._dim = dim
         self._lock = threading.RLock()
         self._db = sqlite3.connect(directory / "meta.db", check_same_thread=False)
+        self._catalog = Catalog(self._db)
         try:
             self._init_db(model_id, dim)
             self._vectors = self._open_vectors(directory / "vectors.f32", dim)
@@ -281,6 +283,63 @@ class FlatStore:
         with self._lock:
             (total,) = self._db.execute("SELECT COUNT(*) FROM chunks").fetchone()
             return total
+
+    # --- sources and files: change detection for incremental indexing ------------------
+
+    def register_source(self, source_id: str, root: str) -> None:
+        with self._lock:
+            self._catalog.register_source(source_id, root)
+
+    def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
+        with self._lock:
+            self._catalog.mark_scanned(source_id, scanned_ns)
+
+    def file_records(self, source_id: str) -> dict[str, FileRecord]:
+        with self._lock:
+            return self._catalog.file_records(source_id)
+
+    def replace_file(
+        self, record: FileRecord, chunks: Sequence[Chunk], vectors: np.ndarray
+    ) -> None:
+        """Make the index hold exactly `chunks` for this file, then remember the file.
+
+        The file row is written last: a crash in between leaves the file looking stale, so the
+        next sync re-indexes it (chunk ids are content-derived, so redoing it is harmless).
+        """
+        if any(c.source_id != record.source_id or c.uri != record.uri for c in chunks):
+            raise ValueError(f"every chunk must belong to {record.source_id}:{record.uri}")
+        with self._lock:
+            self.upsert(chunks, vectors)
+            keep = {chunk.id for chunk in chunks}
+            stale = [
+                chunk_id
+                for chunk_id in self._catalog.chunk_ids_for_uri(record.source_id, record.uri)
+                if chunk_id not in keep
+            ]
+            self.delete(stale)
+            self._catalog.write_file(record)
+
+    def touch_file(self, record: FileRecord) -> None:
+        """Update a file's remembered size/mtime/hash when its content is known to be unchanged."""
+        with self._lock:
+            self._catalog.write_file(record)
+
+    def remove_files(self, source_id: str, uris: Iterable[str]) -> int:
+        """Forget files (and their chunks); returns how many file records were removed."""
+        removed = 0
+        with self._lock:
+            for batch in _batches(list(uris)):
+                self.delete(self._catalog.chunk_ids_for_uris(source_id, batch))
+                removed += self._catalog.delete_file_rows(source_id, batch)
+        return removed
+
+    def delete_source(self, source_id: str) -> int:
+        """Forget a whole source; returns how many chunks were removed."""
+        with self._lock:
+            ids = self._catalog.chunk_ids_for_source(source_id)
+            self.delete(ids)
+            self._catalog.delete_source_rows(source_id)
+            return len(ids)
 
     def _validate_query(self, query: np.ndarray) -> np.ndarray:
         vec = np.asarray(query, dtype=np.float32)
