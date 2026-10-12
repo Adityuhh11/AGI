@@ -23,7 +23,9 @@ class Route(enum.StrEnum):
     IMAGE = "image"
 
 
-_DENIED_DIRS = frozenset({".git", "node_modules", ".venv", "venv", "__pycache__", ".ssh"})
+_DENIED_DIRS = frozenset(
+    {".git", "node_modules", ".venv", "venv", "__pycache__", ".ssh", ".docker"}
+)
 _DENIED_FILE_PATTERNS = (
     ".env*",
     "*.pem",
@@ -47,6 +49,12 @@ _DENIED_FILE_PATTERNS = (
     "cargo.lock",
     "go.sum",
     "composer.lock",
+    "credentials*.json",
+    "client_secret*.json",
+    "*service-account*.json",
+    "*serviceaccount*.json",
+    "secrets.*",
+    "*.tfvars",
 )
 
 _CODE = frozenset(
@@ -104,7 +112,8 @@ _IMAGE = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"})
 
 
 def is_denied_dir(name: str) -> bool:
-    return name.lower() in _DENIED_DIRS
+    lowered = name.lower()
+    return lowered in _DENIED_DIRS or lowered.startswith(".env")  # a venv is often named .env
 
 
 def is_denied_file(name: str) -> bool:

@@ -29,6 +29,14 @@ DENIED = [
     "pkg/__pycache__/x.pyc",
     ".venv/Lib/x.py",
     "x/.ssh/config",
+    "credentials.json",
+    "gcp/client_secret_123.json",
+    "keys/my-service-account-key.json",
+    "config/secrets.yaml",
+    "infra/prod.tfvars",
+    ".docker/config.json",
+    ".env/Lib/site-packages/x.py",
+    "app/.env.production/settings.json",
 ]
 ALLOWED = [
     "README.md",
