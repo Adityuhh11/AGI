@@ -23,10 +23,12 @@ from pathlib import Path
 import numpy as np
 
 from agi_memory.store.catalog import Catalog
+from agi_memory.store.filters import filter_clause
 from agi_memory.store.identifiers import split_identifiers
+from agi_memory.store.keyword import build_match
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile, VectorFileError
-from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, VectorHit
+from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, KeywordHit, VectorHit
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
@@ -351,27 +353,14 @@ class FlatStore:
 
     def _filter_mask(self, filters: Filters, size: int) -> np.ndarray:
         """Boolean mask over rows [0, size) for chunks that satisfy `filters`."""
-        clauses: list[str] = []
-        params: list[object] = []
-        if filters.kinds is not None:
-            if not filters.kinds:
-                return np.zeros(size, dtype=bool)
-            clauses.append(f"kind IN ({','.join('?' * len(filters.kinds))})")
-            params.extend(sorted(kind.value for kind in filters.kinds))
-        if filters.source_id is not None:
-            clauses.append("source_id = ?")
-            params.append(filters.source_id)
-        if filters.uri_prefix is not None:
-            clauses.append("substr(uri, 1, ?) = ?")
-            params.extend([len(filters.uri_prefix), filters.uri_prefix])
-        if filters.modified_after_ns is not None:
-            clauses.append("mtime_ns > ?")
-            params.append(filters.modified_after_ns)
-        if not clauses:
+        clause = filter_clause(filters)
+        if clause is None:
             return np.ones(size, dtype=bool)
-        query = f"SELECT vec_row FROM chunks WHERE {' AND '.join(clauses)}"
+        where, params = clause
         mask = np.zeros(size, dtype=bool)
-        rows = [row for (row,) in self._db.execute(query, params)]
+        rows = [
+            row for (row,) in self._db.execute(f"SELECT vec_row FROM chunks WHERE {where}", params)
+        ]
         mask[np.asarray(rows, dtype=np.intp)] = True
         return mask
 
@@ -412,6 +401,28 @@ class FlatStore:
             zip(row_list, scores.tolist(), strict=True), key=lambda p: (-p[1], ids[p[0]])
         )
         return [VectorHit(id=ids[row], score=score) for row, score in ranked[:n]]
+
+    def keyword_search(
+        self, query: str, n: int, filters: Filters | None = None
+    ) -> list[KeywordHit]:
+        """Top-`n` chunks by bm25 over text and identifiers, ordered by (-score, id)."""
+        match = build_match(query)
+        if not match or n <= 0:
+            return []
+        sql = (
+            "SELECT c.id, bm25(chunks_fts, 1.0, 0.5) AS score FROM chunks_fts "
+            "JOIN chunks c ON c.rid = chunks_fts.rowid WHERE chunks_fts MATCH ?"
+        )
+        params: list[object] = [match]
+        clause = filter_clause(filters) if filters is not None else None
+        if clause is not None:
+            sql += f" AND ({clause[0]})"
+            params.extend(clause[1])
+        sql += " ORDER BY score, c.id LIMIT ?"
+        params.append(n)
+        with self._lock:
+            rows = self._db.execute(sql, params).fetchall()
+        return [KeywordHit(id=chunk_id, score=-score) for chunk_id, score in rows]
 
     def close(self) -> None:
         """Release the database and the vector file (both are removable afterwards)."""

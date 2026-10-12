@@ -71,3 +71,11 @@ class FileRecord:
     size: int
     mtime_ns: int
     sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class KeywordHit:
+    """One result of a keyword (FTS5/bm25) search."""
+
+    id: str
+    score: float  # negated bm25, so higher is better like the vector scores
