@@ -4,7 +4,8 @@ Personal, local-first AI launcher for Windows. Go core + Wails v3 + Svelte UI + 
 
 ## How we work
 
-- **Learning project.** The owner is learning Go, Svelte, and Wails while building. Explain the *why* behind new concepts, keep steps small, and let the owner write or review each piece. No large code dumps.
+- **Product first.** Build the best product we can; learning is a side effect, not a constraint. Don't slow down or simplify for teaching. Briefly explain non-obvious decisions; the owner is still new to Go, Svelte, and Wails, so say what's idiomatic there. Custom-built components (e.g. our own vector store) are welcome when they beat off-the-shelf for this use case.
+- **Measure, don't guess.** Choices that affect speed, memory, or quality get a benchmark on real data (`Sample Data/`, git-ignored) before they go in a spec.
 - **Spec → plan → build.** New features get a spec in `docs/superpowers/specs/` and a plan before code. Small fixes skip this.
 - **No slop.** Every file, function, and dependency must earn its place. No speculative abstractions, no "for later" scaffolding, no unused config.
 
