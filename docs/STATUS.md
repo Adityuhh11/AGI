@@ -8,13 +8,13 @@ Updated at the end of every phase. Last updated: 2026-10-12.
 | 1 Embedding | `Embedder`, `FakeEmbedder`, `GemmaEmbedder` | done |
 | 2 Store | `FlatStore`: metadata, FTS, exact search, crash safety | done |
 | 3 Ingestion | Deny list, scanner, chunkers, incremental sync (jobs move to phase 5) | done |
-| 4 Search + eval | Keyword + vector fusion, eval harness, baseline | planned |
+| 4 Search + eval | Keyword + vector fusion, eval harness, baseline | done |
 | 5 API | Authenticated FastAPI app | not planned yet |
 | 6 Quality iteration | tree-sitter chunking, rerankers, "no good answer" | ideas only |
 
 ## Next
 
-Phase 4 tasks in `superpowers/plans/2026-10-12-memory-engine-phases-3-4.md`; then plan phase 5 (API).
+Plan phase 5 (HTTP API) and phase 6 (quality iteration, driven by the weak groups in the baseline report).
 
 ## Known gaps and deviations from the spec
 
@@ -24,3 +24,13 @@ Phase 4 tasks in `superpowers/plans/2026-10-12-memory-engine-phases-3-4.md`; the
 - `sources`/`files` tables arrived in phase 3 (schema version 2); the `Store` protocol is extracted in phase 4.
 - Image chunks carry their file path as `text` (spec said empty) so file names are keyword-searchable.
 - `jobs.py` (background wrapper) moves to phase 5 with the API; phase 3 delivers a synchronous `Indexer.sync` with a progress callback.
+
+## Retrieval quality (baseline, 2026-10-12)
+
+Real model (GPU bf16), 38 golden queries over `Sample Data/`, report in `eval/2026-10-12-baseline.md`:
+
+| top1 | recall@3 | recall@10 | MRR | forbidden hits |
+|---|---|---|---|---|
+| 0.658 | 0.842 | 0.921 | 0.744 | 0 |
+
+On the CPU in float32 the same set gives top1 0.632, recall@3 0.842, recall@10 0.921, MRR 0.731 (one query flips), so the bf16 GPU path costs no measurable quality. The weakest group is images: the vector side ranks the right image first or second, and fusion demotes it (see "Reading the baseline" in the report). Search latency at 100k chunks: p95 about 43-54 ms on this laptop depending on load, keyword search dominates (`eval/perf.md`).

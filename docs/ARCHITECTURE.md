@@ -26,8 +26,8 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
 | `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed | built |
 | `jobs.py` | Background job wrapper with progress for the API | phase 5 |
-| `search/` | Vector + keyword search, rank fusion | phase 4 |
-| `eval/` | Golden queries, metrics, baseline | phase 4 |
+| `search/` | `Searcher`: vector + FTS5 keyword search, reciprocal rank fusion, filters | built |
+| `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
 | `api/` | Authenticated localhost HTTP API | phase 5 |
 
 ## Data flow
@@ -72,6 +72,7 @@ Schema version 2 adds `sources(id, root, last_scan_ns)` and `files(source_id, ur
    measured cosine between them on 4 test sentences is >= 0.99995. Real-model tests are marked `model`
    (`uv run pytest -m model`); peak VRAM stayed under 1.5 GiB.
 6. **Sync safety.** Denied files are never opened; links are never followed; a directory that cannot be read never causes its indexed files to be deleted; a missing source root is an error.
+7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m agi_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not.
 
 ## Conventions
 

@@ -1,0 +1,95 @@
+# Golden queries for the sample data. `expect`: a hit counts as relevant if its uri contains any
+# of these strings. `forbid`: no top-10 hit may contain these (privacy checks).
+# Written from the actual contents of Sample Data/ (code, docs, two statistics PDFs, images).
+
+# --- code, natural language -------------------------------------------------------------
+- query: find places near the user within a given radius
+  expect: [locations.controller.js, models/location.js, locations.route.js]
+- query: hash the user's password before saving it
+  expect: [models/user.js]
+- query: email a verification code to a new user
+  expect: [emailService.js, user.controller.js]
+- query: issue a new access token from a refresh token
+  expect: [utils/jwt.js, user.controller.js, authService.js]
+- query: map component that shows venue markers
+  expect: [components/Map.jsx]
+- query: many to many relation between locations and tags
+  expect: [models/association.js, NextPlore/README.md, dataschemas.png]
+- query: redirect logged in users away from the login page
+  expect: [GuestRoute.jsx]
+- query: protect pages so only authenticated users can open them
+  expect: [ProtectedRoute.jsx]
+- query: catch errors thrown while rendering React components
+  expect: [ErrorBoundary.jsx]
+- query: connect to PostgreSQL using Sequelize
+  expect: [db/database.js, Backend/index.js]
+- query: wrapper that catches errors in async express route handlers
+  expect: [asynchandler.js]
+- query: custom error class with an HTTP status code
+  expect: [apiError.js]
+- query: load country data from a CSV into the database
+  expect: [addcountries.js]
+- query: script that pulls foursquare places and creates tags
+  expect: [updateLocationsAndTags.js, addlocations.js]
+- query: page where a user resets a forgotten password
+  expect: [ForgotPassword.jsx]
+- query: search input that filters venues
+  expect: [SearchBar.jsx, FilterPage.jsx]
+- query: only let users in after their email address was verified
+  expect: [UnverifiedRoute.jsx, VerifyEmail.jsx]
+
+# --- exact names (keyword side) ---------------------------------------------------------
+- query: addcountries
+  expect: [addcountries.js]
+- query: ProtectedRoute
+  expect: [ProtectedRoute.jsx, App.jsx]
+- query: emailService
+  expect: [emailService.js]
+- query: GEOGRAPHY POINT
+  expect: [models/location.js, dataschemas.png, NextPlore/README.md]
+
+# --- project documentation --------------------------------------------------------------
+- query: how do I set up the backend environment variables
+  expect: [NextPlore/README.md]
+  forbid: [".env"]
+- query: who built which part of the project
+  expect: [NextPlore/README.md]
+- query: which parts of the project were written with AI assistance
+  expect: [NextPlore/README.md]
+  note: replaced 'contribution guidelines' because Documentation/CONTRIBUTING.md is a 0-byte file
+- query: which database index makes the radius search fast
+  expect: [NextPlore/README.md]
+
+# --- privacy: secrets must never surface -------------------------------------------------
+- query: JWT_ACCESS_SECRET
+  expect: [NextPlore/README.md, utils/jwt.js]
+  forbid: [".env"]
+
+# --- PDFs (Week 10: confidence intervals; Week 11: Bayesian inference) -------------------
+- query: how to calculate a confidence interval
+  expect: [Week 10 Prep.pdf]
+- query: standard error of the mean worked example
+  expect: [Week 10 Prep.pdf]
+- query: what changes when the population standard deviation is unknown
+  expect: [Prep.pdf]
+- query: table of critical values for the t distribution
+  expect: [Week 10 Prep.pdf]
+  note: page 9 has almost no extractable text, so only the page image can match well
+- query: prior distribution times likelihood gives the posterior
+  expect: [Week 11 Prep.pdf]
+- query: bayesian updating of the mean as more data points are seen
+  expect: [Week 11 Prep.pdf]
+
+# --- images (matched by content, not by name) -------------------------------------------
+- query: entity relationship diagram of the database tables
+  expect: [dataschemas.png]
+- query: which columns does the users table have
+  expect: [dataschemas.png, models/user.js]
+- query: n8n workflow for collecting data from the foursquare api
+  expect: [datapipeline.png]
+- query: app logo white text with a red arrow on black
+  expect: [Logo V1.png]
+- query: man hiking on a mountain at night under the stars
+  expect: [WhatsApp Image]
+- query: football player in a white kit standing in the rain
+  expect: [cristiano-ronaldo]
