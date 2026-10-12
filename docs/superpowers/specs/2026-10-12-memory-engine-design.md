@@ -109,7 +109,7 @@ models. Beyond ~5M chunks an approximate index (`hnswlib`) becomes a separate sp
   optimisation).
 - **Chunking (baseline)**: code and text, 40-line windows with 10-line overlap, embedded text is
   `"<relative path>\n<chunk>"`. Markdown: split by heading, then by size. PDF: one `pdf_text` chunk and one `pdf_page`
-  image chunk per page (page rendered at 1.5x). Image: thumbnailed to 1024 px, kind `image`. Token cap 512 per chunk.
+  image chunk per page (page rendered at 1.5x). Image: thumbnailed to 1024 px (EXIF orientation applied), kind `image`, chunk text = the file's relative path so file names are keyword-searchable; `pdf_page` chunks have empty text (their words live in the page's `pdf_text` chunk). Token cap 512 per chunk.
   Better code chunking (tree-sitter symbols) is a measured improvement in phase 6, not a baseline assumption.
 - **Batching**: text batch 8, image batch 4 (largest sizes that fit the budget in the spike; revisit with measurements).
 - **Failure policy**: a file that fails to parse is recorded in the job report with the error and skipped; the job
