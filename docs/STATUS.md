@@ -5,7 +5,7 @@ Updated at the end of every phase. Last updated: 2026-10-12.
 | Phase | Scope | State |
 |---|---|---|
 | 0 Foundations | Package, tooling, settings, docs scaffold | done |
-| 1 Embedding | `Embedder`, `FakeEmbedder`, `GemmaEmbedder` | not started |
+| 1 Embedding | `Embedder`, `FakeEmbedder`, `GemmaEmbedder` | done |
 | 2 Store | `FlatStore`: metadata, FTS, exact search, crash safety | not started |
 | 3 Ingestion | Ignore rules, chunkers, incremental sync, jobs | not planned yet |
 | 4 Search + eval | Keyword + vector fusion, eval harness, baseline | not planned yet |
@@ -20,4 +20,5 @@ Execute `superpowers/plans/2026-10-12-memory-engine-phases-0-2.md`.
 
 - Chunk id also hashes `source_id` (spec said uri + locator + content hash).
 - SQLite column is `vec_row`; `chunks` has an integer primary key `rid` (VACUUM-safe FTS mapping).
+- GPU (bf16) vs CPU (fp32) embeddings agree to cosine >= 0.99995 on the 4-sentence test set.
 - `sources`/`files` tables arrive with ingestion (phase 3); the `Store` protocol is extracted in phase 4.

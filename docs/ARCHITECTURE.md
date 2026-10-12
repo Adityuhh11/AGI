@@ -20,7 +20,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 |---|---|---|
 | `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | built |
 | `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
-| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests) | planned |
+| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests) | built |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | planned |
 | `chunking/`, `sources/`, `jobs.py` | Turn files into chunks and index them incrementally | phase 3 |
 | `search/` | Vector + keyword search, rank fusion | phase 4 |
@@ -42,6 +42,9 @@ Filled in as each piece is built (see the store section after phase 2).
 2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list, phase 3).
 3. **SQLite is the source of truth** for what exists in the index; vector rows without a metadata entry are garbage.
 4. **GPU = models only.** Index and search live on the CPU.
+5. **Embedder output** is float32, shape (n, 256), rows unit length to 1e-5. The GPU runs bf16, the CPU float32;
+   measured cosine between them on 4 test sentences is >= 0.99995. Real-model tests are marked `model`
+   (`uv run pytest -m model`); peak VRAM stayed under 1.5 GiB.
 
 ## Conventions
 
