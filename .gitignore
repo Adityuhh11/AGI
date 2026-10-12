@@ -1,5 +1,7 @@
 .venv/
 __pycache__/
 .vibe-wise/
-.vibe-wise/
 Sample Data/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

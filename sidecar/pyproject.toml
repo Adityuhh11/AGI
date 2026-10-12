@@ -1,13 +1,25 @@
 [project]
 name = "agi-sidecar"
 version = "0.1.0"
-description = "Local model server for AGI: EmbeddingGemma 2 over localhost HTTP."
+description = "Local memory engine for AGI: indexing and search over localhost HTTP."
 requires-python = ">=3.12"
 dependencies = [
+    "numpy",
+    "pillow",
     "sentence-transformers[image]>=6.1.0",
     "torch",
     "transformers",
 ]
+
+[dependency-groups]
+dev = ["pytest", "ruff", "pyright"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agi_memory"]
 
 # Plain PyPI ships CPU-only torch on Windows; pull the CUDA build instead.
 [tool.uv.sources]
@@ -17,3 +29,23 @@ torch = { index = "pytorch-cu128" }
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "D100", "D104"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not model'"
+markers = ["model: needs the real embedding model (and a GPU); run with -m model"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
