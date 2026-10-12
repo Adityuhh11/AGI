@@ -45,3 +45,16 @@ def test_image_chunk_keeps_the_file_name_searchable():
     assert (chunk.text, chunk.locator, chunk.content_hash, chunk.mtime_ns) == (
         "trips/Rome 2025.png", "{}", "abc123", 9,
     )  # fmt: skip
+
+
+# Real fuzz-found PNGs: Pillow raises SyntaxError / ValueError for these, not OSError.
+MALFORMED = [
+    "89504e470d0a1a0a0000000d49484452000000280000001e0802000000d1bfcb8a0000000a49444154789cedd0c10d00300c83c094fd774edf5e807ccc0227f1766ee2c89dc25a785456580b8fca0a6be15159612d6b2a2bac85476585b5f0a8acb0d6d9ea0fd746013b4a6ab4510000dd0049454e44ae426082",
+    "89504e470d0a1a0a0000000a49484452000000280000001e0802000000d1bfcb020000004149444154789cedd0c10d00300c83c094fd774edf5e807ccc0227f1766ee2c89dc25a785456580b8fca0a6be151e0612d3c2a2bac85476585b5f0a8acb0d6d9ea0fd746013b4a6ab4510000000049454e44ae426082",
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("hexdata", MALFORMED)
+def test_any_decoder_failure_is_a_chunking_error(hexdata):
+    with pytest.raises(ChunkingError, match="image"):
+        load_image(bytes.fromhex(hexdata), 1024)

@@ -109,3 +109,12 @@ def test_a_long_markdown_section_is_windowed(settings):
 
 def test_locator_json_is_canonical():
     assert locator_json(page=3, extra=None) == '{"extra":null,"page":3}'
+
+
+def test_prose_longer_than_the_character_budget_stays_searchable(settings):
+    paragraphs = [f"paragraph {i} " + "filler " * 58 for i in range(30)]  # ~420 chars each
+    paragraphs[25] += " zanzibarquokka"
+    chunks = chunk(settings, Route.MARKDOWN, "\n".join(paragraphs), uri="notes.md")
+    assert all(len(c.text) <= settings.max_chunk_chars for c in chunks)
+    assert any("zanzibarquokka" in c.text for c in chunks)
+    assert len({c.id for c in chunks}) == len(chunks)

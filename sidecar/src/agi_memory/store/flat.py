@@ -311,6 +311,9 @@ class FlatStore:
         if any(c.source_id != record.source_id or c.uri != record.uri for c in chunks):
             raise ValueError(f"every chunk must belong to {record.source_id}:{record.uri}")
         with self._lock:
+            # Forget the file first: if anything below is interrupted, the file looks new on the
+            # next sync and is re-indexed, even if its bytes were reverted to the old content.
+            self._catalog.delete_file_rows(record.source_id, [record.uri])
             self.upsert(chunks, vectors)
             keep = {chunk.id for chunk in chunks}
             stale = [

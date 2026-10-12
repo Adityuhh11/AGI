@@ -44,23 +44,43 @@ def chunk_text_document(
     else:
         spans = list(_windows(0, len(lines), settings))
     chunks = []
-    for first, last in spans:
-        body = "\n".join(lines[first - 1 : last])
-        if not body.strip():
-            continue
-        text = f"{uri}\n{body}"[: settings.max_chunk_chars]
-        chunks.append(
-            Chunk(
-                source_id=source_id,
-                uri=uri,
-                kind=kind,
-                locator=locator_json(lines=[first, last]),
-                content_hash=sha256_hex(text),
-                mtime_ns=mtime_ns,
-                text=text,
+    budget = settings.max_chunk_chars - len(uri) - 1
+    for span in spans:
+        for first, last in _fit_to_budget(lines, span, budget):
+            body = "\n".join(lines[first - 1 : last])
+            if not body.strip():
+                continue
+            text = f"{uri}\n{body}"[: settings.max_chunk_chars]
+            chunks.append(
+                Chunk(
+                    source_id=source_id,
+                    uri=uri,
+                    kind=kind,
+                    locator=locator_json(lines=[first, last]),
+                    content_hash=sha256_hex(text),
+                    mtime_ns=mtime_ns,
+                    text=text,
+                )
             )
-        )
     return chunks
+
+
+def _fit_to_budget(
+    lines: list[str], span: tuple[int, int], budget: int
+) -> Iterator[tuple[int, int]]:
+    """Split a line span so each part's text fits `budget` characters (nothing is dropped).
+
+    A single line longer than the budget is its own part and is truncated by the caller.
+    """
+    first, last = span
+    start, size = first, 0
+    for number in range(first, last + 1):
+        length = len(lines[number - 1]) + 1
+        if size and size + length > budget:
+            yield start, number - 1
+            start, size = number, 0
+        size += length
+    yield start, last
 
 
 def _windows(start: int, stop: int, settings: Settings) -> Iterator[tuple[int, int]]:

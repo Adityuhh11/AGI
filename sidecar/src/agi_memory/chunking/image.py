@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps
 
 from agi_memory.chunking.common import ChunkingError
 from agi_memory.types import Chunk, ChunkKind
@@ -15,7 +15,7 @@ def load_image(data: bytes, max_side: int) -> Image.Image:
     try:
         with Image.open(io.BytesIO(data)) as opened:
             image = ImageOps.exif_transpose(opened).convert("RGB")
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as error:
+    except Exception as error:
         raise ChunkingError(f"unreadable image: {error}") from error
     image.thumbnail((max_side, max_side))
     return image

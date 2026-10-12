@@ -269,3 +269,45 @@ def test_empty_and_hostile_files_do_not_break_a_sync(indexer, store, root):
     assert report.errors == []
     assert report.added == 4  # the empty file is "indexed" with zero chunks
     assert store.count() == 3
+
+
+def test_a_malformed_image_does_not_abort_the_sync(indexer, store, root):
+    from test_chunk_image import MALFORMED
+
+    write(root, "a.txt", "readable before")
+    (root / "b.png").write_bytes(bytes.fromhex(MALFORMED[0]))
+    write(root, "c.txt", "readable after")
+    report = indexer.sync("s", root)
+    assert [e.uri for e in report.errors] == ["b.png"]
+    assert set(store.file_records("s")) == {"a.txt", "c.txt"}
+
+
+def test_an_interrupted_update_never_leaves_stale_chunks_searchable_after_a_revert(
+    indexer, store, embedder, root, monkeypatch
+):
+    path = write(root, "a.txt", "original apple text")
+    indexer.sync("s", root)
+    path.write_text("edited banana text!!", encoding="utf-8")
+
+    def crash(ids):
+        raise RuntimeError("database is locked")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store, "delete", crash)
+        with pytest.raises(RuntimeError):
+            indexer.sync("s", root)
+    path.write_text("original apple text", encoding="utf-8")  # reverted before the next sync
+    indexer.sync("s", root)
+    assert store.keyword_search("banana", 5) == []
+    assert store.count() == 1
+
+
+def test_every_file_gets_its_own_vectors_across_batched_flushes(store, embedder, settings, root):
+    for number in range(25):
+        write(root, f"f{number}.txt", f"unique{number} content {number * 7}")
+    Indexer(store, embedder, Settings(index_dir=settings.index_dir, flush_chunks=8)).sync("s", root)
+    chunks = all_chunks(store)
+    assert len(chunks) == 25
+    for chunk in chunks.values():
+        own_vector = embedder.embed_documents([chunk.text])[0]
+        assert store.search_vectors(own_vector, 1)[0].id == chunk.id
