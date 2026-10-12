@@ -30,6 +30,9 @@ Personal, local-first AI launcher for Windows. Go core + Wails v3 + Svelte UI + 
 
 ## Docs
 
+Start here: `docs/README.md` (index), then `docs/STATUS.md` (what is built, what is next) and
+`docs/ARCHITECTURE.md` (how it fits together).
+
 - `docs/superpowers/specs/`: design specs (one per feature/phase); the current one is the memory engine spec
 - `docs/superpowers/plans/`: implementation plans
 - `docs/decisions/`: short decision records (what we chose, alternatives, why)
