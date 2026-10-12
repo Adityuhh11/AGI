@@ -25,7 +25,7 @@ import numpy as np
 from agi_memory.store.identifiers import split_identifiers
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile
-from agi_memory.types import Chunk, ChunkKind
+from agi_memory.types import Chunk, ChunkKind, Filters, VectorHit
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
@@ -238,6 +238,78 @@ class FlatStore:
         with self._lock:
             (total,) = self._db.execute("SELECT COUNT(*) FROM chunks").fetchone()
             return total
+
+    def _validate_query(self, query: np.ndarray) -> np.ndarray:
+        vec = np.asarray(query, dtype=np.float32)
+        if vec.shape != (self._dim,):
+            raise ValueError(f"query must have shape ({self._dim},), got {vec.shape}")
+        if not np.isfinite(vec).all():
+            raise ValueError("query contains NaN or infinity")
+        return vec
+
+    def _filter_mask(self, filters: Filters, size: int) -> np.ndarray:
+        """Boolean mask over rows [0, size) for chunks that satisfy `filters`."""
+        clauses: list[str] = []
+        params: list[object] = []
+        if filters.kinds is not None:
+            if not filters.kinds:
+                return np.zeros(size, dtype=bool)
+            clauses.append(f"kind IN ({','.join('?' * len(filters.kinds))})")
+            params.extend(sorted(kind.value for kind in filters.kinds))
+        if filters.source_id is not None:
+            clauses.append("source_id = ?")
+            params.append(filters.source_id)
+        if filters.uri_prefix is not None:
+            clauses.append("substr(uri, 1, ?) = ?")
+            params.extend([len(filters.uri_prefix), filters.uri_prefix])
+        if filters.modified_after_ns is not None:
+            clauses.append("mtime_ns > ?")
+            params.append(filters.modified_after_ns)
+        if not clauses:
+            return np.ones(size, dtype=bool)
+        query = f"SELECT vec_row FROM chunks WHERE {' AND '.join(clauses)}"
+        mask = np.zeros(size, dtype=bool)
+        rows = [row for (row,) in self._db.execute(query, params)]
+        mask[np.asarray(rows, dtype=np.intp)] = True
+        return mask
+
+    def _ids_for_rows(self, rows: Sequence[int]) -> dict[int, str]:
+        found: dict[int, str] = {}
+        for batch in _batches(rows):
+            marks = ",".join("?" * len(batch))
+            query = f"SELECT vec_row, id FROM chunks WHERE vec_row IN ({marks})"
+            found.update(self._db.execute(query, list(batch)).fetchall())
+        return found
+
+    def search_vectors(
+        self, query: np.ndarray, n: int, filters: Filters | None = None
+    ) -> list[VectorHit]:
+        """Exact top-`n` by dot product among live chunks matching `filters`.
+
+        Ordered by (-score, id). Candidates tied with the n-th score are all kept before the
+        final sort, so which of several equal scores make the cut never depends on row order.
+        """
+        vec = self._validate_query(query)
+        with self._lock:
+            size = self._high_water
+            if size == 0 or n <= 0:
+                return []
+            allowed = self._live[:size].copy()
+            if filters is not None:
+                allowed &= self._filter_mask(filters, size)
+            rows = np.flatnonzero(allowed)
+            if rows.size == 0:
+                return []
+            scores = self._vectors.scores(vec, size)[rows]
+            if scores.size > n:
+                keep = scores >= np.partition(scores, -n)[-n]
+                rows, scores = rows[keep], scores[keep]
+            row_list = rows.tolist()
+            ids = self._ids_for_rows(row_list)
+        ranked = sorted(
+            zip(row_list, scores.tolist(), strict=True), key=lambda p: (-p[1], ids[p[0]])
+        )
+        return [VectorHit(id=ids[row], score=score) for row, score in ranked[:n]]
 
     def close(self) -> None:
         """Release the database and the vector file (both are removable afterwards)."""
