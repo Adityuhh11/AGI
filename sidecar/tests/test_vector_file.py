@@ -93,3 +93,12 @@ def test_close_releases_the_file_and_is_idempotent(tmp_path):
     vf.close()
     vf.close()
     path.unlink()  # raises PermissionError on Windows if a handle or mapping leaked
+
+
+def test_rejects_a_header_that_claims_zero_capacity(tmp_path):
+    path = tmp_path / "v.f32"
+    VectorFile(path, dim=3, initial_capacity=4).close()
+    data = path.read_bytes()
+    path.write_bytes(data[:16] + (0).to_bytes(8, "little") + data[24:])  # capacity field
+    with pytest.raises(VectorFileError, match="capacity"):
+        VectorFile(path, dim=3)

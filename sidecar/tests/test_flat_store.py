@@ -134,3 +134,12 @@ def test_closed_store_leaves_no_open_handles(tmp_path):
     store.upsert([make_chunk("a")], unit_vectors(1))
     store.close()
     shutil.rmtree(directory)  # raises PermissionError on Windows if a handle leaked
+
+
+@pytest.mark.parametrize("method", ["delete", "get"])
+def test_a_bare_string_is_not_a_list_of_ids(store, method):
+    chunk = make_chunk("a")
+    store.upsert([chunk], unit_vectors(1))
+    with pytest.raises(TypeError, match="single string"):
+        getattr(store, method)(chunk.id)
+    assert store.count() == 1

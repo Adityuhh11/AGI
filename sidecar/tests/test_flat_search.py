@@ -147,3 +147,43 @@ def test_searching_while_the_vector_file_grows_does_not_crash(store):
         thread.join()
     assert failures == []
     assert store.count() == 3010
+
+
+def test_random_operations_match_the_oracle_after_every_step(tmp_path):
+    """Seeded mix of inserts, re-inserts, deletes and reopens, checked against brute force."""
+    rng = np.random.default_rng(2024)
+    directory = tmp_path / "idx"
+    store = FlatStore(directory, model_id="fake", dim=DIM)
+    model: dict[str, np.ndarray] = {}
+    names = [f"n{i}" for i in range(120)]
+    try:
+        for step in range(80):
+            op = str(rng.choice(["upsert", "reupsert", "delete", "reopen"], p=[0.4, 0.2, 0.3, 0.1]))
+            if op in ("upsert", "reupsert"):
+                pool = [n for n in names if (make_chunk(n).id in model) == (op == "reupsert")]
+                if pool:
+                    size = min(len(pool), int(rng.integers(1, 15)))
+                    chunks = [make_chunk(str(n)) for n in rng.choice(pool, size, replace=False)]
+                    vectors = unit_vectors(len(chunks), seed=int(rng.integers(1_000_000)))
+                    store.upsert(chunks, vectors)
+                    model.update({c.id: v for c, v in zip(chunks, vectors, strict=True)})
+            elif op == "delete" and model:
+                size = min(len(model), int(rng.integers(1, 10)))
+                victims = [str(v) for v in rng.choice(sorted(model), size, replace=False)]
+                assert store.delete(victims) == len(victims)
+                for victim in victims:
+                    del model[victim]
+            elif op == "reopen":
+                store.close()
+                store = FlatStore(directory, model_id="fake", dim=DIM)
+
+            assert store.count() == len(model), f"step {step} after {op}"
+            for query in unit_vectors(3, seed=step):
+                hits = store.search_vectors(query, 10)
+                expected = oracle(model, query, 10)
+                assert [h.id for h in hits] == [i for _, i in expected], f"step {step} after {op}"
+                np.testing.assert_allclose(
+                    [h.score for h in hits], [s for s, _ in expected], atol=1e-5
+                )
+    finally:
+        store.close()

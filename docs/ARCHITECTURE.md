@@ -51,6 +51,12 @@ growing the file remaps it. Search is one float32 matrix multiply on the CPU (4.
 in ADR 0001), ties broken by chunk id. Crash safety is tested by killing a real process during an upsert, both
 before the metadata commit and inside the vector flush (`tests/test_flat_crash.py`).
 
+Opening is strict about the vector file. If chunks are indexed and `vectors.f32` is missing, unreadable, or too short
+for a recorded row, `FlatStore` raises `IndexMismatchError` ("reindex required") rather than returning zero scores.
+If nothing is indexed, any leftover vector file (including one cut short while first created) is recreated. A failed
+growth (for example disk full) rolls the store back to its previous size and stays usable. `delete` and `get` reject a
+bare string, which would otherwise be treated as a list of one-character ids.
+
 ## Invariants
 
 1. **Determinism.** Chunk ids are content-derived; every ranked list breaks ties by chunk id; tests never depend on the GPU or the real model unless marked `model`.

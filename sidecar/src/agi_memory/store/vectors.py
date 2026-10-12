@@ -82,6 +82,8 @@ class VectorFile:
             raise VectorFileError(f"{self._path}: not a vector file (magic/version mismatch)")
         if dim != self._dim:
             raise VectorFileError(f"{self._path}: holds dim {dim}, expected dim {self._dim}")
+        if capacity < 1:  # would make ensure_capacity's doubling loop forever
+            raise VectorFileError(f"{self._path}: header claims capacity {capacity}")
         if os.fstat(self._file.fileno()).st_size < self._size_for(capacity):
             raise VectorFileError(f"{self._path}: file is shorter than its header claims")
         return capacity
@@ -111,11 +113,17 @@ class VectorFile:
         capacity = self._capacity
         while capacity < rows:
             capacity *= 2
+        previous = self._capacity
         self._unmap()
-        self._file.truncate(self._size_for(capacity))
-        self._capacity = capacity
-        self._write_header()
-        self._map()
+        try:
+            self._file.truncate(self._size_for(capacity))
+            self._capacity = capacity
+            self._write_header()
+        except BaseException:
+            self._capacity = previous  # e.g. disk full: keep serving the old, still valid size
+            raise
+        finally:
+            self._map()  # always leave the file mapped, or the store is dead after one failure
 
     def write_rows(self, rows: Sequence[int], vectors: np.ndarray) -> None:
         """Store `vectors[i]` at row `rows[i]`, growing the file if needed."""

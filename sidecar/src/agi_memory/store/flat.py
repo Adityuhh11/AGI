@@ -24,7 +24,7 @@ import numpy as np
 
 from agi_memory.store.identifiers import split_identifiers
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
-from agi_memory.store.vectors import VectorFile
+from agi_memory.store.vectors import VectorFile, VectorFileError
 from agi_memory.types import Chunk, ChunkKind, Filters, VectorHit
 
 _UNIT_TOLERANCE = 1e-3
@@ -50,6 +50,12 @@ def _batches[T](items: Sequence[T], size: int = _SQL_BATCH) -> Iterator[Sequence
         yield items[start : start + size]
 
 
+def _reject_bare_string(ids: object) -> None:
+    """A str is an iterable of characters: `delete(chunk.id)` would silently delete nothing."""
+    if isinstance(ids, str):
+        raise TypeError("expected a collection of ids, got a single string; wrap it in a list")
+
+
 class FlatStore:
     """Exact-search store. One instance owns its directory."""
 
@@ -60,11 +66,35 @@ class FlatStore:
         self._db = sqlite3.connect(directory / "meta.db", check_same_thread=False)
         try:
             self._init_db(model_id, dim)
-            self._vectors = VectorFile(directory / "vectors.f32", dim)
+            self._vectors = self._open_vectors(directory / "vectors.f32", dim)
+            try:
+                self._load_rows()
+            except BaseException:
+                self._vectors.close()
+                raise
         except BaseException:
             self._db.close()
             raise
-        self._load_rows()
+
+    def _open_vectors(self, path: Path, dim: int) -> VectorFile:
+        """Open the vector file, never trusting a bad one to back chunks that already exist."""
+        (indexed,) = self._db.execute("SELECT COUNT(*) FROM chunks").fetchone()
+        if indexed == 0:
+            # Nothing refers to the file, so a leftover (even one cut short by a crash while it
+            # was first created) is garbage.
+            path.unlink(missing_ok=True)
+            return VectorFile(path, dim)
+        if not path.exists():
+            raise IndexMismatchError(
+                f"vector file {path.name} is missing but {indexed} chunks are indexed: "
+                "reindex required"
+            )
+        try:
+            return VectorFile(path, dim)
+        except VectorFileError as error:
+            raise IndexMismatchError(
+                f"vector file is unusable ({error}): reindex required"
+            ) from error
 
     def _init_db(self, model_id: str, dim: int) -> None:
         self._db.execute("PRAGMA journal_mode=WAL")
@@ -96,6 +126,11 @@ class FlatStore:
     def _load_rows(self) -> None:
         used = [row for (row,) in self._db.execute("SELECT vec_row FROM chunks")]
         self._high_water = max(used, default=-1) + 1  # rows [0, high_water) were ever allocated
+        if self._high_water > self._vectors.capacity:
+            raise IndexMismatchError(
+                f"a chunk points at vector row {self._high_water - 1} but the vector file holds "
+                f"only {self._vectors.capacity} rows: reindex required"
+            )
         taken = set(used)
         self._free = [row for row in range(self._high_water) if row not in taken]
         heapq.heapify(self._free)  # already ascending, so already a valid heap
@@ -151,6 +186,7 @@ class FlatStore:
         if len(chunks) == 0:
             return
         with self._lock:
+            high_water_before = self._high_water
             existing = self._rows_for([chunk.id for chunk in chunks])
             rows: list[int] = []
             fresh: list[int] = []
@@ -166,8 +202,13 @@ class FlatStore:
                 self._vectors.flush()  # invariant 2: durable before metadata commits
                 self._write_metadata(chunks, rows)
             except BaseException:
+                # Give every row this batch took back: rows past the old high-water mark simply
+                # stop existing (so `_live` is never shorter than the rows search looks at), and
+                # rows taken from the free list return to it.
+                self._high_water = high_water_before
                 for row in fresh:
-                    heapq.heappush(self._free, row)
+                    if row < high_water_before:
+                        heapq.heappush(self._free, row)
                 raise
             self._live[np.asarray(rows, dtype=np.intp)] = True
 
@@ -192,6 +233,7 @@ class FlatStore:
 
     def delete(self, ids: Iterable[str]) -> int:
         """Remove chunks by id; returns how many existed."""
+        _reject_bare_string(ids)
         with self._lock:
             rows = self._rows_for(list(ids))
             if not rows:
@@ -205,6 +247,7 @@ class FlatStore:
 
     def get(self, ids: Sequence[str]) -> dict[str, Chunk]:
         """Chunk metadata by id; ids that do not exist are absent from the result."""
+        _reject_bare_string(ids)
         found: dict[str, Chunk] = {}
         with self._lock:
             for batch in _batches(ids):
@@ -314,5 +357,7 @@ class FlatStore:
     def close(self) -> None:
         """Release the database and the vector file (both are removable afterwards)."""
         with self._lock:
-            self._vectors.close()
-            self._db.close()
+            try:
+                self._vectors.close()
+            finally:
+                self._db.close()  # even if the vector file failed to close
