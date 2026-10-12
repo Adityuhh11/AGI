@@ -22,7 +22,10 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
 | `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests) | built |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
-| `chunking/`, `sources/`, `jobs.py` | Turn files into chunks and index them incrementally | phase 3 |
+| `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
+| `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
+| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed | built |
+| `jobs.py` | Background job wrapper with progress for the API | phase 5 |
 | `search/` | Vector + keyword search, rank fusion | phase 4 |
 | `eval/` | Golden queries, metrics, baseline | phase 4 |
 | `api/` | Authenticated localhost HTTP API | phase 5 |
@@ -36,7 +39,7 @@ Search: query -> embedding + keyword query -> two ranked lists -> fusion -> hits
 
 Index directory `%LOCALAPPDATA%\AGI\memory\` (tests and tools use `AGI_MEMORY_DIR`):
 
-- `meta.db` (SQLite, WAL, `synchronous=FULL`), schema version 1: `meta(key, value)` holds `schema_version`,
+- `meta.db` (SQLite, WAL, `synchronous=FULL`), schema version 2: `meta(key, value)` holds `schema_version`,
   `model_id` and `dim` (opening with different values raises `IndexMismatchError`: reindex required);
   `chunks(rid, id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns, text, identifiers)`;
   `chunks_fts` (FTS5 external-content over `text` and `identifiers`, kept in sync by triggers). The FTS table is
@@ -57,15 +60,18 @@ If nothing is indexed, any leftover vector file (including one cut short while f
 growth (for example disk full) rolls the store back to its previous size and stays usable. `delete` and `get` reject a
 bare string, which would otherwise be treated as a list of one-character ids.
 
+Schema version 2 adds `sources(id, root, last_scan_ns)` and `files(source_id, uri, size, mtime_ns, sha256)`. `FlatStore.replace_file` upserts a file's new chunks, deletes its stale ones, and writes the `files` row last, so an interrupted sync leaves the file stale and it is redone. A v1 index is refused (`reindex required`); there is no v1 data to migrate.
+
 ## Invariants
 
 1. **Determinism.** Chunk ids are content-derived; every ranked list breaks ties by chunk id; tests never depend on the GPU or the real model unless marked `model`.
-2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list, phase 3).
+2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list in `sources/rules.py`).
 3. **SQLite is the source of truth** for what exists in the index; vector rows without a metadata entry are garbage.
 4. **GPU = models only.** Index and search live on the CPU.
 5. **Embedder output** is float32, shape (n, 256), rows unit length to 1e-5. The GPU runs bf16, the CPU float32;
    measured cosine between them on 4 test sentences is >= 0.99995. Real-model tests are marked `model`
    (`uv run pytest -m model`); peak VRAM stayed under 1.5 GiB.
+6. **Sync safety.** Denied files are never opened; links are never followed; a directory that cannot be read never causes its indexed files to be deleted; a missing source root is an error.
 
 ## Conventions
 
