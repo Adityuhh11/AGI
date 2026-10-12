@@ -1,12 +1,28 @@
-# 0001: Vector store behind a small interface (Chroma first)
+# 0001: Custom exact-search vector engine behind a small interface
 
-Date: 2026-10-12. Status: accepted (revisit triggers below).
+Date: 2026-10-12. Status: accepted (revisit triggers below). Supersedes an earlier "Chroma first" draft the same day.
 
 ## Decision
 
 The Python sidecar owns the index. All access goes through a small interface (`add`, `delete`, `search`, metadata
-filters). **Chroma** (HNSW) is the first implementation. **Exact NumPy search is the oracle**: every store is checked
-against it for recall. Keyword search (exact names) is added separately with SQLite FTS5 and merged by rank fusion.
+filters). The first implementation is our own **exact (flat) search engine**: vectors in one memory-mapped file,
+metadata and a SQLite FTS5 keyword index in one SQLite file, search on the GPU when it has room and the CPU otherwise.
+Keyword and vector results are merged by rank fusion. **Chroma** (HNSW) stays only in the benchmark harness as a
+speed/quality baseline. Reasons: retrieval quality matters more than build time, exact search has no recall loss, and one
+store avoids keeping Chroma and SQLite in sync.
+
+## Spike: exact search on the GPU (RTX 4050, 256-dim fp16, 100 queries)
+
+| Vectors | Query | VRAM | With 10% metadata filter |
+|---|---|---|---|
+| 1M | 3.2 ms | 0.49 GB | 3.1 ms |
+| 2M | 6.0 ms | 0.96 GB | 6.2 ms |
+| 4M | 11.6 ms | 1.9 GB | 11.7 ms |
+| 8M | 23 ms | 3.8 GB | 23 ms |
+
+Loading 1M vectors onto the GPU takes 64 ms. A batch of 64 queries ran at ~0.5 ms each up to 4M, then collapsed at 8M
+(score matrix overflowed VRAM). VRAM is shared with the embedding model and an LLM, so realistic ceiling is ~2-4M vectors;
+the CPU fallback is 47 ms at 1M. Beyond ~10M an approximate index is needed (use hnswlib, not a port of Chroma's code).
 
 ## Evidence
 
