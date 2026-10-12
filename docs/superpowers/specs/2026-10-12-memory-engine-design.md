@@ -15,7 +15,8 @@ spec; this spec ends at a stable, authenticated localhost HTTP API.
    and no later change lowers it without an explicit, documented reason.
 2. Search latency at 100k items: **p95 < 50 ms** for the vector+keyword pipeline (excluding query embedding, which is
    ~200 ms per call and measured separately).
-3. Re-indexing an unchanged folder does no embedding work and produces a byte-identical index.
+3. Re-indexing an unchanged folder does no embedding work and leaves the set of chunk ids, their vectors and their
+   metadata unchanged (scan timestamps excepted).
 4. A crash at any point leaves an index that opens and searches correctly (possibly missing the last in-flight batch).
 5. Every module can be understood from its docstring and `docs/ARCHITECTURE.md` without reading the others.
 
