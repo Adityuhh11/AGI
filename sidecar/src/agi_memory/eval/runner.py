@@ -43,9 +43,10 @@ def evaluate(golden: Sequence[GoldenQuery], searcher: Searcher, k: int = 10) -> 
     return results
 
 
-def baseline_dict(metrics: Metrics, embedder_id: str) -> dict[str, object]:
+def baseline_dict(metrics: Metrics, embedder_id: str, device: str) -> dict[str, object]:
     return {
         "embedder": embedder_id,
+        "device": device,
         "n": metrics.n,
         "top1": metrics.top1,
         "recall3": metrics.recall3,
@@ -55,10 +56,21 @@ def baseline_dict(metrics: Metrics, embedder_id: str) -> dict[str, object]:
 
 
 def compare_to_baseline(
-    metrics: Metrics, baseline: dict[str, object], tolerance: float = 0.02
+    metrics: Metrics,
+    baseline: dict[str, object],
+    tolerance: float = 0.02,
+    *,
+    embedder_id: str | None = None,
 ) -> list[str]:
-    """One message per metric that fell more than `tolerance`, plus one for any forbidden hit."""
+    """Messages for metrics that fell more than `tolerance`, a baseline that is not comparable
+    (other golden-set size or embedder: re-record it), and any forbidden hit."""
     problems = []
+    if baseline.get("n", metrics.n) != metrics.n:
+        problems.append(f"baseline has {baseline['n']} queries but {metrics.n} ran: re-record it")
+    if embedder_id is not None and baseline.get("embedder", embedder_id) != embedder_id:
+        problems.append(
+            f"baseline embedder {baseline['embedder']} is not {embedder_id}: re-record it"
+        )
     for name in _COMPARED:
         old = float(baseline[name])  # type: ignore[arg-type]
         new = getattr(metrics, name)
@@ -135,12 +147,17 @@ def run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: s
     (report_dir / f"{today}-{args.label}.md").write_text(report, encoding="utf-8")
 
     baseline_path = report_dir / "baseline.json"
+    device = str(getattr(embedder, "device", "none"))
     if args.write_baseline:
-        text = json.dumps(baseline_dict(metrics, embedder.model_id), indent=2)
+        text = json.dumps(baseline_dict(metrics, embedder.model_id, device), indent=2)
         baseline_path.write_text(text + "\n", encoding="utf-8")
     if baseline_path.exists() and not args.write_baseline:
         baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
-        problems = compare_to_baseline(metrics, baseline)
+        if baseline.get("device", device) == device:
+            problems = compare_to_baseline(metrics, baseline, embedder_id=embedder.model_id)
+        else:  # bf16 on the GPU and fp32 on the CPU differ by up to one query: measure, do not gate
+            print(f"baseline was recorded on {baseline['device']}, this run is {device}: not gated")
+            problems = [f"{metrics.forbidden_hits} forbid hit(s)"] if metrics.forbidden_hits else []
     else:  # no baseline to regress from; a forbidden hit still fails the run
         problems = [f"{metrics.forbidden_hits} forbid hit(s)"] if metrics.forbidden_hits else []
 

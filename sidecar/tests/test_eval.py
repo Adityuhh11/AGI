@@ -77,9 +77,10 @@ def test_comparing_to_the_baseline():
 
 
 def test_baseline_dict_has_the_compared_keys():
-    data = baseline_dict(Metrics(3, 0.5, 0.6, 0.7, 0.8, 0), "fake")
+    data = baseline_dict(Metrics(3, 0.5, 0.6, 0.7, 0.8, 0), "fake", "cpu")
     assert data == {
         "embedder": "fake",
+        "device": "cpu",
         "n": 3,
         "top1": 0.5,
         "recall3": 0.6,
@@ -174,3 +175,26 @@ def test_report_lists_every_query_and_misses(tmp_path):
     text = render_report("t", "fake", "2026-10-12", metrics, results, SyncReport(added=2), golden)
     assert "found one" in text and "lost one" in text
     assert "miss" in text.lower()
+
+
+def test_a_baseline_from_another_golden_set_or_model_is_not_comparable():
+    metrics = Metrics(10, 0.8, 0.9, 1.0, 0.85, 0)
+    baseline = {"top1": 0.8, "recall3": 0.9, "recall10": 1.0, "mrr": 0.85, "n": 38, "embedder": "x"}
+    problems = compare_to_baseline(metrics, baseline, embedder_id="y")
+    assert any("38" in p for p in problems) and any("embedder" in p for p in problems)
+
+
+def test_a_run_on_another_device_is_not_gated_on_quality(tmp_path, corpus):
+    data, _ = corpus
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "baseline.json").write_text(
+        json.dumps({"embedder": "fake-hashed-bow-v1", "device": "cuda", "n": 1, "top1": 1.0,
+                    "recall3": 1.0, "recall10": 1.0, "mrr": 1.0}),
+        encoding="utf-8",
+    )  # fmt: skip
+    impossible = write_golden(
+        tmp_path / "bad.yaml", "- query: nothing here\n  expect: [no-such-file]\n"
+    )
+    args = ["--data", str(data), "--golden", str(impossible), "--report-dir", str(reports)]
+    assert run(args, make_fake, "2026-10-12") == 0  # device 'none' != 'cuda': measured, not gated

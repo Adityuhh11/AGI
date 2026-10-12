@@ -21,7 +21,7 @@ Plan phase 5 (HTTP API) and phase 6 (quality iteration, driven by the weak group
 - Chunk id also hashes `source_id` (spec said uri + locator + content hash).
 - SQLite column is `vec_row`; `chunks` has an integer primary key `rid` (VACUUM-safe FTS mapping).
 - GPU (bf16) vs CPU (fp32) embeddings agree to cosine >= 0.99995 on the 4-sentence test set.
-- `sources`/`files` tables arrived in phase 3 (schema version 2); the `Store` protocol is extracted in phase 4.
+- `sources`/`files` tables arrived in phase 3 (schema version 2); no `Store` protocol yet (nothing but `FlatStore` implements it).
 - Image chunks carry their file path as `text` (spec said empty) so file names are keyword-searchable.
 - `jobs.py` (background wrapper) moves to phase 5 with the API; phase 3 delivers a synchronous `Indexer.sync` with a progress callback.
 
@@ -31,6 +31,6 @@ Real model (GPU bf16), 38 golden queries over `Sample Data/`, report in `eval/20
 
 | top1 | recall@3 | recall@10 | MRR | forbidden hits |
 |---|---|---|---|---|
-| 0.658 | 0.842 | 0.921 | 0.744 | 0 |
+| 0.632 | 0.842 | 0.921 | 0.730 | 0 |
 
-On the CPU in float32 the same set gives top1 0.632, recall@3 0.842, recall@10 0.921, MRR 0.731 (one query flips), so the bf16 GPU path costs no measurable quality. The weakest group is images: the vector side ranks the right image first or second, and fusion demotes it (see "Reading the baseline" in the report). Search latency at 100k chunks: p95 about 43-54 ms on this laptop depending on load, keyword search dominates (`eval/perf.md`).
+On the CPU in float32 (measured on the index as it was before the review fix) the same set gave top1 0.632, recall@3 0.842, recall@10 0.921, MRR 0.731: the bf16 GPU path costs no measurable quality. One query is worth 0.026, more than the 0.02 gate tolerance, so any single flip fails the gate; `baseline.json` records the device and `n`, a run on another device is measured but not gated, and a baseline from a different golden set or model must be re-recorded. The weakest group is images: the vector side ranks the right image first or second, and fusion demotes it (see "Reading the baseline" in the report). Search latency at 100k chunks: p95 about 43-54 ms on this laptop depending on load, keyword search dominates (`eval/perf.md`).
