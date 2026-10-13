@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from agi_memory.jobs import JobState
+from agi_memory.types import ChunkKind
 
 # Also validated for the path parameter of DELETE /sources/{source_id}.
 SOURCE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
@@ -66,3 +67,31 @@ class JobOut(_Response):
 
 class RemovedOut(BaseModel):
     removed_chunks: int
+
+
+class SearchFilters(_Request):
+    kinds: list[ChunkKind] | None = None
+    source_id: str | None = Field(default=None, pattern=SOURCE_ID_PATTERN)
+    uri_prefix: str | None = Field(default=None, max_length=1024)
+    modified_after_ns: int | None = Field(default=None, ge=0)
+
+
+class SearchRequest(_Request):
+    query: str = Field(max_length=4000)  # empty is allowed and returns no hits
+    k: int = Field(default=10, ge=1, le=100)
+    filters: SearchFilters | None = None
+
+
+class SearchHitOut(_Response):
+    id: str
+    uri: str
+    kind: ChunkKind
+    locator: str
+    score: float
+    vector_score: float | None
+    keyword_rank: int | None
+    snippet: str
+
+
+class SearchResponse(BaseModel):
+    hits: list[SearchHitOut]

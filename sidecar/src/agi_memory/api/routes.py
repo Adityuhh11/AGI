@@ -16,10 +16,14 @@ from agi_memory.api.schemas import (
     HealthOut,
     JobOut,
     RemovedOut,
+    SearchHitOut,
+    SearchRequest,
+    SearchResponse,
     SourceAccepted,
 )
 from agi_memory.jobs import Job, JobBusyError
 from agi_memory.store import FlatStore
+from agi_memory.types import Filters
 
 router = APIRouter()
 
@@ -73,3 +77,17 @@ def delete_source(
     if engine.jobs.running_source() == source_id:
         raise HTTPException(status_code=409, detail=f"{source_id} is being indexed")
     return RemovedOut(removed_chunks=store.delete_source(source_id))
+
+
+@router.post("/search")
+def search(body: SearchRequest, engine: Annotated[Engine, Depends(get_engine)]) -> SearchResponse:
+    filters = None
+    if body.filters is not None:
+        filters = Filters(
+            kinds=None if body.filters.kinds is None else frozenset(body.filters.kinds),
+            source_id=body.filters.source_id,
+            uri_prefix=body.filters.uri_prefix,
+            modified_after_ns=body.filters.modified_after_ns,
+        )
+    hits = engine.searcher.search(body.query, body.k, filters)
+    return SearchResponse(hits=[SearchHitOut.model_validate(hit) for hit in hits])
