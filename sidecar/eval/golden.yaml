@@ -1,6 +1,7 @@
 # Golden queries for the sample data. `expect`: a hit counts as relevant if its uri contains any
 # of these strings. `forbid`: no top-10 hit may contain these (privacy checks).
 # Written from the actual contents of Sample Data/ (code, docs, two statistics PDFs, images).
+# 2026-10-13: widened to 77 queries (24 more images, lexical and mixed queries); baseline re-recorded.
 
 # --- code, natural language -------------------------------------------------------------
 - query: find places near the user within a given radius
@@ -90,6 +91,93 @@
 - query: app logo white text with a red arrow on black
   expect: [Logo V1.png]
 - query: man hiking on a mountain at night under the stars
-  expect: [WhatsApp Image]
+  expect: [07.06.58]
 - query: football player in a white kit standing in the rain
   expect: [cristiano-ronaldo]
+
+# --- images added 2026-10-13 (24 files): descriptions of what is in the picture ------------
+- query: dark dashboard with a leaderboard of top innovators, XP and badges
+  expect: [Screenshot 2025-05-21 171057]
+- query: user flow steps log in, quests, ask, connect, build on a pink background
+  expect: [Screenshot 2025-05-21 213138, Screenshot 2025-05-21 213513]
+- query: five stick figure sketches joined by black lines
+  expect: [Screenshot 2025-05-22 104608, Screenshot 2025-05-21 213513]
+- query: python function that nudges a weight by epsilon to check the gradient
+  expect: [Screenshot 2026-07-26 125324]
+- query: cinema seat selection for a Spider-Man screening
+  expect: [Screenshot 2026-07-29 233342]
+- query: code editor next to an AI chat summary about a personal assistant with text to speech
+  expect: [Screenshot 2026-08-17 214116]
+- query: red barber shop illustration with a Hindi title and a music player
+  expect: [Screenshot 2026-09-02 152836, Screenshot 2026-09-02 154825]
+- query: shirtless man cooking in a kitchen with pink floral wallpaper
+  expect: [Screenshot 2026-09-05 225127]
+- query: cricket batsman playing a drive in a white kit
+  expect: [Virat Kholi]
+- query: hand holding a small blue circuit board with colourful jumper wires
+  expect: [18.06.03]
+- query: close up of Raspberry Pi GPIO pins with jumper cables next to a laptop keyboard
+  expect: [18.06.02]
+- query: man in a mustard shirt standing against a wall with a long shadow
+  expect: [20.43.19]
+- query: jellyfish floating around a snowy mountain, black and white illustration
+  expect: [07.06.16]
+- query: smiling woman in a saree in front of green leaves
+  expect: [bharathi prem]
+- query: man walking towards a dark mountain with red text saying what could possibly go wrong
+  expect: [images.genius.com]
+- query: comic book joker with green hair and a big grin
+  expect: [joker licking lips]
+- query: ascii art of a hand made out of digits
+  expect: [right hand]
+- query: snowy mountain range under a dark sky
+  expect: [sukant-sharma]
+
+# --- lexical: identifiers, file names, error strings, path fragments ---------------------
+- query: getRecommendLocations
+  expect: [locations.controller.js, locations.route.js]
+- query: request-password-reset
+  expect: [user.route.js, user.controller.js, authService.js, ForgotPassword.jsx]
+- query: At least one tag is required for recommendations
+  expect: [locations.controller.js]
+- query: Passwords do not match
+  expect: [user.controller.js, ForgotPassword.jsx]
+- query: PG_DATABASE
+  expect: [NextPlore/README.md, db/database.js]
+  forbid: [".env"]
+- query: bcryptjs
+  expect: [Backend/package.json, models/user.js]
+- query: react-leaflet
+  expect: [Frontend/package.json, components/Map.jsx]
+- query: /refresh-token
+  expect: [user.route.js]
+- query: nodemailer
+  expect: [emailService.js, Backend/package.json]
+- query: JWT_REFRESH_EXPIRES_IN
+  expect: [utils/jwt.js, NextPlore/README.md]
+  forbid: [".env"]
+- query: locationService
+  expect: [locationService.js]
+- query: auth.middleware
+  expect: [auth.middleware.js, user.route.js, locations.route.js, home.route.js]
+- query: ForgotPassword.css
+  expect: [ForgotPassword.css]
+- query: Virat Kholi
+  expect: [Virat Kholi]
+- query: cristiano ronaldo wallpaper
+  expect: [cristiano-ronaldo]
+- query: bharathi prem
+  expect: [bharathi prem]
+- query: Screenshot 2026-07-29 233342
+  expect: [Screenshot 2026-07-29 233342]
+
+# --- mixed: an identifier plus a description ---------------------------------------------
+- query: ApiError 404 location not found in getPlaceDetails
+  expect: [locations.controller.js]
+- query: nodemailer transporter that sends the verification email
+  expect: [emailService.js]
+- query: JWT_ACCESS_EXPIRES_IN how long an access token lives
+  expect: [utils/jwt.js, NextPlore/README.md]
+  forbid: [".env"]
+- query: react-leaflet map component with markers
+  expect: [components/Map.jsx]

@@ -10,7 +10,7 @@ Updated at the end of every phase. Last updated: 2026-10-13.
 | 3 Ingestion | Deny list, scanner, chunkers, incremental sync (jobs move to phase 5) | done |
 | 4 Search + eval | Keyword + vector fusion, eval harness, baseline | done |
 | 5 API | Authenticated FastAPI app, background index jobs, `python -m agi_memory` | done |
-| 6 Quality iteration | tree-sitter chunking, rerankers, "no good answer" | ideas only |
+| 6 Quality iteration | Fusion rule first (measured), then keyword side, chunking, rerankers, "no good answer" | in progress |
 
 ## Next
 
@@ -26,7 +26,14 @@ Phase 6 (quality iteration, driven by the weak groups in the baseline report) an
 - Phase 5 deviations from the spec (full list in `api.md`): `/health` also returns `error`; `DELETE /sources/{id}` returns the removed chunk count and is idempotent; the `Embedder` contract gained `device`; IPv6 hosts (`[::1]`) are rejected; `modified_after` is `modified_after_ns`.
 - Phase 5 review leftovers (accepted): the store opens during app startup, so on a very large index the port opens later than the usual second (not yet measured); stopping the process mid-job is a hard stop (safe, the sync is redone); a `Thread.start()` failure would leave a job `running` until restart.
 
-## Retrieval quality (baseline, 2026-10-12)
+## Retrieval quality, widened set (2026-10-13)
+
+The golden set grew to 77 queries (24 more images, 17 lexical, 4 mixed) and `baseline.json` was re-recorded for the
+current engine: top1 0.545, recall@3 0.701, recall@10 0.818, MRR 0.635, forbidden 0. Offline fusion experiments
+(`eval/2026-10-13-fusion-experiments.md`) show vector search alone reaches top1 0.792 / MRR 0.865, so equal-weight rank
+fusion is the main weakness, not only for images. Phase 6 starts there.
+
+## Retrieval quality (original 38-query baseline, 2026-10-12)
 
 Real model (GPU bf16), 38 golden queries over `Sample Data/`, report in `eval/2026-10-12-baseline.md`:
 
