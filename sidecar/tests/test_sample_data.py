@@ -56,7 +56,7 @@ def test_chunk_kinds_match_what_is_on_disk(indexed):
     ids = store._catalog.chunk_ids_for_source("sample")
     kinds = Counter(chunk.kind for chunk in store.get(ids).values())
     assert kinds[ChunkKind.PDF_PAGE] == 20  # 9 + 11 pages
-    assert kinds[ChunkKind.IMAGE] == 5  # 3 PNGs in the repo + 2 pictures at the top level
+    assert kinds[ChunkKind.IMAGE] == 26  # 3 PNGs in the repo + 23 pictures at the top level
     assert kinds[ChunkKind.CODE] > 100
     assert kinds[ChunkKind.MARKDOWN] >= 3
 
