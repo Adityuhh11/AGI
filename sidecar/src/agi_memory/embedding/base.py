@@ -24,6 +24,11 @@ class Embedder(Protocol):
     @property
     def dim(self) -> int: ...
 
+    @property
+    def device(self) -> str:
+        """Where the model runs: `cuda` or `cpu`."""
+        ...
+
     def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
         """Shape `(len(texts), dim)`."""
         ...

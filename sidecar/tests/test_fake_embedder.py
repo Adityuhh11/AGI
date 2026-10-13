@@ -48,3 +48,7 @@ def test_images_are_embedded_by_content():
     a, b, c = fake.embed_images([red, Image.new("RGB", (8, 8), "red"), blue])
     np.testing.assert_array_equal(a, b)
     assert float(a @ c) < 0.5
+
+
+def test_fake_embedder_reports_a_cpu_device():
+    assert FakeEmbedder(8).device == "cpu"

@@ -197,4 +197,4 @@ def test_a_run_on_another_device_is_not_gated_on_quality(tmp_path, corpus):
         tmp_path / "bad.yaml", "- query: nothing here\n  expect: [no-such-file]\n"
     )
     args = ["--data", str(data), "--golden", str(impossible), "--report-dir", str(reports)]
-    assert run(args, make_fake, "2026-10-12") == 0  # device 'none' != 'cuda': measured, not gated
+    assert run(args, make_fake, "2026-10-12") == 0  # device 'cpu' != 'cuda': measured, not gated

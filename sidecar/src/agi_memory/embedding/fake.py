@@ -43,6 +43,10 @@ class FakeEmbedder:
     def dim(self) -> int:
         return self._dim
 
+    @property
+    def device(self) -> str:
+        return "cpu"
+
     def _embed_tokens(self, tokens: list[str]) -> np.ndarray:
         if not tokens:
             return _direction(_EMPTY, self._dim).copy()

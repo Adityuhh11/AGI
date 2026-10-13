@@ -147,7 +147,7 @@ def run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: s
     (report_dir / f"{today}-{args.label}.md").write_text(report, encoding="utf-8")
 
     baseline_path = report_dir / "baseline.json"
-    device = str(getattr(embedder, "device", "none"))
+    device = embedder.device
     if args.write_baseline:
         text = json.dumps(baseline_dict(metrics, embedder.model_id, device), indent=2)
         baseline_path.write_text(text + "\n", encoding="utf-8")

@@ -1,3 +1,6 @@
+import time
+from collections.abc import Callable
+
 import numpy as np
 
 from agi_memory.types import Chunk, ChunkKind, FileRecord
@@ -49,3 +52,13 @@ def file_record(
     uri: str, *, source_id: str = "s", sha: str = "sha1", size: int = 1, mtime_ns: int = 1
 ) -> FileRecord:
     return FileRecord(source_id=source_id, uri=uri, size=size, mtime_ns=mtime_ns, sha256=sha)
+
+
+def wait_for[T](predicate: Callable[[], T], timeout: float = 10.0, interval: float = 0.01) -> T:
+    """Poll until `predicate()` is truthy and return that value; fail loudly on timeout."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if value := predicate():
+            return value
+        time.sleep(interval)
+    raise AssertionError(f"condition not met within {timeout} s")
