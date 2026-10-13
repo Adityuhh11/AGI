@@ -1,6 +1,6 @@
 # Status
 
-Updated at the end of every phase. Last updated: 2026-10-12.
+Updated at the end of every phase. Last updated: 2026-10-13.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -9,12 +9,12 @@ Updated at the end of every phase. Last updated: 2026-10-12.
 | 2 Store | `FlatStore`: metadata, FTS, exact search, crash safety | done |
 | 3 Ingestion | Deny list, scanner, chunkers, incremental sync (jobs move to phase 5) | done |
 | 4 Search + eval | Keyword + vector fusion, eval harness, baseline | done |
-| 5 API | Authenticated FastAPI app | not planned yet |
+| 5 API | Authenticated FastAPI app, background index jobs, `python -m agi_memory` | done |
 | 6 Quality iteration | tree-sitter chunking, rerankers, "no good answer" | ideas only |
 
 ## Next
 
-Plan phase 5 (HTTP API) and phase 6 (quality iteration, driven by the weak groups in the baseline report).
+Phase 6 (quality iteration, driven by the weak groups in the baseline report) and the Go launcher that consumes `api.md` (process start, Windows Job Object, token generation).
 
 ## Known gaps and deviations from the spec
 
@@ -23,7 +23,7 @@ Plan phase 5 (HTTP API) and phase 6 (quality iteration, driven by the weak group
 - GPU (bf16) vs CPU (fp32) embeddings agree to cosine >= 0.99995 on the 4-sentence test set.
 - `sources`/`files` tables arrived in phase 3 (schema version 2); no `Store` protocol yet (nothing but `FlatStore` implements it).
 - Image chunks carry their file path as `text` (spec said empty) so file names are keyword-searchable.
-- `jobs.py` (background wrapper) moves to phase 5 with the API; phase 3 delivers a synchronous `Indexer.sync` with a progress callback.
+- Phase 5 deviations from the spec (full list in `api.md`): `/health` also returns `error`; `DELETE /sources/{id}` returns the removed chunk count and is idempotent; the `Embedder` contract gained `device`; IPv6 hosts (`[::1]`) are rejected; `modified_after` is `modified_after_ns`.
 
 ## Retrieval quality (baseline, 2026-10-12)
 

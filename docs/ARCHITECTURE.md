@@ -20,20 +20,22 @@ Dependencies point downward only. Status is `planned` or `built`.
 |---|---|---|
 | `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | built |
 | `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
-| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests) | built |
+| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model) | built |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
 | `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
 | `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed | built |
-| `jobs.py` | Background job wrapper with progress for the API | phase 5 |
+| `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
 | `search/` | `Searcher`: vector + FTS5 keyword search, reciprocal rank fusion, filters | built |
 | `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
-| `api/` | Authenticated localhost HTTP API | phase 5 |
+| `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search`; see `api.md` | built |
+| `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
 
 ## Data flow
 
 Indexing: source file -> chunks -> embeddings (256-d unit vectors) -> `FlatStore.upsert`.
 Search: query -> embedding + keyword query -> two ranked lists -> fusion -> hits.
+API: the Go launcher calls `POST /sources` (a background `JobManager` job runs the indexer) and `POST /search` over authenticated localhost HTTP; the contract is in `api.md`.
 
 ## On-disk format
 
@@ -73,6 +75,8 @@ Schema version 2 adds `sources(id, root, last_scan_ns)` and `files(source_id, ur
    (`uv run pytest -m model`); peak VRAM stayed under 1.5 GiB.
 6. **Sync safety.** Denied files are never opened; links are never followed; a directory that cannot be read never causes its indexed files to be deleted; a missing source root is an error.
 7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m agi_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not.
+8. **The API is local and authenticated.** It binds 127.0.0.1, rejects foreign `Host` headers before anything else, and refuses to start without a token of at least 16 characters; every route including `/health` needs the token.
+9. **The API never blocks on the model.** The port opens immediately; `/health` reports `ready: false` while the model loads and every other route answers 503.
 
 ## Conventions
 

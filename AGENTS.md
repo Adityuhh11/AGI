@@ -41,3 +41,5 @@ Start here: `docs/README.md` (index), then `docs/STATUS.md` (what is built, what
 ## Commits
 
 Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). Small and focused.
+
+No AI attribution: never add `Co-Authored-By` or 'Generated with' trailers to commits or PR descriptions.
