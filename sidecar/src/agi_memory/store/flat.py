@@ -292,6 +292,11 @@ class FlatStore:
         with self._lock:
             self._catalog.register_source(source_id, root)
 
+    def source_root(self, source_id: str) -> str | None:
+        """The folder a source was last indexed from; `None` if it was never registered."""
+        with self._lock:
+            return self._catalog.source_root(source_id)
+
     def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
         with self._lock:
             self._catalog.mark_scanned(source_id, scanned_ns)

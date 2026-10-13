@@ -24,6 +24,7 @@ Phase 6 (quality iteration, driven by the weak groups in the baseline report) an
 - `sources`/`files` tables arrived in phase 3 (schema version 2); no `Store` protocol yet (nothing but `FlatStore` implements it).
 - Image chunks carry their file path as `text` (spec said empty) so file names are keyword-searchable.
 - Phase 5 deviations from the spec (full list in `api.md`): `/health` also returns `error`; `DELETE /sources/{id}` returns the removed chunk count and is idempotent; the `Embedder` contract gained `device`; IPv6 hosts (`[::1]`) are rejected; `modified_after` is `modified_after_ns`.
+- Phase 5 review leftovers (accepted): the store opens during app startup, so on a very large index the port opens later than the usual second (not yet measured); stopping the process mid-job is a hard stop (safe, the sync is redone); a `Thread.start()` failure would leave a job `running` until restart.
 
 ## Retrieval quality (baseline, 2026-10-12)
 

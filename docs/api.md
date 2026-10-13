@@ -17,6 +17,8 @@ uv run python -m agi_memory
 | `AGI_SIDECAR_PORT` | Optional, 1-65535, default `7861`. |
 | `AGI_MEMORY_DIR` | Optional. Index location; default `%LOCALAPPDATA%\AGI\memory`. |
 
+- A corrupt or mismatched index (wrong model or dimension) makes the process exit with a traceback instead of
+  answering `/health`: the launcher should treat an early exit as fatal and offer a reindex.
 - Bad configuration exits with status 2 and one line on stderr, before anything heavy is imported (about a second).
 - The port opens within about a second. The embedding model then loads in the background (10-15 s warm).
   Poll `GET /health` until `ready` is `true`. If `error` is non-null the model failed to load and `ready` will never
@@ -61,9 +63,10 @@ Index a folder (or refresh it if it was indexed before: the sync is incremental)
 Request: `{"path": "C:\\Users\\me\\project", "source_id": "project"}`. Unknown fields are rejected.
 
 - `202` `{"job_id": "job-1"}`
-- `400` `path` is not an absolute path to an existing folder.
+- `400` `path` is not an absolute local path to an existing folder. Network (UNC) paths are refused.
 - `409` another job is running: `{"detail": {"message": "job-1 is still running", "job_id": "job-1"}}`. Follow that
-  job instead.
+  job instead. Also `409` (with `"job_id": null`) when `source_id` was already indexed from a different folder:
+  `DELETE` it first, so a typo cannot wipe an index. The same folder written differently (case, slashes) is a refresh.
 - `422` bad body, or `source_id` does not match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, or `path` is empty / over 1024
   characters.
 - `503` model not ready.
@@ -77,7 +80,8 @@ Request: `{"path": "C:\\Users\\me\\project", "source_id": "project"}`. Unknown f
  "report": null, "error": null}
 ```
 
-`state` is `running`, `done` or `failed`. When `done`, `report` is:
+`state` is `running`, `done` or `failed`. `files_total` is `0` while the folder is still being scanned; progress counts
+start once the scan finishes. When `done`, `report` is:
 
 ```json
 {"added": 3, "updated": 0, "unchanged": 0, "removed": 0, "denied": 1, "ignored": 0, "unsupported": 0,
@@ -131,15 +135,17 @@ Scores are not calibrated and there is no "no good answer" signal yet (phase 6).
 ## Semantics worth knowing
 
 - One index job at a time. A search issued while indexing is served normally: the job and the search take turns on
-  the one model, so a search waits for at most one embedding batch (about 200 ms).
+  the one model, so a search waits for at most the embedding batch in flight (about 200 ms for text, longer while a
+  batch of images or PDF pages is being embedded).
 - Posting an already-indexed folder again is an incremental sync: unchanged files are skipped, changed ones
   replaced, deleted ones removed. That is the refresh mechanism; nothing watches the disk.
 - Job history lives in memory (last 50) and is lost on restart. The index itself is durable.
-- Paths must be absolute and exist. Secrets are never indexed (deny list; counted in `report.denied`).
+- Paths must be absolute local paths and exist. Secrets are never indexed (deny list; counted in `report.denied`).
 
 ## Deviations from the spec
 
 - `/health` also returns `error` (why the model failed to load).
+- `POST /sources` refuses to re-point an existing `source_id` at another folder (409).
 - `DELETE /sources/{id}` returns `{removed_chunks}` and is idempotent.
 - `/docs`, `/redoc` and `/openapi.json` are disabled (they would be unauthenticated pages).
 - IPv6 hosts (`[::1]`) are rejected; clients must use `127.0.0.1`.

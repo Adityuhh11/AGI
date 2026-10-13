@@ -22,6 +22,12 @@ def test_a_new_source_has_no_files(store):
     assert store.file_records("s") == {}
 
 
+def test_source_root_is_the_last_registered_folder(store):
+    assert store.source_root("s") is None
+    store.register_source("s", "C:/a")
+    assert store.source_root("s") == "C:/a"
+
+
 def test_register_source_is_idempotent(store):
     store.register_source("s", "C:/a")
     store.register_source("s", "C:/b")

@@ -1,4 +1,5 @@
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -33,6 +34,38 @@ def test_per_file_errors_are_listed_and_the_rest_is_indexed(api, folder):
 def test_a_path_that_is_not_an_existing_absolute_folder_is_a_400(api, path):
     response = api.post("/sources", json={"path": path, "source_id": "repo"})
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("path", ["//nowhere.invalid/share/x", "\\\\nowhere.invalid\\share\\x"])
+def test_a_network_path_is_refused_without_touching_the_network(api, monkeypatch, path):
+    def explode(self):
+        raise AssertionError("is_dir() must not run on a network path")
+
+    monkeypatch.setattr(Path, "is_dir", explode)
+    response = api.post("/sources", json={"path": path, "source_id": "repo"})
+    assert response.status_code == 400
+
+
+def test_re_adding_a_source_from_another_folder_is_refused_and_keeps_the_index(
+    api, folder, tmp_path
+):
+    index(api, folder)
+    other = tmp_path / "other"
+    other.mkdir()
+    response = api.post("/sources", json={"path": str(other), "source_id": "repo"})
+    assert response.status_code == 409
+    assert "delete it first" in response.json()["detail"]["message"]
+    assert api.get("/health").json()["embedded_items"] == 3
+    assert api.delete("/sources/repo").json() == {"removed_chunks": 3}
+    assert index(api, other)["state"] == "done"
+
+
+def test_re_adding_a_source_with_a_differently_written_path_is_a_refresh(api, folder):
+    index(api, folder)
+    shouted = str(folder).upper().replace("\\", "/")
+    response = api.post("/sources", json={"path": shouted, "source_id": "repo"})
+    assert response.status_code == 202
+    wait_for(lambda: api.get(f"/jobs/{response.json()['job_id']}").json()["state"] == "done")
 
 
 def test_a_file_is_not_a_folder(api, folder):

@@ -24,6 +24,10 @@ class Catalog:
                 (source_id, root),
             )
 
+    def source_root(self, source_id: str) -> str | None:
+        row = self._db.execute("SELECT root FROM sources WHERE id = ?", (source_id,)).fetchone()
+        return None if row is None else row[0]
+
     def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
         with self._db:
             self._db.execute(

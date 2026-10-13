@@ -13,6 +13,7 @@ import enum
 import logging
 import threading
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -74,10 +75,13 @@ class JobManager:
             job = self._jobs.get(job_id)
             return None if job is None else dataclasses.replace(job)
 
-    def running_source(self) -> str | None:
+    def run_unless_indexing[T](self, source_id: str, action: Callable[[], T]) -> T:
+        """Run `action` only if no job is indexing `source_id`, and keep new jobs out meanwhile."""
         with self._lock:
-            job = self._running()
-            return None if job is None else job.source_id
+            running = self._running()
+            if running is not None and running.source_id == source_id:
+                raise JobBusyError(running.id)
+            return action()
 
     def _running(self) -> Job | None:
         return next((job for job in self._jobs.values() if job.state is JobState.RUNNING), None)

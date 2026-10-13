@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated
@@ -45,11 +46,25 @@ def health(request: Request) -> HealthOut:
 
 
 @router.post("/sources", status_code=202)
-def add_source(body: AddSource, engine: Annotated[Engine, Depends(get_engine)]) -> SourceAccepted:
+def add_source(
+    body: AddSource,
+    engine: Annotated[Engine, Depends(get_engine)],
+    store: Annotated[FlatStore, Depends(get_store)],
+) -> SourceAccepted:
     root = Path(body.path)
-    if not root.is_absolute() or not root.is_dir():
+    # A UNC path would make Windows contact another machine, so refuse it before is_dir().
+    if not root.is_absolute() or root.drive.startswith("\\\\") or not root.is_dir():
         raise HTTPException(
-            status_code=400, detail="path must be an absolute path to an existing folder"
+            status_code=400, detail="path must be an absolute local path to an existing folder"
+        )
+    indexed_from = store.source_root(body.source_id)
+    if indexed_from is not None and os.path.normcase(indexed_from) != os.path.normcase(str(root)):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": f"{body.source_id} is indexed from {indexed_from}; delete it first",
+                "job_id": None,
+            },
         )
     try:
         job = engine.jobs.submit(body.source_id, root)
@@ -74,9 +89,11 @@ def delete_source(
     engine: Annotated[Engine, Depends(get_engine)],
     store: Annotated[FlatStore, Depends(get_store)],
 ) -> RemovedOut:
-    if engine.jobs.running_source() == source_id:
-        raise HTTPException(status_code=409, detail=f"{source_id} is being indexed")
-    return RemovedOut(removed_chunks=store.delete_source(source_id))
+    try:
+        removed = engine.jobs.run_unless_indexing(source_id, lambda: store.delete_source(source_id))
+    except JobBusyError as busy:
+        raise HTTPException(status_code=409, detail=f"{source_id} is being indexed") from busy
+    return RemovedOut(removed_chunks=removed)
 
 
 @router.post("/search")

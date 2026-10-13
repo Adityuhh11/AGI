@@ -55,16 +55,28 @@ def test_a_second_job_while_one_runs_is_refused(make_manager, folder):
     manager = make_manager(gate)
     first = manager.submit("repo", folder)
     assert gate.entered.wait(5)
-    assert manager.running_source() == "repo"
     with pytest.raises(JobBusyError) as busy:
         manager.submit("other", folder)
     assert busy.value.job_id == first.id
     assert manager.get(first.id).state is JobState.RUNNING
     gate.release.set()
     finished(manager, first.id)
-    assert manager.running_source() is None
+    assert manager.get(first.id).state is JobState.DONE
     assert manager.submit("other", folder).id == "job-2"
     finished(manager, "job-2")
+
+
+def test_a_guarded_action_is_refused_only_for_the_source_being_indexed(make_manager, folder):
+    gate = GatedEmbedder()
+    manager = make_manager(gate)
+    first = manager.submit("repo", folder)
+    assert gate.entered.wait(5)
+    with pytest.raises(JobBusyError):
+        manager.run_unless_indexing("repo", lambda: "deleted")
+    assert manager.run_unless_indexing("other", lambda: "deleted") == "deleted"
+    gate.release.set()
+    finished(manager, first.id)
+    assert manager.run_unless_indexing("repo", lambda: "deleted") == "deleted"
 
 
 def test_an_embedder_failure_fails_the_job_and_the_manager_survives(make_manager, folder):
