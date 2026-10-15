@@ -74,6 +74,18 @@ func run() error {
 		return err
 	}
 
+	// A second launch (the shortcut clicked again) does not start a second launcher or engine: it
+	// exits right inside application.New and the running one shows the search bar instead.
+	var bar *panel.Panel
+	app := application.New(application.Options{
+		Name:   "AGI",
+		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID:               "com.adityuhh11.agi.launcher",
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
+		},
+	})
+
 	// The engine dies with the launcher, even if the launcher is killed from the task manager.
 	if err := sidecar.KillWithLauncher(); err != nil {
 		log.Printf("the search engine will not be tied to the launcher's lifetime: %v", err)
@@ -94,11 +106,7 @@ func run() error {
 		roots[config.SourceID(root)] = root
 	}
 
-	app := application.New(application.Options{
-		Name:   "AGI",
-		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
-	})
-	bar := panel.New(app, cfg.Hotkey)
+	bar = panel.New(app, cfg.Hotkey)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status)),

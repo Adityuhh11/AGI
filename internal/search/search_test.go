@@ -62,7 +62,7 @@ func TestRowsAreMappedOntoDiskAndDescribeTheirMatches(t *testing.T) {
 		t.Fatalf("first row = %+v", first)
 	}
 	if len(first.Matches) != 2 || first.Matches[0].Location != "lines 12-52" || first.Matches[1].Location != "line 90" ||
-		first.Matches[0].Snippet != "function sign()" {
+		first.Matches[0].Snippet != "function sign()" || first.Matches[0].Line != 12 || first.Matches[1].Line != 90 {
 		t.Fatalf("matches = %+v", first.Matches)
 	}
 

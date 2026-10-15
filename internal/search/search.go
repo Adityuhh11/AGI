@@ -45,6 +45,8 @@ type Match struct {
 	// Location is "lines 12-52", "page 3" or empty (an image).
 	Location string
 	Snippet  string
+	// Line is where the match starts in a code or text file (0 if unknown), for opening an editor there.
+	Line int
 }
 
 // Row is one file in the result list.
@@ -157,10 +159,10 @@ func (s *Service) row(file sidecar.File) (Row, bool) {
 		Score:  file.Score,
 	}
 	for _, chunk := range file.Chunks {
-		match := Match{Location: location(chunk.Locator), Snippet: chunk.Snippet}
+		match := Match{Location: location(chunk.Locator), Snippet: chunk.Snippet, Line: firstLine(chunk.Locator)}
 		row.Matches = append(row.Matches, match)
 		if row.Line == 0 {
-			row.Line = firstLine(chunk.Locator)
+			row.Line = match.Line
 		}
 	}
 	return row, true
