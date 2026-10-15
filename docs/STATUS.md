@@ -12,10 +12,12 @@ Updated at the end of every phase. Last updated: 2026-10-13.
 | 5 API | Authenticated FastAPI app, background index jobs, `python -m agi_memory` | done |
 | 6 Search quality | Blended score, file-name titles, 768-d, path field + phrases + path trigram, confidence flag, eval with negatives | done |
 | 7a Launcher engine support | `POST /search/files` (files with their best chunks), `GET /sources`, `source_id` on hits, queries served ahead of indexing | done |
+| 7b Launcher blocks A-E | Sidecar client and supervisor, hotkey panel (cloaked, not hidden), search results UI, open and reveal | done |
+| 7c Launcher block F | Tray icon (status line, open, rescan, quit); `internal/indexing` syncs every configured root when the engine is ready and on "Rescan now" | done |
 
 ## Next
 
-The Go launcher that consumes `api.md` (process start, Windows Job Object, token generation, hotkey panel). After that, with the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). Index freshness (nothing watches the disk; refresh is a repeat `POST /sources`) is the other open item.
+Launcher blocks G (image thumbnails) and H (latency harness run, acceptance list, merge); see `superpowers/plans/2026-10-15-launcher-v1.md`. Then the design pass (pill bar, liquid-metal border, loader, preview) and the big index of the laptop's real folders (`roots` in `config.toml`). With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). Index freshness (nothing watches the disk; refresh is "Rescan now" or a repeat `POST /sources`) is the other open item.
 
 ## Known gaps and deviations from the spec
 

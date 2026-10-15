@@ -30,6 +30,9 @@ type Panel struct {
 	win    *application.WebviewWindow
 	hotkey string
 
+	// OnHotkeyError, if set before the app runs, is called when the hotkey turns out to be taken.
+	OnHotkeyError func()
+
 	shown atomic.Bool
 
 	mu           sync.Mutex
@@ -94,6 +97,9 @@ func (p *Panel) prepare() {
 		p.hotkeyErrMsg = fmt.Sprintf("the hotkey %s cannot be used: %v", p.hotkey, err)
 		p.mu.Unlock()
 		log.Print("panel: ", p.HotkeyError())
+		if p.OnHotkeyError != nil {
+			p.OnHotkeyError()
+		}
 	}
 }
 

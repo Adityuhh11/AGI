@@ -11,14 +11,17 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"agi"
 	"agi/internal/config"
 	"agi/internal/files"
+	"agi/internal/indexing"
 	"agi/internal/panel"
 	"agi/internal/search"
 	"agi/internal/sidecar"
 	"agi/internal/status"
+	"agi/internal/tray"
 )
 
 func main() {
@@ -90,16 +93,24 @@ func run() error {
 	if err := sidecar.KillWithLauncher(); err != nil {
 		log.Printf("the search engine will not be tied to the launcher's lifetime: %v", err)
 	}
-	engine, err := sidecar.New(sidecar.Options{Dir: cfg.Sidecar.Dir, Log: log.Writer()})
+	// The tray line is rebuilt whenever the engine, the indexing or the hotkey changes. These
+	// variables are all assigned before the goroutines that call refresh start.
+	var (
+		icon    *tray.Tray
+		indexer *indexing.Manager
+		engine  *sidecar.Supervisor
+	)
+	refresh := func() {
+		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status()))
+	}
+	engine, err = sidecar.New(sidecar.Options{
+		Dir: cfg.Sidecar.Dir, Log: log.Writer(), OnChange: func(sidecar.Status) { refresh() },
+	})
 	if err != nil {
 		return err
 	}
-	engineCtx, stopEngine := context.WithCancel(context.Background())
-	engineStopped := make(chan struct{})
-	go func() {
-		engine.Run(engineCtx)
-		close(engineStopped)
-	}()
+	indexer = indexing.New(engine.Client(), cfg.Roots, func() bool { return engine.Status().State == sidecar.StateReady },
+		func(indexing.Status) { refresh() })
 
 	roots := map[string]string{}
 	for _, root := range cfg.Roots {
@@ -107,6 +118,8 @@ func run() error {
 	}
 
 	bar = panel.New(app, cfg.Hotkey)
+	bar.OnHotkeyError = refresh
+	icon = tray.New(app, bar.Show, indexer.Rescan)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status)),
@@ -116,13 +129,37 @@ func run() error {
 		app.RegisterService(service)
 	}
 
+	// The engine and the indexer report to the tray, which only exists once the app is running.
+	ctx, stop := context.WithCancel(context.Background())
+	engineStopped := make(chan struct{})
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		go func() {
+			engine.Run(ctx)
+			close(engineStopped)
+		}()
+		go indexer.Run(ctx)
+	})
+
 	runErr := app.Run()
 
-	stopEngine()
+	stop()
 	select {
 	case <-engineStopped:
 	case <-time.After(10 * time.Second):
 		log.Print("the search engine did not stop in time")
 	}
 	return runErr
+}
+
+// statusLine is the one sentence the tray shows about the launcher, most urgent problem first.
+func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status) string {
+	switch {
+	case hotkeyError != "":
+		return hotkeyError
+	case engine.State == sidecar.StateFailed:
+		return engine.Message
+	case engine.State != sidecar.StateReady:
+		return "Search is starting up..."
+	}
+	return index.String()
 }
