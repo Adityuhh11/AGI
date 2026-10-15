@@ -74,3 +74,26 @@ because each search takes the GPU between slices; with nobody searching the cost
 About 1,000 PDFs (every page is embedded as text and as an image), 1,200 images and 3,000 code and text files. At the
 measured embedding rates (about 60 text chunks/s, about 4 images or PDF pages/s) the first full index is roughly an hour of
 GPU time. Office files (about 70) are not supported by the engine yet. The scan itself is instant (under a second per root).
+
+## 5. The real panel (block D, `cmd/panelbench`)
+
+`go run ./cmd/panelbench` runs the real `internal/panel` against a stand-in page: 50 runs, a separate console window
+holding the keyboard, the hotkey pressed with `keybd_event`, a wait until the page reports that its input has focus and has
+painted, `Hide()`, and a check that the keyboard went back to the other app and that the bar has a sane size and place.
+Six consecutive invocations: input focused and painted at a median of about 46 ms, 95th percentile 52-66 ms, maximum
+64-68 ms, no misbehaving run. Under the 100 ms rule with a 1.5x margin.
+
+Bugs this and an end-to-end check against the real app found (all fixed, each is a trap for the next Windows window code):
+
+- `MonitorFromPoint` takes its POINT by value; on x64 the two halves travel in one register. Passing X and Y as two
+  arguments made the monitor lookup fail and Windows shrank the window to its 40x38 minimum. The first version of the
+  harness only checked focus and paint events, so it passed; it now checks the window's size and position.
+- Wails creates a hidden window's native window only when it is first shown, and a shown-then-hidden web view stops
+  rendering: the window is created (off screen) at start and cloaked, never hidden.
+- A new window grabs the keyboard when it is created and again when the web view finishes initialising, so the launcher
+  returned the keyboard once and still held it invisibly. It now watches for the first 6 seconds and gives the keyboard
+  back each time it finds the closed panel holding it.
+- A console build (`-Console`) opens a console window that takes focus: use the windowless build for focus checks.
+- `io.MultiWriter` stops at the first write error and stderr is invalid in a windowless process, so the log file stayed
+  empty; the console write is now best effort and the file comes first (`%LOCALAPPDATA%\AGI\logs\agi.log`).
+- The harness itself raced once: the page reports "focus" and "painted" as two concurrent requests.
