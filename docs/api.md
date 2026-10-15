@@ -19,6 +19,12 @@ uv run python -m agi_memory
 
 - A corrupt or mismatched index (wrong model or dimension) makes the process exit with a traceback instead of
   answering `/health`: the launcher should treat an early exit as fatal and offer a reindex.
+- The Go launcher does not use `uv run`: it starts `sidecar\.venv\Scripts\python.exe -m agi_memory` directly (so there is
+  no wrapper process to kill and nothing syncs packages at start) and sets `HF_HUB_OFFLINE=1`, `PYTHONUTF8=1` and
+  `PYTHONUNBUFFERED=1`. Offline mode stops the model loader from contacting the Hugging Face hub at every start (it is
+  also faster: about 11 s against 19 s to ready here); the model must already be in the local cache from the first run.
+  Measured start: port open after about 1.6 s, model ready after 11-19 s, and one cold start of about 110 s after a fresh
+  build, so a client must not assume a fixed bound.
 - Bad configuration exits with status 2 and one line on stderr, before anything heavy is imported (about a second).
 - The port opens within about a second. The embedding model then loads in the background (10-15 s warm).
   Poll `GET /health` until `ready` is `true`. If `error` is non-null the model failed to load and `ready` will never
