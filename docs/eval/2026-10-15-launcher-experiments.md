@@ -47,6 +47,21 @@ embedding batch in flight (an image batch is the slow one), up to 1.5 s: accepta
 hour-long first index of a whole laptop. The engine needs query priority over indexing before the launcher indexes in
 the background.
 
+### 3b. Query priority over indexing (engine change A3)
+
+`SerializedEmbedder` now cuts bulk calls into slices (4 texts, 1 image), takes the lock per slice and lets queued queries
+run before the next slice. Sample folder re-indexed under a fresh source id while a loop searched (`POST /search/files`):
+
+| | job time, no searches | search during the job (p50 / p95 / max) | job time with searches |
+|---|---|---|---|
+| before: whole bulk call holds the lock | 15.8 s | 220 / 1120 / 1340 ms (44 searches) | 16.5 s |
+| slices of 8 texts, 1 image | 17.4 s (+10%) | 231 / 310 / 340 ms (101 searches) | 24.6 s |
+| **slices of 4 texts, 1 image (adopted)** | 18.3 s (+16%) | 150-165 / 250-307 / 320-420 ms (about 150 searches) | 28-29 s |
+
+Idle search stays 77-88 ms median. A query now waits for one slice (26 ms in the unit test against 1,051 ms with one big
+slice). The tail near 300 ms is one image embedding plus the search itself. The job takes longer with searches running
+because each search takes the GPU between slices; with nobody searching the cost is the 10-16% above.
+
 ## 4. What a laptop holds (counts and sizes only; `node_modules`, `.git`, venvs, `AppData`, build output skipped)
 
 | root | files | by kind |

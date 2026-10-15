@@ -179,8 +179,9 @@ submitted to `POST /sources`.
 ## Semantics worth knowing
 
 - One index job at a time. A search issued while indexing is served normally: the job and the search take turns on
-  the one model, so a search waits for at most the embedding batch in flight (about 200 ms for text, longer while a
-  batch of images or PDF pages is being embedded).
+  the one model. Bulk embedding runs in slices of 4 texts or 1 image and queued queries go first, so a search waits for one
+  slice, not for the whole batch: on the sample folder a search during a job takes about 150 ms median and 250-310 ms at the
+  95th percentile (idle: about 80 ms), at a cost of roughly 10-15% indexing time.
 - Posting an already-indexed folder again is an incremental sync: unchanged files are skipped, changed ones
   replaced, deleted ones removed. That is the refresh mechanism; nothing watches the disk.
 - Job history lives in memory (last 50) and is lost on restart. The index itself is durable.

@@ -20,7 +20,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 |---|---|---|
 | `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | built |
 | `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
-| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model) | built |
+| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model; bulk calls run in small slices and queries go first) | built |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
 | `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
