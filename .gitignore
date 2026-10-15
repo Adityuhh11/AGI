@@ -7,5 +7,6 @@ Sample Data/
 *.egg-info/
 bin/
 frontend/node_modules/
-frontend/dist/
+frontend/dist/*
+!frontend/dist/.gitkeep
 frontend/bindings/
