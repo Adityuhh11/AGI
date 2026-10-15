@@ -1,35 +1,64 @@
 import pytest
 
-from agi_memory.search.fusion import reciprocal_rank_fusion
+from agi_memory.search.fusion import blend
+from agi_memory.types import KeywordHit, VectorHit
 
 
-def test_an_item_ranked_well_by_both_lists_wins():
-    fused = reciprocal_rank_fusion([["a", "b", "c"], ["c", "b", "d"]])
-    # c: ranks 3+1 = 1/63 + 1/61 (0.03227) just beats b: ranks 2+2 = 2/62 (0.03226); a, d once
-    assert [i for i, _ in fused][:2] == ["c", "b"]
+def v(chunk_id, score):
+    return VectorHit(chunk_id, score)
 
 
-def test_scores_follow_the_formula():
-    ((first, score),) = reciprocal_rank_fusion([["x"], ["x"]], k=60)
-    assert first == "x"
-    assert score == pytest.approx(2 / 61)
+def k(chunk_id, score):
+    return KeywordHit(chunk_id, score)
 
 
-def test_ties_are_broken_by_id():
-    fused = reciprocal_rank_fusion([["b"], ["a"]])
-    assert [i for i, _ in fused] == ["a", "b"]  # identical scores, id order
+def ids(blended):
+    return [chunk_id for chunk_id, _ in blended]
 
 
-def test_a_single_list_keeps_its_order():
-    assert [i for i, _ in reciprocal_rank_fusion([["x", "y", "z"]])] == ["x", "y", "z"]
+def test_without_keyword_hits_the_cosine_order_is_kept():
+    blended = blend([v("a", 0.9), v("b", 0.8), v("c", 0.7)], [])
+    assert ids(blended) == ["a", "b", "c"]
+    assert dict(blended) == pytest.approx({"a": 0.9, "b": 0.8, "c": 0.7})
+
+
+def test_a_keyword_hit_settles_a_close_call_but_not_a_clear_one():
+    close = blend([v("a", 0.80), v("b", 0.79)], [k("b", 10.0)])
+    assert ids(close) == ["b", "a"]  # 0.79 + 0.02 beats 0.80
+    clear = blend([v("a", 0.90), v("b", 0.70)], [k("b", 10.0)])
+    assert ids(clear) == ["a", "b"]
+
+
+def test_the_boost_is_relative_to_the_best_keyword_score():
+    blended = dict(blend([v("a", 0.5), v("b", 0.5)], [k("a", 8.0), k("b", 4.0)]))
+    assert blended["a"] == pytest.approx(0.5 + 0.02)
+    assert blended["b"] == pytest.approx(0.5 + 0.01)
+
+
+def test_a_keyword_only_chunk_takes_the_lowest_cosine_of_the_pool():
+    blended = dict(blend([v("a", 0.9), v("b", 0.6)], [k("z", 5.0)]))
+    assert blended["z"] == pytest.approx(0.6 + 0.02)
+    assert ids(blend([v("a", 0.9), v("b", 0.6)], [k("z", 5.0)]))[0] == "a"
+
+
+def test_keyword_only_results_when_there_are_no_vector_hits():
+    blended = blend([], [k("x", 3.0), k("y", 1.5)])
+    assert ids(blended) == ["x", "y"]
+    assert dict(blended)["x"] == pytest.approx(0.02)
 
 
 def test_empty_inputs():
-    assert reciprocal_rank_fusion([]) == []
-    assert reciprocal_rank_fusion([[], []]) == []
+    assert blend([], []) == []
 
 
-def test_a_repeated_id_counts_once_at_its_best_rank():
-    fused = dict(reciprocal_rank_fusion([["a", "a", "b"]], k=60))
-    assert fused["a"] == pytest.approx(1 / 61)
-    assert fused["b"] == pytest.approx(1 / 63)
+def test_ties_are_broken_by_id():
+    assert ids(blend([v("b", 0.5), v("a", 0.5)], [])) == ["a", "b"]
+
+
+def test_a_repeated_id_counts_once_at_its_first_position():
+    blended = dict(blend([v("a", 0.9), v("a", 0.1)], [k("a", 4.0), k("a", 1.0)]))
+    assert blended["a"] == pytest.approx(0.9 + 0.02)
+
+
+def test_a_non_positive_best_keyword_score_adds_nothing():
+    assert dict(blend([v("a", 0.5)], [k("a", 0.0)]))["a"] == pytest.approx(0.5)

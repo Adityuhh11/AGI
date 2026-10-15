@@ -1,1 +1,1 @@
-"""Search: vector + keyword retrieval fused into one ranking."""
+"""Search: vector and keyword retrieval blended into one ranking."""

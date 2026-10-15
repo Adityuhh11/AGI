@@ -1,9 +1,9 @@
-"""Searcher: embeds the query, runs vector and keyword search, fuses and describes the hits."""
+"""Searcher: embeds the query, runs vector and keyword search, blends and describes the hits."""
 
 from __future__ import annotations
 
 from agi_memory.embedding.base import Embedder
-from agi_memory.search.fusion import reciprocal_rank_fusion
+from agi_memory.search.fusion import blend
 from agi_memory.store import FlatStore
 from agi_memory.types import Chunk, Filters, SearchHit
 
@@ -19,13 +19,10 @@ def _snippet(chunk: Chunk) -> str:
 class Searcher:
     """Hybrid search over one store. Query embedding costs ~200 ms; the rest is milliseconds."""
 
-    def __init__(
-        self, store: FlatStore, embedder: Embedder, *, pool: int = 200, rrf_k: int = 60
-    ) -> None:
+    def __init__(self, store: FlatStore, embedder: Embedder, *, pool: int = 200) -> None:
         self._store = store
         self._embedder = embedder
         self._pool = pool
-        self._rrf_k = rrf_k
 
     def search(self, query: str, k: int = 10, filters: Filters | None = None) -> list[SearchHit]:
         """Top-`k` chunks for `query`, best first; `[]` for a blank query or `k <= 0`."""
@@ -35,9 +32,7 @@ class Searcher:
             self._embedder.embed_query(query), self._pool, filters
         )
         keyword_hits = self._store.keyword_search(query, self._pool, filters)
-        fused = reciprocal_rank_fusion(
-            [[h.id for h in vector_hits], [h.id for h in keyword_hits]], self._rrf_k
-        )[:k]
+        fused = blend(vector_hits, keyword_hits)[:k]
         vector_scores = {h.id: h.score for h in vector_hits}
         keyword_ranks = {h.id: rank for rank, h in enumerate(keyword_hits, start=1)}
         chunks = self._store.get([chunk_id for chunk_id, _ in fused])
