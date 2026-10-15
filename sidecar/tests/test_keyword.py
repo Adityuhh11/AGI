@@ -127,11 +127,19 @@ def test_words_in_the_path_are_keyword_searchable_even_when_absent_from_the_text
 
 
 def test_common_words_are_left_out_of_the_match():
-    common = {"function", "const"}.__contains__
+    common = {"function", "const"}
     expected = '"addcountries" OR "add" OR "countries" OR "function addcountries const"'
     assert build_match("function addCountries const", common) == expected
     assert build_match("function const", common) == ""  # nothing selective left
-    assert build_match("function", None) == '"function"'
+    assert build_match("function") == '"function"'
+
+
+def test_pasted_code_cannot_inflate_the_number_of_phrase_terms():
+    query = " ".join(f"w{i}.x{i}" for i in range(300))
+    match = build_match(query)
+    phrases = [term for term in match.split(" OR ") if " " in term]
+    assert len(phrases) == 8  # eight punctuated tokens; 600 words are too many for a whole phrase
+    assert match.count(" OR ") < 32 + 8
 
 
 def four_chunks(store):

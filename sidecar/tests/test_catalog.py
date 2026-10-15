@@ -126,3 +126,22 @@ def test_an_index_from_the_previous_schema_is_refused(tmp_path):
     db.close()
     with pytest.raises(IndexMismatchError, match="reindex"):
         FlatStore(directory, model_id="fake", dim=DIM)
+
+
+def test_a_refused_index_is_left_exactly_as_it_was(tmp_path):
+    directory = tmp_path / "idx"
+    directory.mkdir()
+    db = sqlite3.connect(directory / "meta.db")
+    db.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    db.executemany(
+        "INSERT INTO meta VALUES (?, ?)",
+        [("schema_version", "2"), ("model_id", "fake"), ("dim", str(DIM))],
+    )
+    db.commit()
+    db.close()
+    with pytest.raises(IndexMismatchError, match="reindex"):
+        FlatStore(directory, model_id="fake", dim=DIM)
+    db = sqlite3.connect(directory / "meta.db")
+    tables = {name for (name,) in db.execute("SELECT name FROM sqlite_master")}
+    db.close()
+    assert tables == {"meta", "sqlite_autoindex_meta_1"}  # no new tables were created in it

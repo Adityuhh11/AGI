@@ -46,6 +46,10 @@ The trigram weight is flat from 0.05 to 0.4. Trigram index size on the sample: r
 trigram over path and text 2040 KB (5.1x raw text); over the path alone it is negligible. Path-only is adopted; the
 full-text version gains one query for five times the text on disk.
 
+The adopted code scores every chunk whose path matches 1.0 (the rows above used the trigram bm25 relative to the best
+match); the real eval is identical (top1 0.896, recall@3 1.000, MRR 0.942) and the order among a file's chunks is left
+to the embedding.
+
 Remaining rank-1 misses with the adopted rule (7 of 77): two pairs of near-duplicate photos (Raspberry Pi, swapped), two
 diagram queries where the README that describes the diagram outranks the diagram, and three lexical queries whose
 answer is rank 2 or 3.

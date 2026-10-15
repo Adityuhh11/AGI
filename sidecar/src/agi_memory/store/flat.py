@@ -17,7 +17,7 @@ from __future__ import annotations
 import heapq
 import sqlite3
 import threading
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -25,16 +25,17 @@ import numpy as np
 from agi_memory.store.catalog import Catalog
 from agi_memory.store.filters import filter_clause
 from agi_memory.store.identifiers import path_words, split_identifiers
-from agi_memory.store.keyword import build_match
+from agi_memory.store.keyword import build_match, search_words
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile, VectorFileError
 from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, KeywordHit, VectorHit
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
-# A needle found in more chunks than this (`txt`, `.js`) is a common fragment, not a file name:
-# scoring every match would cost up to a second at 100k chunks for no signal.
-_MAX_PATH_MATCHES = 1000
+# A path needle found in more chunks or files than this (`txt`, `.js`, `src`) is a common
+# fragment, not a file name: it carries no signal and scoring every match is slow at scale.
+_MAX_PATH_CHUNKS = 1000
+_MAX_PATH_FILES = 50
 # A query word in more than this share of the chunks (and in over `_COMMON_MIN_DOCS` of them) has
 # almost no weight in bm25 but still costs a full scan; keyword search leaves it out.
 _COMMON_FRACTION = 0.2
@@ -111,8 +112,13 @@ class FlatStore:
     def _init_db(self, model_id: str, dim: int) -> None:
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA synchronous=FULL")
+        has_meta = self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'meta'").fetchone()
+        stored = (
+            dict(self._db.execute("SELECT key, value FROM meta").fetchall()) if has_meta else {}
+        )
+        if stored:  # refuse a foreign index before the schema script touches it
+            self._check_identity(stored, model_id, dim)
         self._db.executescript(SCHEMA)
-        stored = dict(self._db.execute("SELECT key, value FROM meta").fetchall())
         if not stored:
             with self._db:
                 self._db.executemany(
@@ -123,13 +129,12 @@ class FlatStore:
                         ("dim", str(dim)),
                     ],
                 )
-        elif (
-            stored.get("model_id") != model_id
-            or stored.get("dim") != str(dim)
-            or stored.get("schema_version") != str(SCHEMA_VERSION)
-        ):
-            built = (stored.get("model_id"), stored.get("dim"), stored.get("schema_version"))
-            wanted = (model_id, str(dim), str(SCHEMA_VERSION))
+
+    @staticmethod
+    def _check_identity(stored: dict[str, str], model_id: str, dim: int) -> None:
+        built = (stored.get("model_id"), stored.get("dim"), stored.get("schema_version"))
+        wanted = (model_id, str(dim), str(SCHEMA_VERSION))
+        if built != wanted:
             raise IndexMismatchError(
                 f"index was built with (model, dim, schema) = {built}; "
                 f"settings want {wanted}: reindex required"
@@ -426,7 +431,7 @@ class FlatStore:
         if n <= 0:
             return []
         with self._lock:
-            match = build_match(query, self._common_word_test())
+            match = build_match(query, self._common_words(search_words(query)))
         if not match:
             return []
         sql = (
@@ -444,52 +449,46 @@ class FlatStore:
             rows = self._db.execute(sql, params).fetchall()
         return [KeywordHit(id=chunk_id, score=-score) for chunk_id, score in rows]
 
-    def _common_word_test(self) -> Callable[[str], bool]:
-        """A predicate for words too common to rank by; call with the lock held."""
+    def _common_words(self, words: Sequence[str]) -> set[str]:
+        """The `words` too common to rank by (one vocabulary lookup); call with the lock held."""
+        if not words:
+            return set()
         (newest,) = self._db.execute("SELECT COALESCE(MAX(rid), 0) FROM chunks").fetchone()
         limit = max(_COMMON_MIN_DOCS, newest * _COMMON_FRACTION)  # newest >= live count: safe side
+        marks = ",".join("?" * len(words))
+        rows = self._db.execute(
+            f"SELECT term FROM chunks_vocab WHERE term IN ({marks}) AND doc > ?", [*words, limit]
+        )
+        return {term for (term,) in rows}
 
-        def is_common(word: str) -> bool:
-            row = self._db.execute(
-                "SELECT doc FROM chunks_vocab WHERE term = ?", (word,)
-            ).fetchone()
-            return row is not None and row[0] > limit
-
-        return is_common
-
-    def path_search(self, query: str, n: int, filters: Filters | None = None) -> list[KeywordHit]:
-        """Top-`n` chunks whose path contains the whole query as a substring (case-insensitive).
+    def path_search(self, query: str, filters: Filters | None = None) -> list[KeywordHit]:
+        """Chunks whose path contains the whole query as a substring (case-insensitive).
 
         This is what finds a file by typing its name, or part of it. Every chunk of a matching
-        file matches; shorter paths score higher. Queries under 3 characters, and queries found in
-        more than `_MAX_PATH_MATCHES` chunks, match nothing.
+        file matches, with score 1.0 so that the embedding decides the order among them. Nothing
+        matches for queries under 3 characters, or when the fragment is found in more than
+        `_MAX_PATH_CHUNKS` chunks or `_MAX_PATH_FILES` files of the searched scope.
         """
         needle = query.strip().replace('"', '""')
-        if len(needle) < 3 or n <= 0:
-            return []
-        match = f'"{needle}"'
-        with self._lock:
-            probe = self._db.execute(
-                "SELECT 1 FROM chunks_path_tri WHERE chunks_path_tri MATCH ? LIMIT ?",
-                (match, _MAX_PATH_MATCHES + 1),
-            ).fetchall()
-        if len(probe) > _MAX_PATH_MATCHES:
+        if len(needle) < 3:
             return []
         sql = (
-            "SELECT chunks.id, m.score FROM (SELECT rowid AS rid, bm25(chunks_path_tri) AS score "
-            "FROM chunks_path_tri WHERE chunks_path_tri MATCH ?) AS m "
+            "SELECT chunks.id, chunks.uri FROM "
+            "(SELECT rowid AS rid FROM chunks_path_tri WHERE chunks_path_tri MATCH ?) AS m "
             "JOIN chunks ON chunks.rid = m.rid"
         )
-        params: list[object] = [match]
+        params: list[object] = [f'"{needle}"']
         clause = filter_clause(filters) if filters is not None else None
         if clause is not None:
             sql += f" WHERE ({clause[0]})"
             params.extend(clause[1])
-        sql += " ORDER BY m.score, chunks.id LIMIT ?"
-        params.append(n)
+        sql += " LIMIT ?"  # stops early on a fragment found everywhere
+        params.append(_MAX_PATH_CHUNKS + 1)
         with self._lock:
             rows = self._db.execute(sql, params).fetchall()
-        return [KeywordHit(id=chunk_id, score=-score) for chunk_id, score in rows]
+        if len(rows) > _MAX_PATH_CHUNKS or len({uri for _, uri in rows}) > _MAX_PATH_FILES:
+            return []
+        return [KeywordHit(id=chunk_id, score=1.0) for chunk_id in sorted(i for i, _ in rows)]
 
     def close(self) -> None:
         """Release the database and the vector file (both are removable afterwards)."""

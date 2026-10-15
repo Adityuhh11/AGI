@@ -61,7 +61,7 @@ copied from a file matches as a unit). A second FTS5 table `chunks_path_tri` (tr
 ```
 score(chunk) = cosine(query, chunk)
              + KEYWORD_WEIGHT * bm25(chunk) / bm25(best chunk)          (0 if not matched)
-             + PATH_WEIGHT    * pathscore(chunk) / pathscore(best chunk) (0 unless the query is in the path)
+             + PATH_WEIGHT    * 1                                       (if the query is in the chunk's path)
 ```
 
 `KEYWORD_WEIGHT = 0.02`, `PATH_WEIGHT = 0.2`. A chunk found only by keyword or path search takes the lowest cosine
@@ -72,8 +72,9 @@ Pools stay 200 per channel. `reciprocal_rank_fusion` and its tests are deleted.
 
 ### Cost guards (found by the 100k latency run)
 
-A path needle found in more than 1,000 chunks is ignored (a fragment like `txt` or `.js` is not a file name; scoring
-every match cost 849 ms). A query word in more than 20% of the chunks, and in more than 1,000 of them, is left out of the
+A path needle found in more than 1,000 chunks or 50 files of the searched scope (filters apply first) is ignored: a
+fragment like `txt`, `.js` or `src` is not a file name, and scoring every match cost 849 ms. Every chunk of a matching
+file gets the same boost, so the embedding orders them (a path-length ordering was measured equal and is noise). A query word in more than 20% of the chunks, and in more than 1,000 of them, is left out of the
 bm25 match (near-zero weight, but it costs a scan; one such word cost 349 ms). Counts come from an `fts5vocab` table.
 Corpora under 1,000 chunks, including the sample, are never affected.
 
@@ -113,4 +114,7 @@ weights. Each needs evidence from real data (the launcher in use) before it earn
 - 768-d triples memory per chunk. Mitigation: documented; float16 storage is the next lever if an index passes about 1M
   chunks.
 - The confidence threshold may not transfer to a corpus with many near-topic documents. It is a flag, not a filter:
-  the hits are still returned.
+  the hits are still returned. A top hit found only by keyword search (outside the vector pool, so no cosine) is never
+  confident; that is rare and errs towards showing the list.
+- The path index stores a file's path once per chunk (external content over `chunks`), a few MB at 100k chunks; a
+  per-file table would shrink it at the price of a join and more sync code.

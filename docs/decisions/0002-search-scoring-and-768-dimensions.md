@@ -6,14 +6,15 @@ memory engine spec. Design: `superpowers/specs/2026-10-15-search-quality-design.
 
 ## Decision
 
-- **Score = cosine + 0.02 x relative bm25 + 0.2 x relative path match.** Cosine of unit vectors is the base because it is
+- **Score = cosine + 0.02 x relative bm25 + 0.2 if the query is part of the chunk's path.** Cosine of unit vectors is the base because it is
   comparable across text, PDF pages and images; bm25 (text, identifiers and path words, weights 1.0 / 0.5 / 2.0, with
   phrase terms) and a trigram match of the query inside the file path only add to it.
 - **Documents are embedded as `title: <file name> | text: <chunk>`** (EmbeddingGemma's own title slot).
 - **768 dimensions**, the model's native size, instead of 256.
 - **`confident` flag** on every search: the best hit's cosine is at least 0.65, or the query is part of its path.
-- Two cost guards: a path needle found in more than 1,000 chunks is ignored, and a query word in more than 20% of the
-  chunks (and more than 1,000) is left out of the bm25 match.
+- Two cost guards: a path needle found in more than 1,000 chunks or 50 files of the searched scope is ignored, and a
+  query word in more than 20% of the chunks (and more than 1,000) is left out of the bm25 match. Matching chunks of a
+  file all get the same path boost, so the embedding orders them.
 
 ## Why
 
@@ -43,7 +44,8 @@ false alarm on answerable queries.
 (16 ms against 11 ms at 100k on the CPU). Phase 6 adds roughly 10 ms to a search at 100k chunks. An existing index is
 refused on open and must be rebuilt (a model, dimension or schema change always did). The confidence threshold is
 calibrated on one corpus with a thin margin (on-topic at least 0.674, off-topic at most 0.666); it is a flag, hits are
-still returned.
+still returned, and a top hit found only by keyword search is never confident. The path index repeats a file's path
+per chunk (a few MB at 100k chunks).
 
 ## Revisit when
 

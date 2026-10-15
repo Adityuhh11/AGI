@@ -44,7 +44,7 @@ class Searcher:
             self._embedder.embed_query(query), self._pool, filters
         )
         keyword_hits = self._store.keyword_search(query, self._pool, filters)
-        path_hits = self._store.path_search(query, self._pool, filters)
+        path_hits = self._store.path_search(query, filters)
         fused = blend(vector_hits, keyword_hits, path_hits)[:k]
         vector_scores = {h.id: h.score for h in vector_hits}
         path_ids = {h.id for h in path_hits}

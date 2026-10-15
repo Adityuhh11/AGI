@@ -34,7 +34,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 ## Data flow
 
 Indexing: source file -> chunks -> embeddings (768-d unit vectors; text is embedded with its file name as title) -> `FlatStore.upsert`.
-Search: query -> embedding, bm25 query (words, identifiers, path words, phrases) and path substring -> three candidate lists -> one blended score (`cosine + 0.02 x bm25 + 0.2 x path`) -> hits plus a `confident` flag.
+Search: query -> embedding, bm25 query (words, identifiers, path words, phrases) and path substring -> three candidate lists -> one blended score (`cosine + 0.02 x relative bm25 + 0.2 if the query is in the path`) -> hits plus a `confident` flag.
 API: the Go launcher calls `POST /sources` (a background `JobManager` job runs the indexer) and `POST /search` over authenticated localhost HTTP; the contract is in `api.md`.
 
 ## On-disk format

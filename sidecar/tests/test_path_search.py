@@ -29,16 +29,16 @@ def filled(store):
     return store, chunks
 
 
-def uris(store, query, n=10, filters=None):
-    found = {h.id for h in store.path_search(query, n, filters)}
+def uris(store, query, filters=None):
+    found = {h.id for h in store.path_search(query, filters)}
     return sorted({c.uri for c in store.get(list(found)).values()})
 
 
-def test_a_file_name_finds_every_chunk_of_that_file(filled):
+def test_a_file_name_finds_every_chunk_of_that_file_with_the_same_score(filled):
     store, chunks = filled
-    hits = store.path_search("emailService", 10)
+    hits = store.path_search("emailService")
     assert {h.id for h in hits} == {chunks[1].id, chunks[2].id}
-    assert all(h.score > 0 for h in hits)
+    assert {h.score for h in hits} == {1.0}  # the embedding orders them, not the path length
 
 
 def test_the_match_is_a_case_insensitive_substring(filled):
@@ -52,28 +52,41 @@ def test_the_match_is_a_case_insensitive_substring(filled):
 
 
 @pytest.mark.parametrize(
-    "query", ["", "  ", "jw", "ab", "no such file name", 'jwt"', 'say "hi" NEAR(']
+    "query",
+    ["", "  ", "jw", "ab", "no such file name", 'jwt"', 'say "hi" NEAR(', "x" * 5000],
 )
 def test_short_unmatched_and_odd_queries_return_a_list_not_an_error(filled, query):
     store, _ = filled
-    assert isinstance(store.path_search(query, 10), list)
-    if len(query.strip()) < 3 or query == "no such file name":
-        assert store.path_search(query, 10) == []
+    assert store.path_search(query) == []
 
 
-def test_filters_and_the_limit_apply(filled):
+def test_filters_apply(filled):
     store, _ = filled
     assert uris(store, ".md") == ["notes/readme.md"]
-    assert uris(store, ".md", filters=Filters(source_id="s")) == []
-    assert uris(store, "src", filters=Filters(uri_prefix="Backend/src/utils/j")) == [
-        "Backend/src/utils/jwt.js"
-    ]
-    assert uris(store, "docs", filters=Filters(kinds=frozenset({ChunkKind.IMAGE}))) == [
+    assert uris(store, ".md", Filters(source_id="s")) == []
+    prefix = Filters(uri_prefix="Backend/src/utils/j")
+    assert uris(store, "src", prefix) == ["Backend/src/utils/jwt.js"]
+    assert uris(store, "docs", Filters(kinds=frozenset({ChunkKind.IMAGE}))) == [
         "docs/Screenshot 2026-07-29 233342.png"
     ]
-    assert uris(store, "docs", filters=Filters(kinds=frozenset())) == []
-    assert len(store.path_search("src", 2)) == 2
-    assert store.path_search("src", 0) == []
+    assert uris(store, "docs", Filters(kinds=frozenset())) == []
+
+
+def test_a_fragment_found_in_too_many_files_is_ignored(filled, monkeypatch):
+    store, _ = filled
+    assert len(uris(store, "src")) == 2
+    monkeypatch.setattr("agi_memory.store.flat._MAX_PATH_FILES", 1)
+    assert store.path_search("src") == []  # two files match: too common to mean a name
+    assert len(store.path_search("jwt.js")) == 1  # a specific name still works
+    # the limit is counted inside the searched scope, so a filter can make a fragment specific
+    assert len(store.path_search("src", Filters(uri_prefix="Backend/src/utils/j"))) == 1
+
+
+def test_a_fragment_found_in_too_many_chunks_is_ignored(filled, monkeypatch):
+    store, _ = filled
+    monkeypatch.setattr("agi_memory.store.flat._MAX_PATH_CHUNKS", 1)
+    assert store.path_search("emailService") == []  # one file, but two chunks
+    assert len(store.path_search("jwt.js")) == 1
 
 
 def test_deleted_and_replaced_files_leave_the_path_index(filled):
@@ -85,15 +98,7 @@ def test_deleted_and_replaced_files_leave_the_path_index(filled):
     assert uris(store, "tokens") == ["Backend/src/utils/tokens.js"]
 
 
-def test_results_are_ordered_deterministically(filled):
+def test_results_are_ordered_by_id(filled):
     store, _ = filled
-    first = [h.id for h in store.path_search("src", 10)]
-    assert first == [h.id for h in store.path_search("src", 10)]
-
-
-def test_a_fragment_found_in_too_many_chunks_is_ignored(filled, monkeypatch):
-    store, _ = filled
-    assert len(store.path_search("src", 10)) == 3
-    monkeypatch.setattr("agi_memory.store.flat._MAX_PATH_MATCHES", 2)
-    assert store.path_search("src", 10) == []  # three chunks match: too common to mean a name
-    assert len(store.path_search("jwt.js", 10)) == 1  # a specific name still works
+    ids = [h.id for h in store.path_search("src")]
+    assert ids == sorted(ids)

@@ -9,6 +9,7 @@ excluded. `tests/test_perf.py` now asserts best-of-three p95 under 100 ms and ev
 |---|---|---|
 | 1, machine busy, before the fixes below | (81.4, 110.3), (78.5, 102.9), (78.5, 99.5) | 849, 19, 21, 391, 31 ms |
 | 2, after the fixes, machine idle | (26.1, 79.6), (25.1, 28.1), (25.8, 30.1) | 11, 9, 9, 9, 8 ms |
+| 3, after the review fixes (uniform path score, files cap, one vocabulary lookup) | (24.8, 27.0), (24.6, 26.5), (24.6, 27.0) | 11, 9, 8, 9, 9 ms |
 
 Profile in the busy state (p50 / p95 ms): vector search 15.8 / 20.2, keyword search 57.8 / 71.3, path search under 1. The
 pre-phase-6 code (256-d, schema 2) measured in the same minute: keyword 52.9 / 68.1, vector 10.7 / 12.9. So the swing
