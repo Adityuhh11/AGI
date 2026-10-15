@@ -18,8 +18,9 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-// barHeightDIP is the height of the bare search bar.
-const barHeightDIP = 72
+// barHeightDIP is the height of the bare search bar: the 65 DIP pill (60 plus its 2.5 DIP metal
+// ring on each side) and the clear margin the page leaves for its shadow (12 above, 40 below).
+const barHeightDIP = 117
 
 // offscreen is where the window waits before its first use (relative to the primary work area).
 const offscreen = -32000
@@ -56,12 +57,18 @@ func New(app *application.App, hotkey string) *Panel {
 		// Wails creates a hidden window's native window only when it is first shown, and a
 		// shown-then-hidden web view stops rendering. So the window exists from the start, far
 		// off screen, and is cloaked as soon as it has a handle.
-		InitialPosition:  application.WindowXY,
-		X:                offscreen,
-		Y:                offscreen,
-		BackgroundColour: application.NewRGB(0, 0, 0),
+		InitialPosition: application.WindowXY,
+		X:               offscreen,
+		Y:               offscreen,
+		// The page draws the whole bar, including its rounded outline and its shadow, on a clear
+		// window: Windows' own frame would add a square border and shadow around the pill.
+		BackgroundType:   application.BackgroundTypeTransparent,
+		BackgroundColour: application.NewRGBA(0, 0, 0, 0),
 		URL:              "/",
-		Windows:          application.WindowsWindow{HiddenOnTaskbar: true},
+		Windows: application.WindowsWindow{
+			HiddenOnTaskbar:                   true,
+			DisableFramelessWindowDecorations: true,
+		},
 	})
 	p.win.OnWindowEvent(events.Common.WindowLostFocus, func(*application.WindowEvent) {
 		p.hide(false) // the user clicked elsewhere: do not steal the focus back
@@ -141,7 +148,7 @@ func (p *Panel) Hide() { p.hide(true) }
 func (p *Panel) HideForLaunch() { p.hide(false) }
 
 // maxHeightDIP keeps the panel from growing past a comfortable list of results.
-const maxHeightDIP = 620
+const maxHeightDIP = 640
 
 // Resize makes the panel heightDIP tall (device-independent pixels), for the page to fit its
 // results. The top edge stays where it is; the height never goes below the bare bar, above

@@ -12,18 +12,22 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"agi"
 	"agi/internal/config"
 	"agi/internal/panel"
 )
@@ -45,6 +49,54 @@ window.addEventListener('focus', () => {
 });
 fetch('/ready');
 </script></body></html>`
+
+// pillPage is the stand-in for the designed bar: a transparent page, a pill with a CSS shadow, and
+// an animated WebGL ring behind it, the costly parts of the design (the animation pauses when the
+// panel loses the keyboard, as the real page must).
+const pillPage = `<!doctype html><html><body style="margin:0;background:transparent;overflow:hidden">
+<div style="padding:22px">
+<div id="pill" style="position:relative;height:60px;border-radius:30px;box-shadow:0 12px 40px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.4)">
+<canvas id="gl" style="position:absolute;inset:0;width:100%;height:100%;border-radius:30px"></canvas>
+<div style="position:absolute;inset:3px;border-radius:27px;background:#0b0b0c">
+<input id="q" style="width:100%;height:100%;box-sizing:border-box;padding:0 28px;background:transparent;color:#fff;border:0;outline:0;font-size:20px"></div>
+</div></div>
+<script>
+const q = document.getElementById('q');
+const send = ev => fetch('/m?ev=' + ev).catch(() => {});
+const gl = document.getElementById('gl').getContext('webgl');
+const c = gl.canvas, dpr = window.devicePixelRatio || 1;
+c.width = 700 * dpr; c.height = 60 * dpr;
+const sh = (t, src) => { const s = gl.createShader(t); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+const pr = gl.createProgram();
+gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}'));
+gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, 'precision mediump float;uniform float t;uniform vec2 r;void main(){vec2 u=gl_FragCoord.xy/r;float v=sin(u.x*6.+t*.8)+.5*sin(u.x*11.-t*1.3+u.y*4.)+.7*sin(u.x*3.+u.y*9.+t*.5);float m=.5+.5*sin(v*2.);gl_FragColor=vec4(mix(vec3(.35,.37,.42),vec3(.95,.97,1.),pow(m,2.5)),1.);}'));
+gl.linkProgram(pr); gl.useProgram(pr);
+const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+gl.viewport(0, 0, c.width, c.height); gl.uniform2f(gl.getUniformLocation(pr, 'r'), c.width, c.height);
+const tu = gl.getUniformLocation(pr, 't');
+let running = true, last = 0;
+function frame(now) { if (!running) return; if (now - last > 33) { last = now; gl.uniform1f(tu, now / 1000); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
+window.addEventListener('blur', () => { running = false; });
+window.addEventListener('focus', () => {
+  if (!running) { running = true; requestAnimationFrame(frame); }
+  q.focus(); q.select(); send('focus');
+  requestAnimationFrame(() => requestAnimationFrame(() => send('painted')));
+});
+fetch('/ready');
+</script></body></html>`
+
+// probe is added to the real page so the bench can see when it has focus and has painted.
+const probe = `<script>
+const send = ev => fetch('/m?ev=' + ev).catch(() => {});
+window.addEventListener('focus', () => {
+  send('focus');
+  requestAnimationFrame(() => requestAnimationFrame(() => send('painted')));
+});
+fetch('/ready');
+</script>`
 
 var (
 	user32     = syscall.NewLazyDLL("user32.dll")
@@ -110,7 +162,14 @@ func (e *events) get(name string) (time.Time, bool) {
 	return at, ok
 }
 
+var (
+	usePill = flag.Bool("pill", false, "measure the pill-with-shader stand-in page instead of the plain bar")
+	hold    = flag.Duration("hold", 0, "keep the panel open this long after the first run, to look at it")
+	real    = flag.Bool("real", false, "measure the launcher's real page (frontend/dist) with a probe script added")
+)
+
 func main() {
+	flag.Parse()
 	ev := &events{seen: map[string]time.Time{}, wake: make(chan struct{}, 1)}
 	ready := make(chan struct{}, 1)
 	mux := http.NewServeMux()
@@ -121,10 +180,35 @@ func main() {
 		}
 	})
 	mux.HandleFunc("/m", func(_ http.ResponseWriter, r *http.Request) { ev.record(r.URL.Query().Get("ev")) })
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		_, _ = fmt.Fprint(w, page)
-	})
+	if *real {
+		dist, err := fs.Sub(agi.Frontend, "frontend/dist")
+		if err != nil {
+			log.Fatal(err)
+		}
+		files := http.FileServerFS(dist)
+		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+				files.ServeHTTP(w, r)
+				return
+			}
+			index, err := fs.ReadFile(dist, "index.html")
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html")
+			_, _ = fmt.Fprint(w, strings.Replace(string(index), "</body>", probe+"</body>", 1))
+		})
+	} else {
+		mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/html")
+			if *usePill {
+				_, _ = fmt.Fprint(w, pillPage)
+				return
+			}
+			_, _ = fmt.Fprint(w, page)
+		})
+	}
 
 	app := application.New(application.Options{Name: "panelbench", Assets: application.AssetOptions{Handler: mux}})
 	p := panel.New(app, config.DefaultHotkey)
@@ -190,6 +274,10 @@ func bench(p *panel.Panel, ev *events, ready <-chan struct{}) int {
 				focus = append(focus, f.Sub(started))
 				painted = append(painted, pt.Sub(started))
 			}
+		}
+		if i == 1 && *hold > 0 {
+			fmt.Printf("HOLD %+v\n", p.Bounds())
+			time.Sleep(*hold)
 		}
 		p.Hide()
 		time.Sleep(250 * time.Millisecond)
