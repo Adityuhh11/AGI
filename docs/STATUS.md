@@ -11,6 +11,7 @@ Updated at the end of every phase. Last updated: 2026-10-13.
 | 4 Search + eval | Keyword + vector fusion, eval harness, baseline | done |
 | 5 API | Authenticated FastAPI app, background index jobs, `python -m agi_memory` | done |
 | 6 Search quality | Blended score, file-name titles, 768-d, path field + phrases + path trigram, confidence flag, eval with negatives | done |
+| 7a Launcher engine support | `POST /search/files` (files with their best chunks), `GET /sources`, `source_id` on hits, queries served ahead of indexing | done |
 
 ## Next
 
