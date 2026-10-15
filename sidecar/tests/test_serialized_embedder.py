@@ -24,9 +24,9 @@ class Probe(FakeEmbedder):
         with self._guard:
             self.active -= 1
 
-    def embed_documents(self, texts):
+    def embed_documents(self, texts, titles=None):
         self._inside()
-        return super().embed_documents(texts)
+        return super().embed_documents(texts, titles)
 
     def embed_query(self, text):
         self._inside()

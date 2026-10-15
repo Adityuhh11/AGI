@@ -1,6 +1,7 @@
 import builtins
 import io
 import os
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -19,11 +20,13 @@ class CountingEmbedder(FakeEmbedder):
     def __init__(self) -> None:
         super().__init__(DIM)
         self.document_calls = 0
+        self.titles: list[str] = []
         self.image_calls = 0
 
-    def embed_documents(self, texts):
+    def embed_documents(self, texts, titles=None):
         self.document_calls += 1
-        return super().embed_documents(texts)
+        self.titles.extend(titles or [])
+        return super().embed_documents(texts, titles)
 
     def embed_images(self, images):
         self.image_calls += 1
@@ -77,6 +80,13 @@ def test_first_sync_indexes_everything_and_reports_it(indexer, store, root):
     assert (report.added, report.updated, report.unchanged, report.removed) == (2, 0, 0, 0)
     assert report.chunks_written == store.count() == 2
     assert set(store.file_records("s")) == {"a.js", "docs/b.md"}
+
+
+def test_text_chunks_are_embedded_with_their_file_name_as_title(indexer, embedder, root):
+    write(root, "src/deep/Widget.js", "function render() {}")
+    write(root, "notes.md", "# Notes\nhello")
+    indexer.sync("s", root)
+    assert sorted(set(embedder.titles)) == ["Widget.js", "notes.md"]
 
 
 def test_searching_finds_what_was_indexed(indexer, store, embedder, root):
@@ -309,5 +319,5 @@ def test_every_file_gets_its_own_vectors_across_batched_flushes(store, embedder,
     chunks = all_chunks(store)
     assert len(chunks) == 25
     for chunk in chunks.values():
-        own_vector = embedder.embed_documents([chunk.text])[0]
+        own_vector = embedder.embed_documents([chunk.text], [Path(chunk.uri).name])[0]
         assert store.search_vectors(own_vector, 1)[0].id == chunk.id

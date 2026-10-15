@@ -64,8 +64,16 @@ class FakeEmbedder:
             return np.zeros((0, self._dim), dtype=np.float32)
         return np.stack(rows).astype(np.float32)
 
-    def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
-        return self._stack([self._embed_text(t) for t in texts])
+    def embed_documents(
+        self, texts: Sequence[str], titles: Sequence[str] | None = None
+    ) -> np.ndarray:
+        if titles is None:
+            return self._stack([self._embed_text(t) for t in texts])
+        if len(titles) != len(texts):
+            raise ValueError(f"{len(titles)} titles for {len(texts)} texts")
+        return self._stack(
+            [self._embed_text(f"{u} {t}") for u, t in zip(titles, texts, strict=True)]
+        )
 
     def embed_images(self, images: Sequence[Image]) -> np.ndarray:
         rows = []

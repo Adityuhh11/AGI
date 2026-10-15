@@ -35,6 +35,11 @@ from agi_memory.types import Chunk, FileRecord
 _TEXT_ROUTES = frozenset({Route.CODE, Route.MARKDOWN, Route.TEXT})
 
 
+def _title(uri: str) -> str:
+    """The file name: measured better as the embedding title than the whole path."""
+    return uri.rsplit("/", 1)[-1]
+
+
 @dataclass(frozen=True, slots=True)
 class FileError:
     uri: str
@@ -157,8 +162,9 @@ class Indexer:
         if not pending:
             return
         texts = [chunk.text for item in pending for chunk in item.chunks]
+        titles = [_title(chunk.uri) for item in pending for chunk in item.chunks]
         vectors = (
-            self._embedder.embed_documents(texts)
+            self._embedder.embed_documents(texts, titles)
             if texts
             else np.zeros((0, self._embedder.dim), dtype=np.float32)
         )
@@ -196,7 +202,9 @@ class Indexer:
             page_chunks = pdf_page_chunks(
                 record.source_id, record.uri, record.sha256, len(pdf), mtime_ns
             )
-            text_vectors = self._embedder.embed_documents([c.text for c in text_chunks])
+            text_vectors = self._embedder.embed_documents(
+                [c.text for c in text_chunks], [_title(c.uri) for c in text_chunks]
+            )
             page_vectors = np.zeros((len(page_chunks), self._embedder.dim), dtype=np.float32)
             step = self._settings.image_batch_size
             for start in range(0, len(page_chunks), step):

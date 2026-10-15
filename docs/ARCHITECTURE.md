@@ -33,7 +33,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 
 ## Data flow
 
-Indexing: source file -> chunks -> embeddings (256-d unit vectors) -> `FlatStore.upsert`.
+Indexing: source file -> chunks -> embeddings (768-d unit vectors; text is embedded with its file name as title) -> `FlatStore.upsert`.
 Search: query -> embedding + keyword query -> two ranked lists -> fusion -> hits.
 API: the Go launcher calls `POST /sources` (a background `JobManager` job runs the indexer) and `POST /search` over authenticated localhost HTTP; the contract is in `api.md`.
 
@@ -70,7 +70,7 @@ Schema version 2 adds `sources(id, root, last_scan_ns)` and `files(source_id, ur
 2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list in `sources/rules.py`).
 3. **SQLite is the source of truth** for what exists in the index; vector rows without a metadata entry are garbage.
 4. **GPU = models only.** Index and search live on the CPU.
-5. **Embedder output** is float32, shape (n, 256), rows unit length to 1e-5. The GPU runs bf16, the CPU float32;
+5. **Embedder output** is float32, shape (n, 768), rows unit length to 1e-5. The GPU runs bf16, the CPU float32;
    measured cosine between them on 4 test sentences is >= 0.99995. Real-model tests are marked `model`
    (`uv run pytest -m model`); peak VRAM stayed under 1.5 GiB.
 6. **Sync safety.** Denied files are never opened; links are never followed; a directory that cannot be read never causes its indexed files to be deleted; a missing source root is an error.

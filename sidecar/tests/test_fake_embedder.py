@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from PIL import Image
 
 from agi_memory.embedding import FakeEmbedder
@@ -52,3 +53,18 @@ def test_images_are_embedded_by_content():
 
 def test_fake_embedder_reports_a_cpu_device():
     assert FakeEmbedder(8).device == "cpu"
+
+
+def test_titles_change_the_vector_and_no_titles_changes_nothing():
+    fake = FakeEmbedder(32)
+    plain = fake.embed_documents(["alpha"])
+    np.testing.assert_array_equal(fake.embed_documents(["alpha"], None), plain)
+    titled = fake.embed_documents(["alpha"], ["report"])
+    assert not np.array_equal(titled, plain)
+    query = fake.embed_query("report")
+    assert (titled @ query)[0] > (plain @ query)[0]  # the title words are part of the document
+
+
+def test_a_title_count_that_does_not_match_is_an_error():
+    with pytest.raises(ValueError, match="titles"):
+        FakeEmbedder(8).embed_documents(["a", "b"], ["only one"])

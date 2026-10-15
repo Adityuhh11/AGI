@@ -29,8 +29,11 @@ class Embedder(Protocol):
         """Where the model runs: `cuda` or `cpu`."""
         ...
 
-    def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
-        """Shape `(len(texts), dim)`."""
+    def embed_documents(
+        self, texts: Sequence[str], titles: Sequence[str] | None = None
+    ) -> np.ndarray:
+        """Shape `(len(texts), dim)`. `titles` (one per text, e.g. the file name) is embedded with
+        the text when given: the real model has a dedicated title slot that measurably helps."""
         ...
 
     def embed_images(self, images: Sequence[Image]) -> np.ndarray:

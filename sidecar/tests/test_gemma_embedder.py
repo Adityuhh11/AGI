@@ -3,7 +3,7 @@ import pytest
 import torch
 from PIL import Image, ImageDraw
 
-from agi_memory.config import Settings
+from agi_memory.config import EMBEDDING_DIM, Settings
 from agi_memory.embedding.gemma import GemmaEmbedder
 
 pytestmark = pytest.mark.model
@@ -28,7 +28,7 @@ def embedder(settings):
 
 def test_vectors_are_float32_unit_rows(embedder):
     vecs = embedder.embed_documents(DOCS)
-    assert vecs.shape == (4, 256)
+    assert vecs.shape == (4, EMBEDDING_DIM)
     assert vecs.dtype == np.float32
     np.testing.assert_allclose(np.linalg.norm(vecs, axis=1), 1.0, atol=1e-5)
 
@@ -39,6 +39,15 @@ def test_related_text_ranks_first(embedder):
     assert int(np.argmax(scores)) == 0
     assert scores[0] > 0.75  # spike measured 0.84
     assert np.sort(scores)[-2] < 0.7  # spike measured <= 0.60 for the others
+
+
+def test_a_title_is_part_of_what_a_document_means(embedder):
+    texts = ["Quarterly numbers and notes."] * 2
+    docs = embedder.embed_documents(texts, ["Budget 2026.xlsx", "Holiday photos.txt"])
+    query = embedder.embed_query("annual budget spreadsheet")
+    assert docs[0] @ query > docs[1] @ query
+    with pytest.raises(ValueError, match="titles"):
+        embedder.embed_documents(["a", "b"], ["x"])
 
 
 def test_text_finds_matching_image(embedder):
@@ -57,8 +66,8 @@ def test_same_input_gives_same_vector(embedder):
 
 
 def test_empty_inputs(embedder):
-    assert embedder.embed_documents([]).shape == (0, 256)
-    assert embedder.embed_images([]).shape == (0, 256)
+    assert embedder.embed_documents([]).shape == (0, EMBEDDING_DIM)
+    assert embedder.embed_images([]).shape == (0, EMBEDDING_DIM)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")

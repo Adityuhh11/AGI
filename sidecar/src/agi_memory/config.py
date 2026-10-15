@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 MODEL_ID = "google/embeddinggemma-2"
-EMBEDDING_DIM = 256
+EMBEDDING_DIM = 768  # the model's native size: 256 and 512 measured worse (ADR 0002)
 
 
 class ConfigError(Exception):

@@ -36,9 +36,11 @@ class SerializedEmbedder:
     def device(self) -> str:
         return self._inner.device
 
-    def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
+    def embed_documents(
+        self, texts: Sequence[str], titles: Sequence[str] | None = None
+    ) -> np.ndarray:
         with self._lock:
-            return self._inner.embed_documents(texts)
+            return self._inner.embed_documents(texts, titles)
 
     def embed_images(self, images: Sequence[Image]) -> np.ndarray:
         with self._lock:

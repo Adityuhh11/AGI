@@ -28,17 +28,17 @@ class GatedEmbedder(FakeEmbedder):
         self.entered = threading.Event()
         self.release = threading.Event()
 
-    def embed_documents(self, texts):
+    def embed_documents(self, texts, titles=None):
         self.entered.set()
         assert self.release.wait(10), "the gate was never released"
-        return super().embed_documents(texts)
+        return super().embed_documents(texts, titles)
 
 
 class FailingEmbedder(FakeEmbedder):
     def __init__(self) -> None:
         super().__init__(DIM)
 
-    def embed_documents(self, texts):
+    def embed_documents(self, texts, titles=None):
         raise RuntimeError("gpu on fire")
 
 
@@ -48,9 +48,9 @@ class SlowEmbedder(FakeEmbedder):
     def __init__(self) -> None:
         super().__init__(DIM)
 
-    def embed_documents(self, texts):
+    def embed_documents(self, texts, titles=None):
         time.sleep(0.03)
-        return super().embed_documents(texts)
+        return super().embed_documents(texts, titles)
 
 
 def wait_ready(client: TestClient) -> None:

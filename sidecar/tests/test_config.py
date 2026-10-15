@@ -24,7 +24,7 @@ def test_defaults_match_the_spec(tmp_path):
     s = Settings(index_dir=tmp_path)
     assert (s.model_id, s.dim, s.max_seq_length, s.text_batch_size, s.image_batch_size) == (
         "google/embeddinggemma-2",
-        256,
+        768,
         512,
         8,
         4,

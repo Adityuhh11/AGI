@@ -64,10 +64,17 @@ class GemmaEmbedder:
         # bfloat16 normalisation is only accurate to ~1e-2; the store requires unit rows.
         return vecs / np.linalg.norm(vecs, axis=1, keepdims=True)
 
-    def embed_documents(self, texts: Sequence[str]) -> np.ndarray:
-        return self._encode(
-            texts, prompt_name="Document", batch_size=self._settings.text_batch_size
-        )
+    def embed_documents(
+        self, texts: Sequence[str], titles: Sequence[str] | None = None
+    ) -> np.ndarray:
+        batch_size = self._settings.text_batch_size
+        if titles is None:
+            return self._encode(texts, prompt_name="Document", batch_size=batch_size)
+        if len(titles) != len(texts):
+            raise ValueError(f"{len(titles)} titles for {len(texts)} texts")
+        # The stock "Document" prompt is `title: none | text: `; fill the title slot instead.
+        formatted = [f"title: {u} | text: {t}" for u, t in zip(titles, texts, strict=True)]
+        return self._encode(formatted, prompt_name=None, batch_size=batch_size)
 
     def embed_images(self, images: Sequence[Image]) -> np.ndarray:
         return self._encode(
