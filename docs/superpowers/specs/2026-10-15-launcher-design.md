@@ -1,6 +1,6 @@
 # Launcher v1: hotkey, search bar, results from across the laptop
 
-Date: 2026-10-15. Status: draft for the owner's review. Builds on the memory engine (`docs/api.md`,
+Date: 2026-10-15. Status: approved by the owner, scope narrowed on 2026-10-15 (see Scope). Builds on the memory engine (`docs/api.md`,
 `2026-10-12-memory-engine-design.md`, `2026-10-15-search-quality-design.md`). Evidence:
 `docs/eval/2026-10-15-launcher-experiments.md`.
 
@@ -13,6 +13,12 @@ matched. Enter opens it. That is the whole of v1.
 In scope: global hotkey (configurable), the panel, search-as-you-type, file-level results with the matching chunks,
 opening and revealing files, indexing the laptop in the background and keeping it fresh, a tray icon to see status and
 quit, starting the Python sidecar and keeping it alive.
+
+**First milestone: it searches the `Sample Data/` folder only.** The owner will build the big index of the whole laptop
+later, in one go, plugged in, by hand. So v1 has no automatic scheduling, no power or full-screen policy and no default
+list of personal folders: `roots` defaults to the sample folder, and pointing it at real folders later is a config
+change. Only code is wanted from repositories: dependency and build folders (`node_modules`, `.git`, venvs, `dist`...)
+are already skipped by the engine's scanner.
 
 Out of scope for v1 (each is its own later spec): any LLM feature, UI design beyond a plain black bar, a settings
 screen (config is a file), app and command launching, clipboard history, Office files, file watching, packaging and
@@ -53,19 +59,16 @@ Repository layout: `cmd/agi/` (entry point), `internal/{config,sidecar,panel,sea
 one new dependency here; the stdlib has no TOML).
 
 ```toml
-hotkey = "Alt+Shift+Space"          # default to be confirmed, see Open questions
-roots = [                            # folders to index; defaults are the ones that exist
-  "C:\\Users\\me\\Documents", "C:\\Users\\me\\Desktop", "C:\\Users\\me\\Downloads",
-  "C:\\Users\\me\\Pictures", "C:\\Users\\me\\OneDrive",
-]
+hotkey = "Alt+Shift+Space"
+roots = ["C:\\dev\\VS_CODE\\AGI\\Sample Data"]   # v1 default; real folders are added later by hand
 [sidecar]
 dir = "C:\\dev\\VS_CODE\\AGI\\sidecar"   # dev: where `uv run python -m agi_memory` runs; packaging is later
 ```
 
 Each root becomes a source with a stable id derived from its path (`root-` plus the first 10 hex of its SHA-256). The
 engine's own scanner already skips secrets (deny list), `.gitignore`d paths, `node_modules`, links and oversize files.
-`C:\dev`-style folders are added by the owner to `roots`; the whole `C:\` is deliberately not a default (AppData, Program
-Files and caches would drown the index).
+Personal folders (Documents, Downloads, `C:\dev`...) are added to `roots` by the owner when the big index is built; the
+whole `C:\` is deliberately never a default (AppData, Program Files and caches would drown the index).
 
 ### internal/sidecar
 
@@ -98,11 +101,12 @@ in v1.
 
 ### internal/indexing
 
-On start, and then every 30 minutes while the machine is idle (and on tray "Rescan now"), submits each root with
-`POST /sources` one at a time (the engine allows one job; a 409 means wait for the running job). A repeat submit is an
-incremental sync, so unchanged files cost almost nothing and deleted files disappear. Reports to the tray and UI:
-`Indexing Downloads: 1,240 / 3,100 files` or `Up to date: 18,402 chunks`. Failed jobs are retried at the next cycle and
-the error is shown; per-file errors are counted, not shown. Removing a root from the config issues `DELETE /sources/{id}`.
+On start, and on tray "Rescan now", submits each configured root with `POST /sources` one at a time (the engine allows
+one job; a 409 means wait for the running job). A repeat submit is an incremental sync, so unchanged files cost almost
+nothing and deleted files disappear. Reports to the tray and UI: `Indexing Sample Data: 40 / 96 files` or `Up to date:
+431 chunks`. A failed job shows its error; per-file errors are counted, not shown. Removing a root from the config issues
+`DELETE /sources/{id}`. Later, when real folders are configured: periodic rescans, running on mains power only and pausing
+under full-screen apps (decided as direction by the owner, not built in v1).
 
 ### internal/panel
 
@@ -175,14 +179,11 @@ The launcher needs four things the API does not have yet:
 - **Foreground rules**: taking focus from another process is restricted by Windows; it worked in all 15 spike runs because
   the hotkey press is input to our process. The acceptance run covers full-screen apps and elevated windows (an elevated
   app cannot be handed focus back by a non-elevated one: documented limit).
-- **First index load**: an hour of GPU use at startup, competing with whatever the owner is doing. The indexing manager
-  runs only while on mains power by default and backs off while a full-screen app or game is detected (to be confirmed, see
-  Open questions).
+- **Later, the big index**: about an hour of GPU use for the whole laptop (measured inventory in the experiments note); the
+  owner runs it once, plugged in. Automatic background indexing and its power policy are deferred.
 - **768-d index size**: 100k chunks are 307 MB; the whole laptop is estimated at 20,000 to 60,000 chunks.
 
-## Open questions for the owner
+## Decisions taken
 
-1. Default hotkey (all of these are free here): `Alt+Shift+Space`, `` Win+` ``, `Ctrl+Alt+K`, `Ctrl+Shift+Space`
-   (collides with VS Code parameter hints).
-2. Which folders besides Documents, Desktop, Downloads, Pictures and OneDrive should be roots by default (`C:\dev`?).
-3. Should the first big index run only on mains power and pause under a full-screen app?
+Default hotkey `Alt+Shift+Space` (configurable). Sample Data is the only default root for now; personal folders and the
+background-indexing policy come with the big index. No LLM and no design pass in v1.
