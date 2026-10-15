@@ -7,15 +7,20 @@ from pathlib import Path
 
 import yaml
 
-_KEYS = {"query", "expect", "forbid", "note"}
+_KEYS = {"query", "expect", "none", "forbid", "note"}
 
 
 @dataclass(frozen=True, slots=True)
 class GoldenQuery:
     query: str
-    expect: tuple[str, ...]  # a hit is relevant if its uri contains any of these
+    expect: tuple[str, ...]  # a hit is relevant if its uri contains any of these; () if `none`
     forbid: tuple[str, ...]  # no top-k hit's uri may contain any of these (privacy checks)
     note: str
+
+    @property
+    def answerable(self) -> bool:
+        """False for a query that nothing in the corpus answers (`none: true`)."""
+        return bool(self.expect)
 
 
 def _strings(value: object, where: str) -> tuple[str, ...]:
@@ -44,8 +49,13 @@ def load_golden(path: Path) -> list[GoldenQuery]:
         if not isinstance(query, str) or not query.strip():
             raise ValueError(f"golden {where} needs a non-empty query")
         expect = _strings(entry.get("expect"), f"{where} expect")
-        if not expect:
-            raise ValueError(f"golden {where} needs at least one expect string")
+        if entry.get("none") is True:
+            if expect:
+                raise ValueError(f"golden {where} cannot have both none: true and expect")
+        elif "none" in entry:
+            raise ValueError(f"golden {where} none must be true (or omit it)")
+        elif not expect:
+            raise ValueError(f"golden {where} needs at least one expect string, or none: true")
         if query in seen:
             raise ValueError(f"golden query repeated: {query!r}")
         seen.add(query)

@@ -181,3 +181,36 @@
   forbid: [".env"]
 - query: react-leaflet map component with markers
   expect: [components/Map.jsx]
+
+# --- nothing in the corpus answers these: the search must not claim a confident answer --------
+# (the last three were written after the confidence threshold was chosen, as a holdout)
+- query: recipe for chocolate cake
+  none: true
+- query: flight booking confirmation
+  none: true
+- query: tax invoice 2021
+  none: true
+- query: how to train a puppy
+  none: true
+- query: symptoms of the flu
+  none: true
+- query: lease agreement for the apartment
+  none: true
+- query: guitar chords for a song
+  none: true
+- query: bank statement march
+  none: true
+- query: yoga routine for beginners
+  none: true
+- query: passport renewal form
+  none: true
+- query: kubernetes helm chart values
+  none: true
+- query: wedding seating plan
+  none: true
+- query: hospital appointment reminder
+  none: true
+- query: sourdough starter feeding schedule
+  none: true
+- query: visa application checklist for Germany
+  none: true

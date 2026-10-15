@@ -25,6 +25,14 @@ def test_a_search_finds_the_right_file_and_returns_the_documented_fields(indexed
     assert "refresh" in hits[0]["snippet"]
 
 
+def test_the_response_says_whether_the_best_hit_looks_like_an_answer(indexed):
+    good = search(indexed, "jwt.js", k=3).json()  # a file name is a deliberate match
+    assert good["confident"] is True
+    unrelated = search(indexed, "lasagna with extra mozzarella", k=3).json()
+    assert unrelated["hits"]
+    assert unrelated["confident"] is False
+
+
 def test_an_exact_identifier_is_found_by_its_name(indexed):
     assert (
         search(indexed, "addCountries", k=1).json()["hits"][0]["uri"] == "Backend/addcountries.js"
@@ -44,8 +52,11 @@ def test_filters_narrow_the_results(indexed):
     prefixed = search(indexed, "token", filters={"uri_prefix": "Backend/"}).json()["hits"]
     assert prefixed
     assert all(h["uri"].startswith("Backend/") for h in prefixed)
-    assert search(indexed, "token", filters={"source_id": "nope"}).json() == {"hits": []}
-    assert search(indexed, "token", filters={"modified_after_ns": 2**62}).json() == {"hits": []}
+    assert search(indexed, "token", filters={"source_id": "nope"}).json() == {
+        "hits": [],
+        "confident": False,
+    }
+    assert search(indexed, "token", filters={"modified_after_ns": 2**62}).json()["hits"] == []
     assert search(indexed, "token", filters={"source_id": "repo"}).json()["hits"]
 
 
@@ -75,7 +86,7 @@ def test_odd_queries_return_a_list_not_an_error(indexed, query):
 
 @pytest.mark.parametrize("query", ["", "   "])
 def test_blank_queries_have_no_hits(indexed, query):
-    assert search(indexed, query).json() == {"hits": []}
+    assert search(indexed, query).json() == {"hits": [], "confident": False}
 
 
 @pytest.mark.parametrize(
@@ -99,7 +110,7 @@ def test_invalid_search_bodies_are_rejected(indexed, body):
 
 
 def test_searching_an_empty_index_returns_nothing(api):
-    assert search(api, "anything").json() == {"hits": []}
+    assert search(api, "anything").json() == {"hits": [], "confident": False}
 
 
 def test_searching_works_while_a_job_is_indexing(tmp_path):

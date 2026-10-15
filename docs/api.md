@@ -121,13 +121,19 @@ optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_
 
 ```json
 {"hits": [{"id": "...", "uri": "Backend/jwt.js", "kind": "code", "locator": "{\"lines\":[1,40]}",
-           "score": 0.0328, "vector_score": 0.71, "keyword_rank": 1, "snippet": "..."}]}
+           "score": 0.81, "vector_score": 0.79, "keyword_rank": 1, "snippet": "..."}],
+ "confident": true}
 ```
 
+`confident` is `false` when the best hit is probably noise: its cosine is below 0.65 and the query is not part of its
+path. Show "no match" instead of the list; the hits are still returned. On the sample corpus every on-topic query was
+confident and 14 of 15 off-topic ones were not. It is a flag calibrated on one corpus, not a guarantee.
+
 `uri` is relative to the source root with `/` separators. `locator` is JSON text (`{"lines":[a,b]}`, `{"page":n}`,
-...). `score` is a rank-fusion score: use it to order, not as a probability. `vector_score` is cosine similarity,
+...). `score` is cosine similarity plus small keyword and file-name boosts (about 0.5 to 1.0 for real matches): use it to
+order and compare within one response, not as a probability. `vector_score` is cosine similarity,
 or `null` if the vector search did not return the chunk; `keyword_rank` is the 1-based keyword rank, or `null`.
-Scores are not calibrated and there is no "no good answer" signal yet (phase 6).
+Scores are not calibrated across corpora; use `confident` for "nothing relevant".
 
 - `422` invalid body (`k` out of range, unknown kind, over-long query, ...).
 - `503` model not ready.

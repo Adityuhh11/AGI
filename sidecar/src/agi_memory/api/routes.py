@@ -106,5 +106,7 @@ def search(body: SearchRequest, engine: Annotated[Engine, Depends(get_engine)]) 
             uri_prefix=body.filters.uri_prefix,
             modified_after_ns=body.filters.modified_after_ns,
         )
-    hits = engine.searcher.search(body.query, body.k, filters)
-    return SearchResponse(hits=[SearchHitOut.model_validate(hit) for hit in hits])
+    result = engine.searcher.search(body.query, body.k, filters)
+    return SearchResponse(
+        hits=[SearchHitOut.model_validate(hit) for hit in result.hits], confident=result.confident
+    )

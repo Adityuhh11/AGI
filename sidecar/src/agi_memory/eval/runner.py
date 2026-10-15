@@ -19,6 +19,7 @@ from agi_memory.search.searcher import Searcher
 from agi_memory.store import FlatStore
 
 _COMPARED = ("top1", "recall3", "recall10", "mrr")
+_LOWER_IS_BETTER = ("false_alarms", "missed_nones")
 
 
 def build_index(
@@ -35,10 +36,12 @@ def build_index(
 def evaluate(golden: Sequence[GoldenQuery], searcher: Searcher, k: int = 10) -> list[QueryResult]:
     results = []
     for item in golden:
-        uris = tuple(hit.uri for hit in searcher.search(item.query, k))
+        found = searcher.search(item.query, k)
+        uris = tuple(hit.uri for hit in found.hits)
         forbidden = tuple(sorted({f for f in item.forbid for uri in uris if f in uri}))
+        rank = first_relevant_rank(uris, item.expect) if item.answerable else None
         results.append(
-            QueryResult(item.query, first_relevant_rank(uris, item.expect), forbidden, uris)
+            QueryResult(item.query, rank, forbidden, uris, found.confident, item.answerable)
         )
     return results
 
@@ -52,6 +55,8 @@ def baseline_dict(metrics: Metrics, embedder_id: str, device: str) -> dict[str, 
         "recall3": metrics.recall3,
         "recall10": metrics.recall10,
         "mrr": metrics.mrr,
+        "false_alarms": metrics.false_alarms,
+        "missed_nones": metrics.missed_nones,
     }
 
 
@@ -76,6 +81,13 @@ def compare_to_baseline(
         new = getattr(metrics, name)
         if new < old - tolerance:
             problems.append(f"{name} fell from {old:.3f} to {new:.3f}")
+    for name in _LOWER_IS_BETTER:
+        if name not in baseline:  # a baseline recorded before the flag existed
+            continue
+        old = float(baseline[name])  # type: ignore[arg-type]
+        new = getattr(metrics, name)
+        if new > old + tolerance:
+            problems.append(f"{name} rose from {old:.3f} to {new:.3f}")
     if metrics.forbidden_hits:
         problems.append(
             f"{metrics.forbidden_hits} forbid hit(s): a file that must never be found was"
@@ -106,6 +118,8 @@ def render_report(
         f"| recall@10 | {metrics.recall10:.3f} |",
         f"| MRR | {metrics.mrr:.3f} |",
         f"| forbidden hits | {metrics.forbidden_hits} |",
+        f"| false alarms (answerable, not confident) | {metrics.false_alarms:.3f} |",
+        f"| missed nones (unanswerable, confident) | {metrics.missed_nones:.3f} |",
         "",
         "## Per query",
         "",
@@ -113,9 +127,15 @@ def render_report(
         "|---|---|---|---|---|",
     ]
     for number, (item, result) in enumerate(zip(golden, results, strict=True), start=1):
-        rank = str(result.first_rank) if result.first_rank else "**miss**"
+        if item.answerable:
+            rank = str(result.first_rank) if result.first_rank else "**miss**"
+            if not result.confident:
+                rank += " (not confident)"
+        else:
+            rank = "**confident**" if result.confident else "none (ok)"
         top = result.top_uris[0] if result.top_uris else "-"
-        lines.append(f"| {number} | {item.query} | {rank} | {', '.join(item.expect)} | {top} |")
+        expected = ", ".join(item.expect) or "nothing"
+        lines.append(f"| {number} | {item.query} | {rank} | {expected} | {top} |")
     return "\n".join(lines) + "\n"
 
 
@@ -164,7 +184,8 @@ def run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: s
     print(
         f"{metrics.n} queries: top1 {metrics.top1:.3f}, recall@3 {metrics.recall3:.3f}, "
         f"recall@10 {metrics.recall10:.3f}, MRR {metrics.mrr:.3f}, "
-        f"forbidden {metrics.forbidden_hits}"
+        f"forbidden {metrics.forbidden_hits}, false alarms {metrics.false_alarms:.3f}, "
+        f"missed nones {metrics.missed_nones:.3f}"
     )
     for problem in problems:
         print(f"FAIL: {problem}")

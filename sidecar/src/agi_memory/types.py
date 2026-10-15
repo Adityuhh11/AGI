@@ -93,3 +93,11 @@ class SearchHit:
     vector_score: float | None  # cosine similarity; None if the vector search did not return it
     keyword_rank: int | None  # 1-based bm25 rank; None if the keyword search did not return it
     snippet: str
+
+
+@dataclass(frozen=True, slots=True)
+class SearchResult:
+    """What a search returns: the ranked hits and whether any of them looks like an answer."""
+
+    hits: list[SearchHit]
+    confident: bool  # False: the best hit is probably noise, so "nothing relevant" is the answer

@@ -16,6 +16,9 @@ from agi_memory.types import KeywordHit, VectorHit
 
 KEYWORD_WEIGHT = 0.02
 PATH_WEIGHT = 0.2
+# Below this cosine the best hit is treated as noise. Measured on the sample corpus: on-topic
+# queries had a top cosine of at least 0.674, off-topic ones at most 0.666 (a thin margin).
+CONFIDENT_COSINE = 0.65
 
 
 def blend(

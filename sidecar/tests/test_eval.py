@@ -35,11 +35,20 @@ def test_golden_file_loads_with_defaults(tmp_path):
         "- query: q\n  expect: [a]\n  surprise: 1\n",
         "- query: q\n  expect: [1]\n",
         "- query: q\n  expect: [a]\n- query: q\n  expect: [b]\n",
+        "- query: q\n  expect: [a]\n  none: true\n",
+        "- query: q\n  none: false\n",
+        "- query: q\n  none: yes please\n",
     ],
 )
 def test_malformed_golden_files_are_rejected(tmp_path, text):
     with pytest.raises(ValueError, match="golden"):
         load_golden(write_golden(tmp_path / "g.yaml", text))
+
+
+def test_a_query_nothing_answers_is_declared_with_none(tmp_path):
+    (query,) = load_golden(write_golden(tmp_path / "g.yaml", "- query: lasagna\n  none: true\n"))
+    assert query == GoldenQuery("lasagna", (), (), "")
+    assert not query.answerable
 
 
 def test_first_relevant_rank():
@@ -61,6 +70,38 @@ def test_summary_metrics():
     assert (m.n, m.top1, m.recall3, m.recall10) == (4, 0.25, 0.5, 0.75)
     assert m.mrr == pytest.approx((1 + 1 / 2 + 1 / 5 + 0) / 4)
     assert m.forbidden_hits == 1
+
+
+def test_unanswerable_queries_are_scored_on_confidence_not_rank():
+    results = [
+        QueryResult("hit", 1, (), (), confident=True),
+        QueryResult("weak hit", 2, (), (), confident=False),  # a false alarm
+        QueryResult("none ok", None, (), (), confident=False, answerable=False),
+        QueryResult("none bad", None, (), (), confident=True, answerable=False),
+        QueryResult("none bad too", None, (), (), confident=True, answerable=False),
+    ]
+    m = summarize(results)
+    assert m.n == 5
+    assert (m.top1, m.recall3) == (0.5, 1.0)  # over the two answerable queries only
+    assert m.mrr == pytest.approx((1 + 1 / 2) / 2)
+    assert m.false_alarms == 0.5
+    assert m.missed_nones == pytest.approx(2 / 3)
+
+
+def test_a_set_without_negatives_scores_zero_on_both_confidence_metrics():
+    m = summarize([QueryResult("q", 1, (), ())])
+    assert (m.false_alarms, m.missed_nones) == (0.0, 0.0)
+
+
+def test_confidence_metrics_gate_when_the_baseline_has_them():
+    baseline = {"embedder": "x", "n": 4, "top1": 1.0, "recall3": 1.0, "recall10": 1.0, "mrr": 1.0}
+    worse = Metrics(4, 1.0, 1.0, 1.0, 1.0, 0, false_alarms=0.3, missed_nones=0.3)
+    assert compare_to_baseline(worse, baseline) == []  # an old baseline has nothing to compare
+    baseline.update(false_alarms=0.0, missed_nones=0.0)
+    messages = compare_to_baseline(worse, baseline)
+    assert [m.split()[0] for m in messages] == ["false_alarms", "missed_nones"]
+    ok = Metrics(4, 1.0, 1.0, 1.0, 1.0, 0, false_alarms=0.02, missed_nones=0.0)
+    assert compare_to_baseline(ok, baseline) == []
 
 
 def test_comparing_to_the_baseline():
@@ -86,6 +127,8 @@ def test_baseline_dict_has_the_compared_keys():
         "recall3": 0.6,
         "recall10": 0.7,
         "mrr": 0.8,
+        "false_alarms": 0.0,
+        "missed_nones": 0.0,
     }
 
 

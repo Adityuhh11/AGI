@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from agi_memory.embedding.base import Embedder
-from agi_memory.search.fusion import blend
+from agi_memory.search.fusion import CONFIDENT_COSINE, blend
 from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, Filters, SearchHit
+from agi_memory.types import Chunk, Filters, SearchHit, SearchResult
 
 _SNIPPET_CHARS = 240
 
@@ -19,15 +19,27 @@ def _snippet(chunk: Chunk) -> str:
 class Searcher:
     """Hybrid search over one store. Query embedding costs ~200 ms; the rest is milliseconds."""
 
-    def __init__(self, store: FlatStore, embedder: Embedder, *, pool: int = 200) -> None:
+    def __init__(
+        self,
+        store: FlatStore,
+        embedder: Embedder,
+        *,
+        pool: int = 200,
+        confident_cosine: float = CONFIDENT_COSINE,
+    ) -> None:
         self._store = store
         self._embedder = embedder
         self._pool = pool
+        self._confident_cosine = confident_cosine
 
-    def search(self, query: str, k: int = 10, filters: Filters | None = None) -> list[SearchHit]:
-        """Top-`k` chunks for `query`, best first; `[]` for a blank query or `k <= 0`."""
+    def search(self, query: str, k: int = 10, filters: Filters | None = None) -> SearchResult:
+        """Top-`k` chunks for `query`, best first; no hits for a blank query or `k <= 0`.
+
+        `confident` is true when the best hit's cosine reaches `confident_cosine` or the query is
+        part of its path (typing a file name is a deliberate match, whatever the cosine says).
+        """
         if not query.strip() or k <= 0:
-            return []
+            return SearchResult([], confident=False)
         vector_hits = self._store.search_vectors(
             self._embedder.embed_query(query), self._pool, filters
         )
@@ -35,6 +47,7 @@ class Searcher:
         path_hits = self._store.path_search(query, self._pool, filters)
         fused = blend(vector_hits, keyword_hits, path_hits)[:k]
         vector_scores = {h.id: h.score for h in vector_hits}
+        path_ids = {h.id for h in path_hits}
         keyword_ranks = {h.id: rank for rank, h in enumerate(keyword_hits, start=1)}
         chunks = self._store.get([chunk_id for chunk_id, _ in fused])
         hits = []
@@ -54,4 +67,7 @@ class Searcher:
                     snippet=_snippet(chunk),
                 )
             )
-        return hits
+        confident = bool(hits) and (
+            hits[0].id in path_ids or (hits[0].vector_score or 0.0) >= self._confident_cosine
+        )
+        return SearchResult(hits, confident)

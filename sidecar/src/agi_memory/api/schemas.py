@@ -95,3 +95,4 @@ class SearchHitOut(_Response):
 
 class SearchResponse(BaseModel):
     hits: list[SearchHitOut]
+    confident: bool  # False: nothing here looks like an answer; show "no match", not the list
