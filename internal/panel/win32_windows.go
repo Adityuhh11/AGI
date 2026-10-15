@@ -17,6 +17,7 @@ var (
 	procGetForegroundWindow   = user32.NewProc("GetForegroundWindow")
 	procSetForegroundWindow   = user32.NewProc("SetForegroundWindow")
 	procIsWindow              = user32.NewProc("IsWindow")
+	procGetDpiForWindow       = user32.NewProc("GetDpiForWindow")
 	procGetWindowRect         = user32.NewProc("GetWindowRect")
 	procGetCursorPos          = user32.NewProc("GetCursorPos")
 	procMonitorFromPoint      = user32.NewProc("MonitorFromPoint")
@@ -29,6 +30,8 @@ var (
 const (
 	monitorDefaultToNearest = 2
 	swpNoActivate           = 0x0010
+	swpNoMove               = 0x0002
+	swpNoZOrder             = 0x0004
 	dwmwaCloak              = 13
 )
 
@@ -97,4 +100,20 @@ func windowRect(hwnd uintptr) Rect {
 	var r winRect
 	_, _, _ = procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
 	return Rect{X: int(r.Left), Y: int(r.Top), W: int(r.Right - r.Left), H: int(r.Bottom - r.Top)}
+}
+
+// windowDPI returns the dpi of the monitor the window is on (96 if unknown).
+func windowDPI(hwnd uintptr) uint32 {
+	dpi, _, _ := procGetDpiForWindow.Call(hwnd)
+	if dpi == 0 {
+		return 96
+	}
+	return uint32(dpi)
+}
+
+// resizeHeight changes the window's height in place, keeping its top-left corner.
+func resizeHeight(hwnd uintptr, heightPx int) {
+	width := windowRect(hwnd).W
+	_, _, _ = procSetWindowPos.Call(hwnd, 0, 0, 0, uintptr(int32(width)), uintptr(int32(heightPx)),
+		swpNoMove|swpNoZOrder|swpNoActivate)
 }

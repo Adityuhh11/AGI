@@ -2,17 +2,22 @@
 package main
 
 import (
+	"context"
 	"io"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"agi"
 	"agi/internal/config"
+	"agi/internal/files"
 	"agi/internal/panel"
+	"agi/internal/search"
+	"agi/internal/sidecar"
 	"agi/internal/status"
 )
 
@@ -26,8 +31,8 @@ func main() {
 	}
 }
 
-// setUpLog sends the log to %LOCALAPPDATA%\AGI\logsgi.log as well as to the console, if there
-// is one: the release build has no console window, so the file is the only record.
+// setUpLog sends the log to the file agi.log under %LOCALAPPDATA%\AGI\logs as well as to the
+// console, if there is one: the release build has no console window, so the file is the only record.
 func setUpLog() (closeLog func()) {
 	dir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
 	if err != nil {
@@ -69,14 +74,47 @@ func run() error {
 		return err
 	}
 
+	// The engine dies with the launcher, even if the launcher is killed from the task manager.
+	if err := sidecar.KillWithLauncher(); err != nil {
+		log.Printf("the search engine will not be tied to the launcher's lifetime: %v", err)
+	}
+	engine, err := sidecar.New(sidecar.Options{Dir: cfg.Sidecar.Dir, Log: log.Writer()})
+	if err != nil {
+		return err
+	}
+	engineCtx, stopEngine := context.WithCancel(context.Background())
+	engineStopped := make(chan struct{})
+	go func() {
+		engine.Run(engineCtx)
+		close(engineStopped)
+	}()
+
+	roots := map[string]string{}
+	for _, root := range cfg.Roots {
+		roots[config.SourceID(root)] = root
+	}
+
 	app := application.New(application.Options{
 		Name:   "AGI",
 		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
 	})
 	bar := panel.New(app, cfg.Hotkey)
-	app.RegisterService(application.NewService(panel.NewService(bar)))
-	app.RegisterService(application.NewService(
-		status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError),
-	))
-	return app.Run()
+	for _, service := range []application.Service{
+		application.NewService(panel.NewService(bar)),
+		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status)),
+		application.NewService(search.New(engine.Client(), roots, engine.Status)),
+		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
+	} {
+		app.RegisterService(service)
+	}
+
+	runErr := app.Run()
+
+	stopEngine()
+	select {
+	case <-engineStopped:
+	case <-time.After(10 * time.Second):
+		log.Print("the search engine did not stop in time")
+	}
+	return runErr
 }

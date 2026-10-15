@@ -8,3 +8,6 @@ func NewService(p *Panel) *Service { return &Service{p: p} }
 
 // Hide closes the panel (the Escape key) and returns the keyboard to the previous app.
 func (s *Service) Hide() { s.p.Hide() }
+
+// Resize fits the panel to its content: heightDIP is the page's content height in CSS pixels.
+func (s *Service) Resize(heightDIP int) { s.p.Resize(heightDIP) }

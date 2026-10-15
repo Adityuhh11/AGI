@@ -130,6 +130,33 @@ func (p *Panel) Show() {
 // Hide closes the panel and gives the keyboard back to the app the user came from.
 func (p *Panel) Hide() { p.hide(true) }
 
+// HideForLaunch closes the panel after a file was handed to another program: that program has
+// the keyboard now and must keep it.
+func (p *Panel) HideForLaunch() { p.hide(false) }
+
+// maxHeightDIP keeps the panel from growing past a comfortable list of results.
+const maxHeightDIP = 620
+
+// Resize makes the panel heightDIP tall (device-independent pixels), for the page to fit its
+// results. The top edge stays where it is; the height never goes below the bare bar, above
+// maxHeightDIP, or below the bottom of the screen.
+func (p *Panel) Resize(heightDIP int) {
+	heightDIP = max(barHeightDIP, min(heightDIP, maxHeightDIP))
+	p.mu.Lock()
+	p.heightDIP = heightDIP
+	p.mu.Unlock()
+	hwnd := p.hwnd()
+	if hwnd == 0 || !p.shown.Load() {
+		return
+	}
+	heightPx := int(float64(heightDIP) * float64(windowDPI(hwnd)) / 96)
+	work, _ := cursorMonitor()
+	if room := work.Y + work.H - windowRect(hwnd).Y; room > 0 {
+		heightPx = min(heightPx, room)
+	}
+	resizeHeight(hwnd, heightPx)
+}
+
 func (p *Panel) hide(restoreFocus bool) {
 	hwnd := p.hwnd()
 	if hwnd == 0 || !p.shown.Swap(false) {
