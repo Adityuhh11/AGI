@@ -130,7 +130,7 @@ func run() error {
 	icon = tray.New(app, bar.Show, indexer.Rescan)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
-		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status)),
+		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), roots, engine.Status)),
 		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
 	} {

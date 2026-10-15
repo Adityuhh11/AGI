@@ -7,7 +7,7 @@ Spec: `superpowers/specs/2026-10-12-memory-engine-design.md`.
 
 AGI is a local-first, AI-native launcher for Windows. Two processes cooperate:
 
-- the **Go launcher** (later): hotkey, UI (Wails v3 + Svelte), calls the sidecar;
+- the **Go launcher** (`cmd/agi`, `internal/`): hotkey, tray, indexing manager, UI (Wails v3 + Svelte), calls the sidecar;
 - the **Python sidecar** (`sidecar/`): the *memory engine* that indexes files and answers search queries.
 
 They talk over authenticated localhost HTTP. The GPU hosts only the embedding model; index storage and search run on the CPU.

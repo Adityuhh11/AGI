@@ -1,6 +1,6 @@
 # Status
 
-Updated at the end of every phase. Last updated: 2026-10-13.
+Updated at the end of every phase. Last updated: 2026-10-15.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -15,10 +15,12 @@ Updated at the end of every phase. Last updated: 2026-10-13.
 | 7b Launcher blocks A-E | Sidecar client and supervisor, hotkey panel (cloaked, not hidden), search results UI, open and reveal | done |
 | 7c Launcher block F | Tray icon (status line, open, rescan, quit); `internal/indexing` syncs every configured root when the engine is ready and on "Rescan now" | done |
 | 7d Launcher block G | Image thumbnails: `/thumb` on the asset server (inside the indexed folders only, 160 px JPEG, cached under `%LOCALAPPDATA%\AGI	humbs`), image rows show them | done |
+| 7e Launcher visual design | Transparent window, capsule that grows into a card, WebGL liquid-metal ring, orb loader, Geist type, matched-word emphasis, key hints; hotkey to painted input p50 39 ms / p95 46 ms (`docs/eval/2026-10-15-design-latency.md`) | built, awaiting the owner's review |
+| 7f Big index | The owner's real folders (Downloads, OneDrive, `C:\dev`, two projects, Sample Data): 56,252 chunks, 360 MB, about 1.5 h on the GPU; one chunker bug found and fixed on the way | done |
 
 ## Next
 
-Launcher block H (latency harness run, acceptance list, merge); see `superpowers/plans/2026-10-15-launcher-v1.md`. Then the design pass (pill bar, liquid-metal border, loader, preview) and the big index of the laptop's real folders (`roots` in `config.toml`). With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). Index freshness (nothing watches the disk; refresh is "Rescan now" or a repeat `POST /sources`) is the other open item.
+Launcher block H: the acceptance list by hand, the merge on the owner's word; see `superpowers/plans/2026-10-15-launcher-v1.md`. Then, in this order of value: the search-quality items found on the real index (the confidence flag is too generous: a gibberish query counts as confident, DigUp's per-query "stands out" gate is the candidate; warm search takes about 200 ms on 56k chunks), engine robustness (one unexpected error fails a whole folder's sync, and failed syncs retry every minute forever), a per-root exclude list (one vendored skills folder is 19% of the index), file-name search for types the engine does not read (Office files, videos, archives) and a file watcher. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). Index freshness (nothing watches the disk; refresh is "Rescan now" or a repeat `POST /sources`) is the other open item.
 
 ## Known gaps and deviations from the spec
 

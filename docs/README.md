@@ -10,6 +10,7 @@ Start with `STATUS.md`, then `ARCHITECTURE.md`.
 | `decisions/` | Decision records: what we chose, the alternatives, the numbers behind it. |
 | `superpowers/specs/` | Design specs: what we are building and why. |
 | `superpowers/plans/` | Implementation plans: how, task by task. |
+| `/PRODUCT.md`, `/DESIGN.md` | Product context and the visual system of the launcher panel (read before changing `frontend/`). |
 | `eval/` | Retrieval-quality reports, `baseline.json` (the accepted metrics) and `perf.md` (search latency at 100k chunks). |
 
 Rules for keeping docs honest live in `../AGENTS.md`: update the doc in the same commit as the code.

@@ -127,6 +127,8 @@ common combinations are already taken on this machine (`Alt+Space`, `Win+Space`,
 
 ### Frontend
 
+> The look described here (a plain black bar) was replaced on 2026-10-15; see `2026-10-15-launcher-visual-design.md` and `/DESIGN.md`. The behaviour below (rows, keys) still holds.
+
 One Svelte view. A black bar with an input (placeholder "Search"), no other chrome. Below it, up to 8 rows. Row anatomy,
 all plain text on black:
 

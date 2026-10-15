@@ -2,7 +2,10 @@
 // later blocks add them, whether the search engine is ready and what is being indexed.
 package status
 
-import "agi/internal/sidecar"
+import (
+	"agi/internal/indexing"
+	"agi/internal/sidecar"
+)
 
 // Info is the launcher's configuration and health as the UI shows it.
 type Info struct {
@@ -14,6 +17,10 @@ type Info struct {
 	Engine string
 	// EngineMessage explains a restart or a failure.
 	EngineMessage string
+	// IndexState is the indexer's state (waiting, indexing, uptodate or failed) and IndexText the
+	// sentence for it ("Indexing Downloads: 40 / 96 files").
+	IndexState string
+	IndexText  string
 }
 
 // Service is bound to the frontend; its exported methods become TypeScript functions.
@@ -21,12 +28,13 @@ type Service struct {
 	info        Info
 	hotkeyError func() string
 	engine      func() sidecar.Status
+	index       func() indexing.Status
 }
 
 // New returns a service that reports info; hotkeyError is asked for the current hotkey problem
 // every time the UI asks (the hotkey is only bound once the app runs).
-func New(info Info, hotkeyError func() string, engine func() sidecar.Status) *Service {
-	return &Service{info: info, hotkeyError: hotkeyError, engine: engine}
+func New(info Info, hotkeyError func() string, engine func() sidecar.Status, index func() indexing.Status) *Service {
+	return &Service{info: info, hotkeyError: hotkeyError, engine: engine, index: index}
 }
 
 // Info returns the launcher's configuration and health.
@@ -38,6 +46,10 @@ func (s *Service) Info() Info {
 	if s.engine != nil {
 		st := s.engine()
 		info.Engine, info.EngineMessage = string(st.State), st.Message
+	}
+	if s.index != nil {
+		st := s.index()
+		info.IndexState, info.IndexText = string(st.State), st.String()
 	}
 	return info
 }
