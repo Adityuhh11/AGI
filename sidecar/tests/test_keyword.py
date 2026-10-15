@@ -8,15 +8,25 @@ from helpers import make_chunk, unit_vectors
 @pytest.mark.parametrize(
     ("query", "expected"),
     [
-        ("How do I refresh the access token?", '"refresh" OR "access" OR "token"'),
+        (
+            "How do I refresh the access token?",
+            '"refresh" OR "access" OR "token" OR "how do i refresh the access token"',
+        ),
         ("addCountries", '"addcountries" OR "add" OR "countries"'),
-        ("add_countries seed", '"add_countries" OR "seed" OR "add" OR "countries"'),
+        (
+            "add_countries seed",
+            '"add_countries" OR "seed" OR "add" OR "countries" OR "add_countries seed"',
+        ),
         ("the of and", ""),
         ("", ""),
         ("   ", ""),
         ("!!! ??? ***", ""),
-        ('say "hi" * NEAR( x )', '"say" OR "hi" OR "near"'),
-        ("token token TOKEN", '"token"'),
+        ('say "hi" * NEAR( x )', '"say" OR "hi" OR "near" OR "say hi near x"'),
+        ("token token TOKEN", '"token" OR "token token token"'),
+        ("/refresh-token", '"refresh" OR "token" OR "refresh token"'),
+        ("react-leaflet", '"react" OR "leaflet" OR "react leaflet"'),
+        ("src/utils/jwt.js", '"src" OR "utils" OR "jwt" OR "js" OR "src utils jwt js"'),
+        ("a.b.c", ""),
         ("a b c", ""),
     ],
 )
@@ -93,3 +103,24 @@ def test_ties_are_broken_by_id(store):
     store.upsert(chunks, unit_vectors(3))
     hits = store.keyword_search("identical words", 5)
     assert [h.id for h in hits] == sorted(c.id for c in chunks)
+
+
+def test_a_punctuated_phrase_outranks_the_same_words_apart(store):
+    together = make_chunk("t", "refresh-token handler")
+    apart = make_chunk("p", "refresh the page then fetch a token")
+    store.upsert([apart, together], unit_vectors(2))
+    assert store.keyword_search("/refresh-token", 5)[0].id == together.id
+
+
+def test_a_copied_sentence_matches_as_a_unit(store):
+    exact = make_chunk("e", "throw new ApiError(400, Passwords do not match)")
+    loose = make_chunk("l", "match the passwords; do not store them")
+    store.upsert([loose, exact], unit_vectors(2))
+    assert store.keyword_search("Passwords do not match", 5)[0].id == exact.id
+
+
+def test_words_in_the_path_are_keyword_searchable_even_when_absent_from_the_text(store):
+    named = make_chunk("locationService", "export const fetchAll = () => null")
+    other = make_chunk("other", "export const fetchAll = () => null")
+    store.upsert([other, named], unit_vectors(2))
+    assert store.keyword_search("location service", 5)[0].id == named.id

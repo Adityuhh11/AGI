@@ -62,3 +62,24 @@ def test_a_repeated_id_counts_once_at_its_first_position():
 
 def test_a_non_positive_best_keyword_score_adds_nothing():
     assert dict(blend([v("a", 0.5)], [k("a", 0.0)]))["a"] == pytest.approx(0.5)
+
+
+def test_a_path_match_outweighs_a_clearly_higher_cosine():
+    blended = blend([v("a", 0.80), v("b", 0.70)], [], [k("b", 6.0)])
+    assert ids(blended) == ["b", "a"]  # 0.70 + 0.2 beats 0.80
+
+
+def test_the_path_boost_is_relative_to_the_best_path_score():
+    blended = dict(blend([v("a", 0.5), v("b", 0.5)], [], [k("a", 4.0), k("b", 2.0)]))
+    assert blended["a"] == pytest.approx(0.5 + 0.2)
+    assert blended["b"] == pytest.approx(0.5 + 0.1)
+
+
+def test_a_path_only_chunk_takes_the_lowest_cosine_and_the_boost():
+    blended = dict(blend([v("a", 0.9), v("b", 0.6)], [], [k("z", 3.0)]))
+    assert blended["z"] == pytest.approx(0.6 + 0.2)
+
+
+def test_both_side_channels_add_up():
+    blended = dict(blend([v("a", 0.5)], [k("a", 2.0)], [k("a", 9.0)]))
+    assert blended["a"] == pytest.approx(0.5 + 0.02 + 0.2)

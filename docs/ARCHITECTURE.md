@@ -41,10 +41,11 @@ API: the Go launcher calls `POST /sources` (a background `JobManager` job runs t
 
 Index directory `%LOCALAPPDATA%\AGI\memory\` (tests and tools use `AGI_MEMORY_DIR`):
 
-- `meta.db` (SQLite, WAL, `synchronous=FULL`), schema version 2: `meta(key, value)` holds `schema_version`,
+- `meta.db` (SQLite, WAL, `synchronous=FULL`), schema version 3: `meta(key, value)` holds `schema_version`,
   `model_id` and `dim` (opening with different values raises `IndexMismatchError`: reindex required);
-  `chunks(rid, id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns, text, identifiers)`;
-  `chunks_fts` (FTS5 external-content over `text` and `identifiers`, kept in sync by triggers). The FTS table is
+  `chunks(rid, id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns, text, identifiers, path_words)`;
+  `chunks_fts` (FTS5 external-content over `text`, `identifiers` and `path_words`, bm25 weights 1.0 / 0.5 / 2.0, kept in
+  sync by triggers) and `chunks_path_tri` (FTS5 trigram over `uri`: substring match on file names and paths). The FTS table is
   keyed by `rid`, an explicit integer primary key, so it survives `VACUUM`.
 - `vectors.f32`: 64-byte header (`AGIVEC01`, version, dim, capacity) then `capacity` rows of `dim` float32, row r
   at byte 64 + r*dim*4. Grows by doubling; freed rows are reused lowest-first. The file handle is unbuffered:
@@ -62,7 +63,7 @@ If nothing is indexed, any leftover vector file (including one cut short while f
 growth (for example disk full) rolls the store back to its previous size and stays usable. `delete` and `get` reject a
 bare string, which would otherwise be treated as a list of one-character ids.
 
-Schema version 2 adds `sources(id, root, last_scan_ns)` and `files(source_id, uri, size, mtime_ns, sha256)`. `FlatStore.replace_file` upserts a file's new chunks, deletes its stale ones, and writes the `files` row last, so an interrupted sync leaves the file stale and it is redone. A v1 index is refused (`reindex required`); there is no v1 data to migrate.
+Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sources(id, root, last_scan_ns)` and `files(source_id, uri, size, mtime_ns, sha256)`. `FlatStore.replace_file` upserts a file's new chunks, deletes its stale ones, and writes the `files` row last, so an interrupted sync leaves the file stale and it is redone. An index from another schema version, model or dimension is refused (`reindex required`); there is nothing to migrate.
 
 ## Invariants
 

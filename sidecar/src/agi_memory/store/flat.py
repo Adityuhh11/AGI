@@ -24,7 +24,7 @@ import numpy as np
 
 from agi_memory.store.catalog import Catalog
 from agi_memory.store.filters import filter_clause
-from agi_memory.store.identifiers import split_identifiers
+from agi_memory.store.identifiers import path_words, split_identifiers
 from agi_memory.store.keyword import build_match
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile, VectorFileError
@@ -35,12 +35,13 @@ _SQL_BATCH = 500  # far below SQLite's bound-variable limit
 
 _UPSERT = """
 INSERT INTO chunks (id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns,
-                    text, identifiers)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    text, identifiers, path_words)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
     source_id = excluded.source_id, uri = excluded.uri, kind = excluded.kind,
     locator = excluded.locator, content_hash = excluded.content_hash,
-    mtime_ns = excluded.mtime_ns, text = excluded.text, identifiers = excluded.identifiers
+    mtime_ns = excluded.mtime_ns, text = excluded.text, identifiers = excluded.identifiers,
+    path_words = excluded.path_words
 """
 
 
@@ -229,6 +230,7 @@ class FlatStore:
                 chunk.mtime_ns,
                 chunk.text,
                 split_identifiers(chunk.text),
+                path_words(chunk.uri),
             )
             for chunk, row in zip(chunks, rows, strict=True)
         ]
@@ -413,12 +415,12 @@ class FlatStore:
     def keyword_search(
         self, query: str, n: int, filters: Filters | None = None
     ) -> list[KeywordHit]:
-        """Top-`n` chunks by bm25 over text and identifiers, ordered by (-score, id)."""
+        """Top-`n` chunks by bm25 over text, identifiers and path words, ordered by (-score, id)."""
         match = build_match(query)
         if not match or n <= 0:
             return []
         sql = (
-            "SELECT c.id, bm25(chunks_fts, 1.0, 0.5) AS score FROM chunks_fts "
+            "SELECT c.id, bm25(chunks_fts, 1.0, 0.5, 2.0) AS score FROM chunks_fts "
             "JOIN chunks c ON c.rid = chunks_fts.rowid WHERE chunks_fts MATCH ?"
         )
         params: list[object] = [match]
@@ -427,6 +429,31 @@ class FlatStore:
             sql += f" AND ({clause[0]})"
             params.extend(clause[1])
         sql += " ORDER BY score, c.id LIMIT ?"
+        params.append(n)
+        with self._lock:
+            rows = self._db.execute(sql, params).fetchall()
+        return [KeywordHit(id=chunk_id, score=-score) for chunk_id, score in rows]
+
+    def path_search(self, query: str, n: int, filters: Filters | None = None) -> list[KeywordHit]:
+        """Top-`n` chunks whose path contains the whole query as a substring (case-insensitive).
+
+        This is what finds a file by typing its name, or part of it. Every chunk of a matching
+        file matches; shorter paths score higher. Queries under 3 characters match nothing.
+        """
+        needle = query.strip().replace('"', '""')
+        if len(needle) < 3 or n <= 0:
+            return []
+        sql = (
+            "SELECT chunks.id, m.score FROM (SELECT rowid AS rid, bm25(chunks_path_tri) AS score "
+            "FROM chunks_path_tri WHERE chunks_path_tri MATCH ?) AS m "
+            "JOIN chunks ON chunks.rid = m.rid"
+        )
+        params: list[object] = [f'"{needle}"']
+        clause = filter_clause(filters) if filters is not None else None
+        if clause is not None:
+            sql += f" WHERE ({clause[0]})"
+            params.extend(clause[1])
+        sql += " ORDER BY m.score, chunks.id LIMIT ?"
         params.append(n)
         with self._lock:
             rows = self._db.execute(sql, params).fetchall()

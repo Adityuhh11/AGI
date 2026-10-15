@@ -1,4 +1,4 @@
-"""Searcher: embeds the query, runs vector and keyword search, blends and describes the hits."""
+"""Searcher: embeds the query, runs vector, keyword and path search, blends and describes hits."""
 
 from __future__ import annotations
 
@@ -32,7 +32,8 @@ class Searcher:
             self._embedder.embed_query(query), self._pool, filters
         )
         keyword_hits = self._store.keyword_search(query, self._pool, filters)
-        fused = blend(vector_hits, keyword_hits)[:k]
+        path_hits = self._store.path_search(query, self._pool, filters)
+        fused = blend(vector_hits, keyword_hits, path_hits)[:k]
         vector_scores = {h.id: h.score for h in vector_hits}
         keyword_ranks = {h.id: rank for rank, h in enumerate(keyword_hits, start=1)}
         chunks = self._store.get([chunk_id for chunk_id, _ in fused])

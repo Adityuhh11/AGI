@@ -38,6 +38,12 @@ def test_an_exact_identifier_is_found_through_the_keyword_side(world):
     assert top.keyword_rank == 1
 
 
+def test_typing_a_file_name_brings_that_file_to_the_top(world):
+    searcher, _ = world
+    assert searcher.search("notes.md", k=3)[0].uri == "docs/notes.md"
+    assert searcher.search("JWT.JS", k=3)[0].uri == "Backend/jwt.js"
+
+
 def test_hits_carry_the_documented_fields(world):
     searcher, _ = world
     hit = searcher.search("quick brown fox", k=1)[0]

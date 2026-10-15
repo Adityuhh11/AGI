@@ -1,6 +1,6 @@
 import pytest
 
-from agi_memory.store.identifiers import split_identifiers
+from agi_memory.store.identifiers import path_words, split_identifiers
 
 
 @pytest.mark.parametrize(
@@ -20,3 +20,17 @@ from agi_memory.store.identifiers import split_identifiers
 )
 def test_split_identifiers(text, expected):
     assert split_identifiers(text) == expected
+
+
+@pytest.mark.parametrize(
+    ("uri", "expected"),
+    [
+        ("Frontend/locationService.js", "Frontend locationService js location service"),
+        ("Backend/src/utils/jwt.js", "Backend src utils jwt js"),
+        ("add_countries.csv", "add_countries csv add countries"),
+        ("Week 10 Prep.pdf", "Week 10 Prep pdf"),
+        ("", ""),
+    ],
+)
+def test_path_words(uri, expected):
+    assert path_words(uri) == expected

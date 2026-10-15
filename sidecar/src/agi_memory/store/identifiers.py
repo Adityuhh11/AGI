@@ -19,3 +19,13 @@ def split_identifiers(text: str) -> str:
         for part in parts:
             words[part.lower()] = None
     return " ".join(words)
+
+
+_PATH_SEPARATORS = re.compile(r"[/\.\-]+")
+
+
+def path_words(uri: str) -> str:
+    """The path as keyword text: its own words plus the words inside camelCase and snake_case
+    components, so `Frontend/locationService.js` is found by 'location' and by 'service'."""
+    spaced = _PATH_SEPARATORS.sub(" ", uri)
+    return f"{spaced} {split_identifiers(spaced)}".strip()
