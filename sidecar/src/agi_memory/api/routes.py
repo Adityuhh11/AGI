@@ -14,9 +14,12 @@ from agi_memory.api.deps import Engine, get_engine, get_store
 from agi_memory.api.schemas import (
     SOURCE_ID_PATTERN,
     AddSource,
+    FileSearchRequest,
+    FileSearchResponse,
     HealthOut,
     JobOut,
     RemovedOut,
+    SearchFilters,
     SearchHitOut,
     SearchRequest,
     SearchResponse,
@@ -96,17 +99,28 @@ def delete_source(
     return RemovedOut(removed_chunks=removed)
 
 
+def _filters(requested: SearchFilters | None) -> Filters | None:
+    if requested is None:
+        return None
+    return Filters(
+        kinds=None if requested.kinds is None else frozenset(requested.kinds),
+        source_id=requested.source_id,
+        uri_prefix=requested.uri_prefix,
+        modified_after_ns=requested.modified_after_ns,
+    )
+
+
 @router.post("/search")
 def search(body: SearchRequest, engine: Annotated[Engine, Depends(get_engine)]) -> SearchResponse:
-    filters = None
-    if body.filters is not None:
-        filters = Filters(
-            kinds=None if body.filters.kinds is None else frozenset(body.filters.kinds),
-            source_id=body.filters.source_id,
-            uri_prefix=body.filters.uri_prefix,
-            modified_after_ns=body.filters.modified_after_ns,
-        )
-    result = engine.searcher.search(body.query, body.k, filters)
+    result = engine.searcher.search(body.query, body.k, _filters(body.filters))
     return SearchResponse(
         hits=[SearchHitOut.model_validate(hit) for hit in result.hits], confident=result.confident
     )
+
+
+@router.post("/search/files")
+def search_files(
+    body: FileSearchRequest, engine: Annotated[Engine, Depends(get_engine)]
+) -> FileSearchResponse:
+    result = engine.searcher.search_files(body.query, body.k, body.per_file, _filters(body.filters))
+    return FileSearchResponse.model_validate(result)

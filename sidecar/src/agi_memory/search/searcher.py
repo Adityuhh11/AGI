@@ -5,9 +5,10 @@ from __future__ import annotations
 from agi_memory.embedding.base import Embedder
 from agi_memory.search.fusion import CONFIDENT_COSINE, blend
 from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, Filters, SearchHit, SearchResult
+from agi_memory.types import Chunk, FileHit, FileSearchResult, Filters, SearchHit, SearchResult
 
 _SNIPPET_CHARS = 240
+_MIN_FILE_SEARCH_CHUNKS = 60  # enough chunks that ten files rarely run short
 
 
 def _snippet(chunk: Chunk) -> str:
@@ -58,6 +59,7 @@ class Searcher:
             hits.append(
                 SearchHit(
                     id=chunk_id,
+                    source_id=chunk.source_id,
                     uri=chunk.uri,
                     kind=chunk.kind,
                     locator=chunk.locator,
@@ -71,3 +73,25 @@ class Searcher:
             hits[0].id in path_ids or (hits[0].vector_score or 0.0) >= self._confident_cosine
         )
         return SearchResult(hits, confident)
+
+    def search_files(
+        self,
+        query: str,
+        files: int = 10,
+        per_file: int = 3,
+        filters: Filters | None = None,
+    ) -> FileSearchResult:
+        """The best `files` files for `query`, each with its best `per_file` matching chunks.
+
+        Chunks are ranked as in `search`, then grouped by file in rank order, so a file's place is
+        its best chunk's place and a file with many matching chunks does not crowd out the others.
+        """
+        result = self.search(query, max(_MIN_FILE_SEARCH_CHUNKS, files * per_file), filters)
+        grouped: dict[tuple[str, str], list[SearchHit]] = {}
+        for hit in result.hits:
+            grouped.setdefault((hit.source_id, hit.uri), []).append(hit)
+        found = [
+            FileHit(source_id, uri, hits[0].kind, hits[0].score, hits[:per_file])
+            for (source_id, uri), hits in list(grouped.items())[:files]
+        ]
+        return FileSearchResult(found, result.confident)

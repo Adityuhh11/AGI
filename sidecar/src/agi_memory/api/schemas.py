@@ -84,6 +84,7 @@ class SearchRequest(_Request):
 
 class SearchHitOut(_Response):
     id: str
+    source_id: str
     uri: str
     kind: ChunkKind
     locator: str
@@ -96,3 +97,23 @@ class SearchHitOut(_Response):
 class SearchResponse(BaseModel):
     hits: list[SearchHitOut]
     confident: bool  # False: nothing here looks like an answer; show "no match", not the list
+
+
+class FileSearchRequest(_Request):
+    query: str = Field(max_length=4000)
+    k: int = Field(default=10, ge=1, le=50)  # files
+    per_file: int = Field(default=3, ge=1, le=10)  # matching chunks shown per file
+    filters: SearchFilters | None = None
+
+
+class FileOut(_Response):
+    source_id: str
+    uri: str
+    kind: ChunkKind
+    score: float
+    chunks: list[SearchHitOut]
+
+
+class FileSearchResponse(_Response):
+    files: list[FileOut]
+    confident: bool

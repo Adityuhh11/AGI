@@ -36,8 +36,8 @@ def build_index(
 def evaluate(golden: Sequence[GoldenQuery], searcher: Searcher, k: int = 10) -> list[QueryResult]:
     results = []
     for item in golden:
-        found = searcher.search(item.query, k)
-        uris = tuple(hit.uri for hit in found.hits)
+        found = searcher.search_files(item.query, files=k, per_file=1)  # what the launcher shows
+        uris = tuple(hit.uri for hit in found.files)
         forbidden = tuple(sorted({f for f in item.forbid for uri in uris if f in uri}))
         rank = first_relevant_rank(uris, item.expect) if item.answerable else None
         results.append(

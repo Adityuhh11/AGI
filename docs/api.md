@@ -120,7 +120,7 @@ optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_
 `200`:
 
 ```json
-{"hits": [{"id": "...", "uri": "Backend/jwt.js", "kind": "code", "locator": "{\"lines\":[1,40]}",
+{"hits": [{"id": "...", "source_id": "project", "uri": "Backend/jwt.js", "kind": "code", "locator": "{\"lines\":[1,40]}",
            "score": 0.81, "vector_score": 0.79, "keyword_rank": 1, "snippet": "..."}],
  "confident": true}
 ```
@@ -137,6 +137,32 @@ Scores are not calibrated across corpora; use `confident` for "nothing relevant"
 
 - `422` invalid body (`k` out of range, unknown kind, over-long query, ...).
 - `503` model not ready.
+
+### `POST /search/files`
+
+The same search, shown as files: each file once, in the order of its best chunk, with its best matching chunks. This is
+what a result list wants; `POST /search` is the chunk-level view.
+
+Request: `{"query": "...", "k": 10, "per_file": 3, "filters": {...}}`. `k` is the number of files (1-50, default 10),
+`per_file` the number of chunks kept per file (1-10, default 3); `query` and `filters` are as for `/search`. Unknown fields
+are rejected.
+
+`200`:
+
+```json
+{"files": [{"source_id": "project", "uri": "Backend/jwt.js", "kind": "code", "score": 0.81,
+            "chunks": [{"id": "...", "source_id": "project", "uri": "Backend/jwt.js", "kind": "code",
+                        "locator": "{\"lines\":[1,40]}", "score": 0.81, "vector_score": 0.79,
+                        "keyword_rank": 1, "snippet": "..."}]}],
+ "confident": true}
+```
+
+`score` and `kind` of a file are those of its best chunk (`pdf_text` or `pdf_page` for a PDF), and `chunks` are best first.
+The search ranks at least 60 chunks before grouping, so a file with many matching chunks does not push other files out.
+A file's absolute path is the root of its source plus `uri`; the engine does not know roots' meaning beyond what was
+submitted to `POST /sources`.
+
+- `422` invalid body. `503` model not ready. `confident` has the same meaning as for `/search`.
 
 ## Semantics worth knowing
 
