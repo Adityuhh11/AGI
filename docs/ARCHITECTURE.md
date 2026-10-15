@@ -26,7 +26,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
 | `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed | built |
 | `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
-| `search/` | `Searcher`: vector + FTS5 keyword search, reciprocal rank fusion, filters | built |
+| `search/` | `Searcher`: vector, bm25 and path search blended into one score (`fusion.py`), `confident` flag, filters | built |
 | `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
 | `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search`; see `api.md` | built |
 | `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
@@ -34,7 +34,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 ## Data flow
 
 Indexing: source file -> chunks -> embeddings (768-d unit vectors; text is embedded with its file name as title) -> `FlatStore.upsert`.
-Search: query -> embedding + keyword query -> two ranked lists -> fusion -> hits.
+Search: query -> embedding, bm25 query (words, identifiers, path words, phrases) and path substring -> three candidate lists -> one blended score (`cosine + 0.02 x bm25 + 0.2 x path`) -> hits plus a `confident` flag.
 API: the Go launcher calls `POST /sources` (a background `JobManager` job runs the indexer) and `POST /search` over authenticated localhost HTTP; the contract is in `api.md`.
 
 ## On-disk format
@@ -78,6 +78,9 @@ Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sourc
 7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m agi_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not.
 8. **The API is local and authenticated.** It binds 127.0.0.1, rejects foreign `Host` headers before anything else, and refuses to start without a token of at least 16 characters; every route including `/health` needs the token.
 9. **The API never blocks on the model.** The port opens immediately; `/health` reports `ready: false` while the model loads and every other route answers 503.
+
+10. **One score, comparable across kinds.** Text, PDF pages and images are ranked by cosine plus small boosts, never by rank fusion (an image has no keyword text and lost every fusion). Weights and the confidence threshold live in `search/fusion.py` and are measured by the eval.
+11. **An index is tied to its model, dimension and schema.** Documents are embedded with their file name as title; changing the model, the dimension, the schema or the document format means rebuilding the index (open refuses a mismatch).
 
 ## Conventions
 

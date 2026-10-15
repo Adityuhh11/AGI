@@ -1,3 +1,5 @@
+> **Update 2026-10-15:** sections on dimensions (256-d), rank fusion and the search pipeline are superseded by `2026-10-15-search-quality-design.md` and decision 0002 (768-d, one blended score, path signal, `confident` flag).
+
 # Memory Engine: Design Spec
 
 Date: 2026-10-12. Status: approved 2026-10-12 (search runs on the CPU; the GPU only hosts the embedding model). Decisions inherited: [ADR 0001](../../decisions/0001-vector-store.md).

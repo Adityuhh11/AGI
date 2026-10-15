@@ -1,6 +1,6 @@
 # 0001: Custom exact-search vector engine behind a small interface
 
-Date: 2026-10-12. Status: accepted (revisit triggers below). Supersedes an earlier "Chroma first" draft the same day.
+Date: 2026-10-12. Status: accepted (revisit triggers below). The 256-d vectors and rank fusion described here were superseded on 2026-10-15 by 0002 (768-d, blended score); the store design and the benchmarks stand. Supersedes an earlier "Chroma first" draft the same day.
 
 ## Decision
 

@@ -36,7 +36,8 @@ Best measured configuration: top1 0.896-0.909, recall@3 1.000, recall@10 1.000, 
 
 `Embedder.embed_documents(texts, titles=None)`. `GemmaEmbedder` formats `title: <title> | text: <text>` when titles are
 given (and the stock `title: none` prompt otherwise). The indexer passes the file's base name (not the directory path:
-measured better, the directories add noise) for text and `pdf_text` chunks. Image and `pdf_page` chunks have no text and
+measured better, the directories add noise) for text and `pdf_text` chunks. The chunk text itself is unchanged and still
+starts with its relative path line, as when the experiments were run. Image and `pdf_page` chunks have no text and
 are unchanged. Queries keep the `SearchQuery` prompt.
 
 ### 768 dimensions
@@ -59,8 +60,8 @@ copied from a file matches as a unit). A second FTS5 table `chunks_path_tri` (tr
 
 ```
 score(chunk) = cosine(query, chunk)
-             + KEYWORD_WEIGHT * bm25(chunk) / bm25(best chunk)      (0 if not matched)
-             + PATH_WEIGHT    * path_match(chunk)                   (1 if the query is a substring of the path)
+             + KEYWORD_WEIGHT * bm25(chunk) / bm25(best chunk)          (0 if not matched)
+             + PATH_WEIGHT    * pathscore(chunk) / pathscore(best chunk) (0 unless the query is in the path)
 ```
 
 `KEYWORD_WEIGHT = 0.02`, `PATH_WEIGHT = 0.2`. A chunk found only by keyword or path search takes the lowest cosine
@@ -69,10 +70,18 @@ in the vector pool as its cosine, so it can still surface. Cosine of unit vector
 sweep in the experiments note; results are flat for the path weight between 0.05 and 0.4. Ties break by chunk id.
 Pools stay 200 per channel. `reciprocal_rank_fusion` and its tests are deleted.
 
+### Cost guards (found by the 100k latency run)
+
+A path needle found in more than 1,000 chunks is ignored (a fragment like `txt` or `.js` is not a file name; scoring
+every match cost 849 ms). A query word in more than 20% of the chunks, and in more than 1,000 of them, is left out of the
+bm25 match (near-zero weight, but it costs a scan; one such word cost 349 ms). Counts come from an `fts5vocab` table.
+Corpora under 1,000 chunks, including the sample, are never affected.
+
 ### "No good answer"
 
 `Searcher.search` returns `SearchResult(hits, confident)`. `confident` is true when the best hit's cosine is at least
-`CONFIDENT_COSINE = 0.65` or the best hit matched on the path signal; with no hits it is false. The launcher shows
+`confident_cosine` (default `CONFIDENT_COSINE = 0.65`, a `Searcher` argument so tests with the fake embedder can
+lower it) or the best hit matched on the path signal; with no hits it is false. The launcher shows
 "nothing relevant found" instead of a ranking of noise. The threshold is calibrated on one corpus and one model; it is
 a constant in `search/fusion.py` and is re-checked by the eval on every run (see Evaluation).
 
@@ -84,7 +93,7 @@ cosine. `docs/api.md` documents both.
 
 ### Evaluation
 
-- Golden entries may declare `none: true` (no file answers the query) instead of `expect`. 14 such queries are added.
+- Golden entries may declare `none: true` (no file answers the query) instead of `expect`. 15 such queries are added (the last 3 written after the threshold was chosen, as a holdout).
   Metrics for answerable queries are unchanged; two new ones are reported and gated: `false_alarms` (answerable queries
   flagged not confident) and `missed_nones` (unanswerable queries flagged confident).
 - Each task re-records `docs/eval/baseline.json` only when the numbers improve and records the delta in its commit.

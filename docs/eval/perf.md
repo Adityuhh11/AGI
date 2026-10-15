@@ -1,5 +1,27 @@
 # Search latency at 100k chunks
 
+## Phase 6 (2026-10-15): 768-d vectors, bm25 with phrases, path trigram, blended score
+
+Same synthetic corpus as below but 768 dimensions (307 MB of vectors) and the three-channel `Searcher`; query embedding
+excluded. `tests/test_perf.py` now asserts best-of-three p95 under 100 ms and every path-heavy query under 200 ms.
+
+| run | per round (p50, p95) in ms | path-heavy queries (`txt`, `f1`, `xt`, `.tx`, `f12`) |
+|---|---|---|
+| 1, machine busy, before the fixes below | (81.4, 110.3), (78.5, 102.9), (78.5, 99.5) | 849, 19, 21, 391, 31 ms |
+| 2, after the fixes, machine idle | (26.1, 79.6), (25.1, 28.1), (25.8, 30.1) | 11, 9, 9, 9, 8 ms |
+
+Profile in the busy state (p50 / p95 ms): vector search 15.8 / 20.2, keyword search 57.8 / 71.3, path search under 1. The
+pre-phase-6 code (256-d, schema 2) measured in the same minute: keyword 52.9 / 68.1, vector 10.7 / 12.9. So the swing
+between runs is the machine, and phase 6 itself costs about 5 ms for 768 dimensions and about 5 ms for the extra
+keyword column.
+
+Two fixes came out of the worst cases: a path needle found in more than 1,000 chunks (a fragment like `txt` or `.js`, not
+a file name) is ignored, and a query word that occurs in more than 20% of the chunks (and in more than 1,000 of them) is
+left out of the bm25 match, since its weight is near zero but scoring it costs a scan of the index (`txt` in every path
+cost 349 ms in the keyword channel). Neither triggers on the 431-chunk sample, so the eval is unchanged.
+
+Everything below is the 2026-10-12 measurement (256-d, schema 2), kept for reference.
+
 Date: 2026-10-12. Machine: RTX 4050 laptop (Balanced power plan, vendor background services running), search on the CPU.
 Corpus: N = 100,000 synthetic chunks, 256 dimensions, 30 random words each from a 3000-word vocabulary. Queries: 200 random 4-word queries, `Searcher.search` with k = 10 and pools of 200.
 Query embedding (about 200 ms with the real model) is excluded; see ADR 0001 for raw vector-search timings.
