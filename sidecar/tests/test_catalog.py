@@ -145,3 +145,28 @@ def test_a_refused_index_is_left_exactly_as_it_was(tmp_path):
     tables = {name for (name,) in db.execute("SELECT name FROM sqlite_master")}
     db.close()
     assert tables == {"meta", "sqlite_autoindex_meta_1"}  # no new tables were created in it
+
+
+def test_sources_lists_each_source_with_its_counts(store):
+    assert store.sources() == []
+    store.register_source("b", "C:/b")
+    store.register_source("a", "C:/a")
+    put(store, "x.txt", 3, source_id="a")
+    put(store, "y.txt", 2, source_id="a")
+    store.mark_scanned("a", 42)
+    infos = {info.id: info for info in store.sources()}
+    assert [info.id for info in store.sources()] == ["a", "b"]  # ordered by id
+    assert (infos["a"].root, infos["a"].last_scan_ns, infos["a"].files, infos["a"].chunks) == (
+        "C:/a",
+        42,
+        2,
+        5,
+    )
+    assert (infos["b"].files, infos["b"].chunks, infos["b"].last_scan_ns) == (0, 0, 0)
+
+
+def test_a_deleted_source_leaves_the_list(store):
+    store.register_source("a", "C:/a")
+    put(store, "x.txt", 2, source_id="a")
+    store.delete_source("a")
+    assert store.sources() == []

@@ -71,6 +71,18 @@ Request: `{"path": "C:\\Users\\me\\project", "source_id": "project"}`. Unknown f
   characters.
 - `503` model not ready.
 
+### `GET /sources`
+
+What is indexed: `200` a list, ordered by `id` (empty when nothing is indexed):
+
+```json
+[{"id": "project", "root": "C:\\Users\\me\\project", "last_scan_ns": 1760000000000000000, "files": 96, "chunks": 431}]
+```
+
+`root` is the folder as it was submitted to `POST /sources`, `last_scan_ns` is `0` until the first sync of that source has
+finished, `files` and `chunks` count what the index holds now. This route only reads the index, so unlike the others it
+answers while the model is still loading.
+
 ### `GET /jobs/{job_id}`
 
 `200`:

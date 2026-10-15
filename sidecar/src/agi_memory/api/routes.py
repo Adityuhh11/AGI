@@ -24,10 +24,11 @@ from agi_memory.api.schemas import (
     SearchRequest,
     SearchResponse,
     SourceAccepted,
+    SourceOut,
 )
 from agi_memory.jobs import Job, JobBusyError
 from agi_memory.store import FlatStore
-from agi_memory.types import Filters
+from agi_memory.types import Filters, SourceInfo
 
 router = APIRouter()
 
@@ -46,6 +47,11 @@ def health(request: Request) -> HealthOut:
         version=_VERSION,
         error=state.load_error,
     )
+
+
+@router.get("/sources", response_model=list[SourceOut])
+def list_sources(store: Annotated[FlatStore, Depends(get_store)]) -> list[SourceInfo]:
+    return store.sources()
 
 
 @router.post("/sources", status_code=202)

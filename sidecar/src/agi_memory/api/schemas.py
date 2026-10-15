@@ -65,6 +65,14 @@ class JobOut(_Response):
     error: str | None
 
 
+class SourceOut(_Response):
+    id: str
+    root: str
+    last_scan_ns: int
+    files: int
+    chunks: int
+
+
 class RemovedOut(BaseModel):
     removed_chunks: int
 

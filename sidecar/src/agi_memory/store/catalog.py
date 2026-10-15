@@ -9,7 +9,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Sequence
 
-from agi_memory.types import FileRecord
+from agi_memory.types import FileRecord, SourceInfo
 
 
 class Catalog:
@@ -27,6 +27,15 @@ class Catalog:
     def source_root(self, source_id: str) -> str | None:
         row = self._db.execute("SELECT root FROM sources WHERE id = ?", (source_id,)).fetchone()
         return None if row is None else row[0]
+
+    def sources(self) -> list[SourceInfo]:
+        rows = self._db.execute(
+            "SELECT s.id, s.root, s.last_scan_ns,"
+            " (SELECT COUNT(*) FROM files f WHERE f.source_id = s.id),"
+            " (SELECT COUNT(*) FROM chunks c WHERE c.source_id = s.id)"
+            " FROM sources s ORDER BY s.id"
+        )
+        return [SourceInfo(*row) for row in rows]
 
     def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
         with self._db:

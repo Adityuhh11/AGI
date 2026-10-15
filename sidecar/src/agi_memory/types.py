@@ -119,3 +119,14 @@ class FileHit:
 class FileSearchResult:
     files: list[FileHit]
     confident: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SourceInfo:
+    """One indexed source: where it came from, when it was last scanned and how much it holds."""
+
+    id: str
+    root: str
+    last_scan_ns: int  # 0 until the first sync finishes
+    files: int
+    chunks: int

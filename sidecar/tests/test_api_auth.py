@@ -7,6 +7,7 @@ ROUTES = [
     ("get", "/health", None),
     ("post", "/search", {"query": "x"}),
     ("post", "/search/files", {"query": "x"}),
+    ("get", "/sources", None),
     ("post", "/sources", {"path": "C:/x", "source_id": "s"}),
     ("get", "/jobs/job-1", None),
     ("delete", "/sources/s", None),
