@@ -44,9 +44,15 @@ def chunk_text_document(
     else:
         spans = list(_windows(0, len(lines), settings))
     chunks = []
+    seen: set[tuple[int, int]] = set()
     budget = settings.max_chunk_chars - len(uri) - 1
     for span in spans:
         for first, last in _fit_to_budget(lines, span, budget):
+            # Two overlapping windows both split an over-long line off as its own part: same
+            # range, same text, same chunk id, which the store refuses.
+            if (first, last) in seen:
+                continue
+            seen.add((first, last))
             body = "\n".join(lines[first - 1 : last])
             if not body.strip():
                 continue

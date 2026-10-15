@@ -118,3 +118,13 @@ def test_prose_longer_than_the_character_budget_stays_searchable(settings):
     assert all(len(c.text) <= settings.max_chunk_chars for c in chunks)
     assert any("zanzibarquokka" in c.text for c in chunks)
     assert len({c.id for c in chunks}) == len(chunks)
+
+
+def test_a_line_over_the_budget_in_two_overlapping_windows_is_chunked_once(settings):
+    # A minified file's one huge line sits inside two windows and is split off by both; two
+    # identical chunks have the same id, and the store rejects a batch with a repeated id.
+    lines = numbered(100).split("\n")
+    lines[34] = "x" * (settings.max_chunk_chars + 1)
+    chunks = chunk(settings, Route.CODE, "\n".join(lines))
+    assert len({c.id for c in chunks}) == len(chunks)
+    assert [35, 35] in line_ranges(chunks)
