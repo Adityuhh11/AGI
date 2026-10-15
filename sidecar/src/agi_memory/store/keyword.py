@@ -10,6 +10,7 @@ the whole query (an error message or sentence copied from a file).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 
 from agi_memory.store.identifiers import split_identifiers
 
@@ -45,10 +46,16 @@ _MAX_WORDS = 32
 _MAX_PHRASE_QUERY_WORDS = 8
 
 
-def build_match(query: str) -> str:
-    """FTS5 MATCH expression for `query`, or `""` if it has no searchable word."""
+def build_match(query: str, is_common: Callable[[str], bool] | None = None) -> str:
+    """FTS5 MATCH expression for `query`, or `""` if it has no searchable word.
+
+    `is_common` marks words that occur in so many chunks that bm25 would score most of the index
+    for almost no signal; they are left out (the caller knows the corpus, this function does not).
+    """
     words = _WORD.findall(query.lower()) + _WORD.findall(split_identifiers(query))
     kept = [w for w in dict.fromkeys(words) if len(w) > 1 and w not in _STOPWORDS]
+    if is_common is not None:
+        kept = [w for w in kept if not is_common(w)]
     if not kept:
         return ""
     terms = [f'"{word}"' for word in kept[:_MAX_WORDS]]

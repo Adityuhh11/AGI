@@ -124,3 +124,30 @@ def test_words_in_the_path_are_keyword_searchable_even_when_absent_from_the_text
     other = make_chunk("other", "export const fetchAll = () => null")
     store.upsert([other, named], unit_vectors(2))
     assert store.keyword_search("location service", 5)[0].id == named.id
+
+
+def test_common_words_are_left_out_of_the_match():
+    common = {"function", "const"}.__contains__
+    expected = '"addcountries" OR "add" OR "countries" OR "function addcountries const"'
+    assert build_match("function addCountries const", common) == expected
+    assert build_match("function const", common) == ""  # nothing selective left
+    assert build_match("function", None) == '"function"'
+
+
+def four_chunks(store):
+    chunks = [make_chunk(n, f"{n}\nfunction body {n}") for n in ("alpha", "beta", "gamma", "delta")]
+    store.upsert(chunks, unit_vectors(4))
+    return chunks
+
+
+def test_a_word_in_most_of_a_large_index_is_skipped_by_keyword_search(store, monkeypatch):
+    monkeypatch.setattr("agi_memory.store.flat._COMMON_MIN_DOCS", 0)
+    monkeypatch.setattr("agi_memory.store.flat._COMMON_FRACTION", 0.5)
+    chunks = four_chunks(store)
+    assert store.keyword_search("function", 10) == []  # in all four chunks: no signal
+    assert store.keyword_search("function alpha", 10)[0].id == chunks[0].id
+
+
+def test_small_indexes_never_skip_words(store):
+    four_chunks(store)
+    assert len(store.keyword_search("function", 10)) == 4

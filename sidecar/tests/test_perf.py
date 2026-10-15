@@ -11,12 +11,12 @@ from agi_memory.types import Chunk, ChunkKind
 pytestmark = pytest.mark.perf
 
 N = 100_000
-DIM = 256
+DIM = 768
 BATCH = 1000
 VOCAB = [f"word{i}" for i in range(3000)]
 
 
-def test_hybrid_search_over_100k_chunks_stays_under_50_ms_p95(tmp_path):
+def test_blended_search_over_100k_chunks_stays_under_100_ms_p95(tmp_path):
     rng = np.random.default_rng(7)
     embedder = FakeEmbedder(DIM)
     store = FlatStore(tmp_path / "idx", model_id=embedder.model_id, dim=DIM)
@@ -46,6 +46,14 @@ def test_hybrid_search_over_100k_chunks_stays_under_50_ms_p95(tmp_path):
             "100k chunks, (p50, p95) ms per round: "
             + ", ".join(f"({a:.1f}, {b:.1f})" for a, b in rounds)
         )
-        assert min(p95 for _, p95 in rounds) < 50
+        # Worst case for the path signal: a short query that is a substring of every path.
+        worst = []
+        for needle in ("txt", "f1", "xt", ".tx", "f12"):
+            started = time.perf_counter()
+            searcher.search(needle)
+            worst.append((needle, (time.perf_counter() - started) * 1000))
+        print("path-heavy queries, ms: " + ", ".join(f"{n!r} {t:.0f}" for n, t in worst))
+        assert min(p95 for _, p95 in rounds) < 100
+        assert max(t for _, t in worst) < 200
     finally:
         store.close()

@@ -51,6 +51,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     tokenize='unicode61 remove_diacritics 2'
 );
 
+-- Per-term document counts of chunks_fts, so very common query terms can be skipped.
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vocab USING fts5vocab(chunks_fts, 'row');
+
 -- Substring match on the path (file names typed whole or in part); case-insensitive.
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_path_tri USING fts5(
     uri,

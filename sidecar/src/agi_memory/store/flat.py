@@ -17,7 +17,7 @@ from __future__ import annotations
 import heapq
 import sqlite3
 import threading
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +32,13 @@ from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, KeywordHit, 
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
+# A needle found in more chunks than this (`txt`, `.js`) is a common fragment, not a file name:
+# scoring every match would cost up to a second at 100k chunks for no signal.
+_MAX_PATH_MATCHES = 1000
+# A query word in more than this share of the chunks (and in over `_COMMON_MIN_DOCS` of them) has
+# almost no weight in bm25 but still costs a full scan; keyword search leaves it out.
+_COMMON_FRACTION = 0.2
+_COMMON_MIN_DOCS = 1000
 
 _UPSERT = """
 INSERT INTO chunks (id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns,
@@ -416,8 +423,11 @@ class FlatStore:
         self, query: str, n: int, filters: Filters | None = None
     ) -> list[KeywordHit]:
         """Top-`n` chunks by bm25 over text, identifiers and path words, ordered by (-score, id)."""
-        match = build_match(query)
-        if not match or n <= 0:
+        if n <= 0:
+            return []
+        with self._lock:
+            match = build_match(query, self._common_word_test())
+        if not match:
             return []
         sql = (
             "SELECT c.id, bm25(chunks_fts, 1.0, 0.5, 2.0) AS score FROM chunks_fts "
@@ -434,21 +444,43 @@ class FlatStore:
             rows = self._db.execute(sql, params).fetchall()
         return [KeywordHit(id=chunk_id, score=-score) for chunk_id, score in rows]
 
+    def _common_word_test(self) -> Callable[[str], bool]:
+        """A predicate for words too common to rank by; call with the lock held."""
+        (newest,) = self._db.execute("SELECT COALESCE(MAX(rid), 0) FROM chunks").fetchone()
+        limit = max(_COMMON_MIN_DOCS, newest * _COMMON_FRACTION)  # newest >= live count: safe side
+
+        def is_common(word: str) -> bool:
+            row = self._db.execute(
+                "SELECT doc FROM chunks_vocab WHERE term = ?", (word,)
+            ).fetchone()
+            return row is not None and row[0] > limit
+
+        return is_common
+
     def path_search(self, query: str, n: int, filters: Filters | None = None) -> list[KeywordHit]:
         """Top-`n` chunks whose path contains the whole query as a substring (case-insensitive).
 
         This is what finds a file by typing its name, or part of it. Every chunk of a matching
-        file matches; shorter paths score higher. Queries under 3 characters match nothing.
+        file matches; shorter paths score higher. Queries under 3 characters, and queries found in
+        more than `_MAX_PATH_MATCHES` chunks, match nothing.
         """
         needle = query.strip().replace('"', '""')
         if len(needle) < 3 or n <= 0:
+            return []
+        match = f'"{needle}"'
+        with self._lock:
+            probe = self._db.execute(
+                "SELECT 1 FROM chunks_path_tri WHERE chunks_path_tri MATCH ? LIMIT ?",
+                (match, _MAX_PATH_MATCHES + 1),
+            ).fetchall()
+        if len(probe) > _MAX_PATH_MATCHES:
             return []
         sql = (
             "SELECT chunks.id, m.score FROM (SELECT rowid AS rid, bm25(chunks_path_tri) AS score "
             "FROM chunks_path_tri WHERE chunks_path_tri MATCH ?) AS m "
             "JOIN chunks ON chunks.rid = m.rid"
         )
-        params: list[object] = [f'"{needle}"']
+        params: list[object] = [match]
         clause = filter_clause(filters) if filters is not None else None
         if clause is not None:
             sql += f" WHERE ({clause[0]})"

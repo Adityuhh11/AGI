@@ -89,3 +89,11 @@ def test_results_are_ordered_deterministically(filled):
     store, _ = filled
     first = [h.id for h in store.path_search("src", 10)]
     assert first == [h.id for h in store.path_search("src", 10)]
+
+
+def test_a_fragment_found_in_too_many_chunks_is_ignored(filled, monkeypatch):
+    store, _ = filled
+    assert len(store.path_search("src", 10)) == 3
+    monkeypatch.setattr("agi_memory.store.flat._MAX_PATH_MATCHES", 2)
+    assert store.path_search("src", 10) == []  # three chunks match: too common to mean a name
+    assert len(store.path_search("jwt.js", 10)) == 1  # a specific name still works
