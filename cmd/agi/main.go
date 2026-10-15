@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -79,10 +80,17 @@ func run() error {
 
 	// A second launch (the shortcut clicked again) does not start a second launcher or engine: it
 	// exits right inside application.New and the running one shows the search bar instead.
+	cacheDir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	if err != nil {
+		return fmt.Errorf("locate the cache directory: %w", err)
+	}
 	var bar *panel.Panel
 	app := application.New(application.Options{
-		Name:   "AGI",
-		Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)},
+		Name: "AGI",
+		Assets: application.AssetOptions{
+			Handler:    application.AssetFileServerFS(assets),
+			Middleware: files.Thumbnails(cfg.Roots, filepath.Join(cacheDir, "AGI", "thumbs")),
+		},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },

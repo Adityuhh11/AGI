@@ -16,6 +16,8 @@
   let { row, match, selected, expanded = false, onhover, onactivate }: Props = $props();
 
   const glyphs: Record<string, string> = { code: "{ }", text: "Aa", pdf: "PDF", image: "IMG" };
+  // An image the launcher cannot thumbnail (the handler answers 404) keeps its "IMG" glyph.
+  let thumbFailed = $state(false);
   const shown = $derived(match ?? row.Matches?.[0]);
   const more = $derived(moreCount(row));
 
@@ -30,6 +32,14 @@
 <div class="item" class:selected class:child={match} onmousemove={onpointer} onclick={onactivate}>
   {#if match}
     <span class="indent"></span>
+  {:else if row.Kind === "image" && !thumbFailed}
+    <img
+      class="thumb"
+      src={"/thumb?path=" + encodeURIComponent(row.Path)}
+      alt=""
+      loading="lazy"
+      onerror={() => (thumbFailed = true)}
+    />
   {:else}
     <span class="glyph">{glyphs[row.Kind] ?? "·"}</span>
   {/if}
@@ -70,6 +80,14 @@
     color: #777;
     font: 600 11px Consolas, monospace;
     text-align: center;
+  }
+  .thumb {
+    flex: none;
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #202020;
   }
   .indent {
     flex: none;
