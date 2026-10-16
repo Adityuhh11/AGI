@@ -256,8 +256,9 @@ Each phase ships on its own, leaves the bar faster or more useful, and is measur
 | P5 | Clipboard history and Zen history/bookmarks, indexed by meaning | "the link about X" finds it; passwords never recorded |
 | P6 | Embedding router, decision-model client (`internal/decide`), model spike | the spike's numbers are in `docs/eval/` and the choice is an ADR |
 
-This branch covers P0 to P2, the core of "never touch Windows search again" and "browse from the bar". P3 and P4 follow
-on the same branch if the owner wants; P5 and P6 are each their own spec when reached.
+This branch covers P0 to P2 and P4: the core of "never touch Windows search again", "browse from the bar" and tags. P3 follows
+on the same branch if the owner wants; P5 is its own spec when reached, and P6 (decision models and any language model) is on
+the back burner by the owner's word on 2026-10-17.
 
 ## Risks and open questions
 
