@@ -4,7 +4,7 @@
   import { Clipboard } from "@wailsio/runtime";
   import { Service as Files } from "../bindings/agi/internal/files";
   import { Service as Palette } from "../bindings/agi/internal/palette";
-  import type { Item as Entry } from "../bindings/agi/internal/palette";
+  import type { Item as Entry, TagInfo } from "../bindings/agi/internal/palette";
   import { Service as Panel } from "../bindings/agi/internal/panel";
   import { Service as Search } from "../bindings/agi/internal/search";
   import type { Results } from "../bindings/agi/internal/search";
@@ -18,7 +18,7 @@
   import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
   import { actionsFor, type Action } from "./lib/actions";
-  import { flatten, openLine, pathOf, step, type FileItem, type Item } from "./lib/flatten";
+  import { filePathOf, flatten, openLine, pathOf, step, tagIdOf, type Item } from "./lib/flatten";
   import { cycle, escapeStep, label, type Mode } from "./lib/modes";
 
   const DEBOUNCE_MS = 120;
@@ -43,6 +43,10 @@
   let mode = $state<Mode>("all"); // the chip: what a search covers, cycled with Tab
   let effective = $state<Mode>("all"); // the mode of the text once a prefix such as "app:" is taken off
   let entries = $state<Entry[]>([]); // the instant answers (apps): they arrive in a millisecond, before the files
+  // The tag picker (Ctrl+T): which thing is being tagged, the tags it carries, and every tag there is.
+  let picker = $state<{ id: string; title: string; applied: string[] } | null>(null);
+  let allTags = $state<TagInfo[]>([]);
+  let tagsByID = $state<Record<string, string[] | null | undefined>>({}); // the tags of the rows on screen, shown as chips
   let answerText = $state(""); // the text the instant answer searched, with any prefix taken off
   let instant = 0;
   let input: HTMLInputElement;
@@ -60,6 +64,16 @@
   const sections = $derived(firstApp >= 0 && firstFile >= 0); // two kinds of rows: label them
   const chip = $derived(results?.Scope || label[effective]);
 
+  // The tags of the rows on screen, for their chips.
+  $effect(() => {
+    const ids = items.map(tagIdOf).filter((id): id is string => id !== null);
+    let fresh = true;
+    if (ids.length === 0) tagsByID = {};
+    else Palette.TagsOf(ids).then((found) => fresh && (tagsByID = found ?? {})); // Go sends null for none
+    return () => (fresh = false);
+  });
+  const tagsOf = (item: Item) => tagsByID[tagIdOf(item) ?? ""] ?? [];
+
   // What the page waits for, in a word or two, shown as the loader in the bar.
   const waiting = $derived.by(() => {
     if (info && info.Engine !== "ready" && info.Engine !== "failed" && info.Engine !== "") return "Warming up";
@@ -74,6 +88,8 @@
     if (problem) out.push({ text: problem, problem: true });
     if (query.trim() === "") {
       if (info?.Engine === "failed") out.push({ text: info.EngineMessage, problem: true });
+    } else if (effective === "tags") {
+      if (entries.length === 0) out.push({ text: "Nothing is tagged like that yet. Select a row and press Ctrl+T.", problem: false });
     } else if (effective === "apps") {
       if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
     } else if (results?.State === "warming") {
@@ -127,6 +143,7 @@
   function onBlur() {
     active = false;
     closeActions();
+    picker = null;
     mode = "all"; // the next opening starts from everything
     effective = "all";
     metal = nextMetal(metal);
@@ -159,7 +176,7 @@
   }
 
   // Asks Go for the instant answers (apps), which come back in a millisecond, and then lets the files
-  // follow after the usual pause. In the Apps and Web modes there is no file search.
+  // follow after the usual pause. In the Apps, Web and Tags modes there is no file search.
   async function update() {
     const mine = ++instant;
     const answer = await Palette.Query(query, mode);
@@ -169,7 +186,7 @@
     answerText = answer.Text;
     selected = 0;
     clearTimeout(timer);
-    if (effective === "apps" || effective === "web") {
+    if (effective === "apps" || effective === "web" || effective === "tags") {
       token++;
       pending = false;
       results = null;
@@ -210,18 +227,61 @@
     input?.focus();
   }
 
-  async function runAction(id: Action["id"]) {
+  async function runAction(id: string) {
     const item = target;
     await closeActions();
     if (!item) return;
-    if (id === "copy-path" && item.kind !== "entry") copyPath(item);
-    else if (id !== "copy-path") run(item, id);
+    if (id === "copy-path") copyPath(item);
+    else if (id === "tag") openPicker(item);
+    else run(item, id as "open" | "reveal" | "admin");
   }
 
-  function copyPath(item: FileItem) {
-    Clipboard.SetText(pathOf(item));
+  function copyPath(item: Item) {
+    const path = filePathOf(item);
+    if (!path) return;
+    Clipboard.SetText(path);
     Panel.Hide(); // copied to be pasted elsewhere: give the keyboard back
   }
+
+  // --- tags
+
+  async function openPicker(item: Item | undefined) {
+    const id = item && tagIdOf(item);
+    if (!item || !id) return;
+    const [tags, mine] = await Promise.all([Palette.Tags(), Palette.TagsOf([id])]);
+    allTags = tags ?? [];
+    picker = { id, title: item.kind === "entry" ? item.entry.Title : item.row.Name, applied: mine?.[id] ?? [] };
+  }
+
+  async function closePicker() {
+    picker = null;
+    await tick();
+    input?.focus();
+  }
+
+  /** Puts a tag on the thing, or takes it off. A name typed that is new becomes a tag. */
+  async function toggleTag(id: string) {
+    if (!picker) return;
+    const name = id.startsWith("new:") ? id.slice(4) : id;
+    const thing = picker.id;
+    await attempt(async () => {
+      const now = await Palette.Tag(thing, name);
+      if (picker?.id !== thing) return;
+      picker.applied = now ?? [];
+      tagsByID = { ...tagsByID, [thing]: now ?? [] };
+      allTags = (await Palette.Tags()) ?? [];
+      if (mode === "tags" || query.trim().startsWith("#")) update(); // the list being looked at has changed
+    });
+  }
+
+  const tagLines = $derived(
+    allTags.map((tag) => ({ id: tag.Name, title: "#" + tag.Name, keys: picker?.applied.includes(tag.Name) ? "✓" : "" })),
+  );
+  const newTag = (typed: string) => {
+    const name = typed.replace(/^#/, "").trim().toLowerCase();
+    if (!name || allTags.some((tag) => tag.Name === name)) return null;
+    return { id: "new:" + typed.replace(/^#/, "").trim(), title: `Add the tag “${typed.replace(/^#/, "").trim()}”` };
+  };
 
   /** Whether the row can be revealed or run as administrator (files can be revealed; apps say what they can). */
   function available(item: Item, how: "reveal" | "admin"): boolean {
@@ -242,7 +302,11 @@
   async function run(item: Item | undefined, how: "open" | "reveal" | "admin" = "open") {
     if (!item) return;
     if (how !== "open" && !available(item, how)) return;
-    if (item.kind === "entry") {
+    if (item.kind === "entry" && item.entry.Kind === "tag") {
+      query = "#" + item.entry.ID.slice("tag:".length) + " ";
+      onInput(); // show what carries it
+      input.focus();
+    } else if (item.kind === "entry") {
       const id = item.entry.ID;
       // An app that is gone has left the list, so the rows are asked for again.
       await attempt(() => Palette.Do(id, how, query), update);
@@ -273,7 +337,7 @@
   }
 
   function onKeydown(event: KeyboardEvent) {
-    if (target) return; // the action panel has the keyboard
+    if (target || picker) return; // a panel has the keyboard
     switch (event.key) {
       case "Escape": {
         event.preventDefault();
@@ -316,9 +380,16 @@
         break;
       case "C":
       case "c":
-        if (event.ctrlKey && event.shiftKey && current && current.kind !== "entry") {
+        if (event.ctrlKey && event.shiftKey && current && filePathOf(current)) {
           event.preventDefault();
           copyPath(current);
+        }
+        break;
+      case "T":
+      case "t":
+        if (event.ctrlKey && current && tagIdOf(current)) {
+          event.preventDefault();
+          openPicker(current);
         }
         break;
       case "K":
@@ -361,7 +432,7 @@
   <div class="card" style:height="{cardHeight}px">
     <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={METALS[metal]} />
     <div class="surface">
-      <div class="content" class:acting={target} bind:this={content}>
+      <div class="content" class:acting={target || picker} bind:this={content}>
         <header class="bar">
           <span class="glass"><SearchGlyph size={22} busy={pending} /></span>
           <input
@@ -399,6 +470,7 @@
                     <EntryRow
                       id={optionId(index)}
                       entry={item.entry}
+                      tags={tagsOf(item)}
                       selected={index === selected}
                       onhover={() => (selected = index)}
                       onactivate={() => run(item)}
@@ -407,6 +479,7 @@
                     <ResultRow
                       id={optionId(index)}
                       row={item.row}
+                      tags={tagsOf(item)}
                       match={item.kind === "match" ? item.match : undefined}
                       query={answered}
                       selected={index === selected}
@@ -436,7 +509,15 @@
         {/if}
       </div>
       {#if target}
-        <ActionPanel actions={actionsFor(target)} onrun={runAction} onclose={closeActions} />
+        <ActionPanel actions={actionsFor(target, tagIdOf(target) !== null)} onrun={runAction} onclose={closeActions} />
+      {:else if picker}
+        <ActionPanel
+          actions={tagLines}
+          onrun={toggleTag}
+          onclose={closePicker}
+          placeholder={"Tag “" + picker.title + "”"}
+          create={newTag}
+        />
       {/if}
     </div>
   </div>
@@ -574,12 +655,12 @@
   .hints {
     display: flex;
     align-items: center;
-    gap: 16px;
+    flex-wrap: wrap;
+    gap: 4px 16px;
     padding: 11px 24px 13px;
     border-top: 1px solid var(--line);
     color: var(--text-3);
     font-size: 11.5px;
-    white-space: nowrap;
   }
   kbd {
     margin-right: 7px;

@@ -17,9 +17,11 @@
     expanded?: boolean;
     onhover: () => void;
     onactivate: () => void;
+    /** The tags this file carries. */
+    tags?: string[];
   }
 
-  let { row, match, query, id, selected, expanded = false, onhover, onactivate }: Props = $props();
+  let { row, match, query, id, selected, expanded = false, onhover, onactivate, tags = [] }: Props = $props();
 
   const icons = { code: "code", text: "text", image: "image" } as const;
   const icon = $derived(icons[row.Kind as keyof typeof icons] ?? "file");
@@ -78,6 +80,9 @@
       </div>
     {/if}
   </div>
+  {#if !match && tags.length > 0}
+    <span class="tags">{#each tags as tag}<span class="tag">#{tag}</span>{/each}</span>
+  {/if}
   {#if !match && more > 0}
     <span class="more">{expanded ? "−" : "+"}{more}</span>
   {/if}
@@ -178,6 +183,19 @@
     background: none;
     color: #fff;
     font-weight: 620;
+  }
+  .tags {
+    flex: none;
+    display: flex;
+    gap: 5px;
+    align-self: center;
+  }
+  .tag {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--tile);
+    color: var(--text-2);
+    font: 500 10.5px var(--mono);
   }
   .more {
     flex: none;

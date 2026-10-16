@@ -1,6 +1,7 @@
 // Package state remembers what the launcher has learned about its user: what was launched and when, and
-// what was chosen after typing what. It is one small JSON file, written whole and replaced atomically;
-// a few thousand entries at most, so a database would be more machinery than the job.
+// what was chosen after typing what, and the tags put on things. It is one small JSON file, written
+// whole and replaced atomically; a few thousand entries at most, so a database would be more machinery
+// than the job.
 package state
 
 import (
@@ -10,9 +11,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // maxUses is how many launch times are kept per thing: frecency only needs the recent ones.
@@ -26,6 +30,7 @@ type file struct {
 	Version int                       `json:"version"`
 	Uses    map[string][]int64        `json:"uses"`    // id -> unix milliseconds, oldest first
 	Learned map[string]map[string]int `json:"learned"` // typed text -> id -> times chosen
+	Tags    map[string][]string       `json:"tags"`    // tag -> ids of what carries it, in the order tagged
 }
 
 // Store is the state, in memory and on disk. It is safe for concurrent use.
@@ -61,11 +66,14 @@ func Open(path string) (*Store, error) {
 	if s.data.Learned == nil {
 		s.data.Learned = map[string]map[string]int{}
 	}
+	if s.data.Tags == nil {
+		s.data.Tags = map[string][]string{}
+	}
 	return s, nil
 }
 
 func empty() file {
-	return file{Version: 1, Uses: map[string][]int64{}, Learned: map[string]map[string]int{}}
+	return file{Version: 1, Uses: map[string][]int64{}, Learned: map[string]map[string]int{}, Tags: map[string][]string{}}
 }
 
 // Uses are the times the thing was launched, oldest first.
@@ -125,4 +133,98 @@ func (s *Store) save() error {
 		return fmt.Errorf("replace state: %w", err)
 	}
 	return nil
+}
+
+// maxTag is the longest tag name.
+const maxTag = 32
+
+// NormaliseTag turns what was typed into a tag name: no leading #, lower case, spaces and runs of
+// punctuation become single dashes. It reports false when nothing usable is left.
+func NormaliseTag(typed string) (string, bool) {
+	var out []rune
+	dash := false
+	for _, r := range strings.ToLower(strings.TrimPrefix(strings.TrimSpace(typed), "#")) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			if dash && len(out) > 0 {
+				out = append(out, '-')
+			}
+			out, dash = append(out, r), false
+		} else {
+			dash = true
+		}
+	}
+	if len(out) == 0 || len(out) > maxTag {
+		return "", false
+	}
+	return string(out), true
+}
+
+// ToggleTag puts the tag on the thing, or takes it off if it is already there, and saves. It reports
+// whether the thing carries the tag now.
+func (s *Store) ToggleTag(id, tag string) (bool, error) {
+	tag, ok := NormaliseTag(tag)
+	if !ok {
+		return false, fmt.Errorf("%q is not a usable tag", tag)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ids := s.data.Tags[tag]
+	for i, have := range ids {
+		if have == id {
+			ids = append(ids[:i:i], ids[i+1:]...)
+			if len(ids) == 0 {
+				delete(s.data.Tags, tag)
+			} else {
+				s.data.Tags[tag] = ids
+			}
+			return false, s.save()
+		}
+	}
+	s.data.Tags[tag] = append(ids, id)
+	return true, s.save()
+}
+
+// Tagged lists what carries the tag, in the order it was tagged.
+func (s *Store) Tagged(tag string) []string {
+	tag, _ = NormaliseTag(tag)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.data.Tags[tag]...)
+}
+
+// TagsOf lists the tags a thing carries, alphabetically.
+func (s *Store) TagsOf(id string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var tags []string
+	for tag, ids := range s.data.Tags {
+		if slices.Contains(ids, id) {
+			tags = append(tags, tag)
+		}
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+// TagCount is a tag and how many things carry it.
+type TagCount struct {
+	Name  string
+	Count int
+}
+
+// Tags lists every tag, the most used first.
+func (s *Store) Tags() []TagCount {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	tags := make([]TagCount, 0, len(s.data.Tags))
+	for name, ids := range s.data.Tags {
+		tags = append(tags, TagCount{Name: name, Count: len(ids)})
+	}
+	sort.Slice(tags, func(a, b int) bool {
+		if tags[a].Count != tags[b].Count {
+			return tags[a].Count > tags[b].Count
+		}
+		return tags[a].Name < tags[b].Name
+	})
+	return tags
 }

@@ -147,14 +147,15 @@ func run() error {
 	}
 
 	bar = panel.New(app, cfg.Hotkey)
+	opener := files.New(cfg.Roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
 	icon = tray.New(app, bar.Show, indexer.Rescan)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), roots, engine.Status)),
-		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
-		application.NewService(palette.New(catalog, history, web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks), bar.HideForLaunch)),
+		application.NewService(opener),
+		application.NewService(palette.New(catalog, history, web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks), opener, bar.HideForLaunch)),
 	} {
 		app.RegisterService(service)
 	}

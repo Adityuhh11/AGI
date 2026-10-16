@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,5 +109,86 @@ func TestConcurrentRecordsAreAllKept(t *testing.T) {
 	again, err := Open(path)
 	if err != nil || again.Learned("x", "a") != 20 {
 		t.Fatalf("after a restart: %v, %d", err, again.Learned("x", "a"))
+	}
+}
+
+func TestNormaliseTag(t *testing.T) {
+	tests := []struct {
+		typed, want string
+		ok          bool
+	}{
+		{"work", "work", true},
+		{"#Work", "work", true},
+		{"  My Project ", "my-project", true},
+		{"q3 / budget!!", "q3-budget", true},
+		{"café", "café", true},
+		{"", "", false},
+		{"#", "", false},
+		{"!!!", "", false},
+		{"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", false}, // longer than a tag may be
+	}
+	for _, tt := range tests {
+		if got, ok := NormaliseTag(tt.typed); got != tt.want || ok != tt.ok {
+			t.Errorf("NormaliseTag(%q) = %q, %v; want %q, %v", tt.typed, got, ok, tt.want, tt.ok)
+		}
+	}
+}
+
+func TestTagsToggleOnAndOffAndSurviveARestart(t *testing.T) {
+	s, path := open(t)
+	on, err := s.ToggleTag("file:C:\\a.pdf", "#Work")
+	if err != nil || !on {
+		t.Fatalf("first toggle = %v, %v", on, err)
+	}
+	if _, err := s.ToggleTag("app:code", "work"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ToggleTag("app:code", "dev tools"); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(again.Tagged("WORK"), "|"); got != "file:C:\\a.pdf|app:code" {
+		t.Fatalf("tagged work = %q (in the order tagged, any spelling of the tag)", got)
+	}
+	if got := strings.Join(again.TagsOf("app:code"), "|"); got != "dev-tools|work" {
+		t.Fatalf("tags of the app = %q", got)
+	}
+	on, err = again.ToggleTag("file:C:\\a.pdf", "work")
+	if err != nil || on {
+		t.Fatalf("second toggle = %v, %v; it must take the tag off", on, err)
+	}
+	if got := strings.Join(again.Tagged("work"), "|"); got != "app:code" {
+		t.Fatalf("after removing: %q", got)
+	}
+	if _, err := again.ToggleTag("x", "!!!"); err == nil {
+		t.Fatal("an unusable tag must be refused")
+	}
+}
+
+func TestAnEmptiedTagDisappearsAndTagsAreListedByUse(t *testing.T) {
+	s, _ := open(t)
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := s.ToggleTag(id, "common"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.ToggleTag("a", "rare"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ToggleTag("a", "gone"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ToggleTag("a", "gone"); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, tag := range s.Tags() {
+		got = append(got, fmt.Sprintf("%s:%d", tag.Name, tag.Count))
+	}
+	if want := "common:3|rare:1"; strings.Join(got, "|") != want {
+		t.Fatalf("tags = %v, want %s (most used first, an emptied tag gone)", got, want)
 	}
 }

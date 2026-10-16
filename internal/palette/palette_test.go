@@ -1,6 +1,7 @@
 package palette
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,6 +28,12 @@ func (b *fakeBrowser) Find(trigger string) (config.Quicklink, bool) {
 	return web.New("", "", b.links).Find(trigger)
 }
 
+// fakeFiles records what was opened.
+type fakeFiles struct{ opened, revealed []string }
+
+func (f *fakeFiles) Open(path string, _ int) error { f.opened = append(f.opened, path); return nil }
+func (f *fakeFiles) Reveal(path string) error      { f.revealed = append(f.revealed, path); return nil }
+
 var gh = config.Quicklink{Trigger: "gh", Title: "GitHub", URL: "https://github.com/search?q={q}"}
 
 func newService(t *testing.T, names ...string) (*Service, *int) {
@@ -48,7 +55,7 @@ func newServiceWithBrowser(t *testing.T, names ...string) (*Service, *int, *fake
 	}
 	dismissed := 0
 	browser := &fakeBrowser{links: []config.Quicklink{gh}}
-	return New(catalog, history, browser, func() { dismissed++ }), &dismissed, browser
+	return New(catalog, history, browser, &fakeFiles{}, func() { dismissed++ }), &dismissed, browser
 }
 
 // titles lists the app rows of an answer; other kinds have their own tests.
@@ -85,6 +92,9 @@ func TestParseTakesAModePrefixOffTheText(t *testing.T) {
 		{"?rust", ModeFiles, ModeWeb, "rust"},
 		{"web: rust", ModeAll, ModeWeb, "rust"},
 		{"what is this? a question", ModeAll, ModeAll, "what is this? a question"}, // only a leading ? counts
+		{"#work budget", ModeAll, ModeTags, "work budget"},
+		{"work", ModeTags, ModeTags, "work"},   // the chip alone is enough
+		{"#work", ModeFiles, ModeTags, "work"}, // the prefix wins over the chip
 	}
 	for _, tt := range tests {
 		if mode, text := parse(tt.raw, tt.chip); mode != tt.mode || text != tt.text {
@@ -204,7 +214,7 @@ func TestAnItemNamesItsIconAndOnlyOffersActionsItCanDo(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "tool.exe")
 	catalog.Index.Set([]apps.App{{ID: file, Name: "Tool"}, {ID: "Pkg!App", Name: "Store Thing"}})
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
-	s := New(catalog, history, &fakeBrowser{}, func() {})
+	s := New(catalog, history, &fakeBrowser{}, &fakeFiles{}, func() {})
 	byTitle := map[string]Item{}
 	for _, item := range s.Query("t", ModeApps).Items {
 		byTitle[item.Title] = item
@@ -238,7 +248,90 @@ func TestRunningAnAppThatWasUninstalledRemovesItAndDoesNotCloseTheBar(t *testing
 	if err := s.Do("app:nothing", "open", ""); err == nil {
 		t.Error("an app that is not in the list must be an error")
 	}
-	if err := s.Do("file:x", "open", ""); err == nil {
+	if err := s.Do("tag:x", "open", ""); err == nil {
 		t.Error("an id of another kind must be refused here")
 	}
+}
+
+func TestTheTagsModeListsTagsThenWhatCarriesOne(t *testing.T) {
+	s, _ := newService(t, "Visual Studio Code", "Calculator")
+	file := filepath.Join(t.TempDir(), "budget.xlsx")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gone := filepath.Join(t.TempDir(), "deleted.pdf") // tagged once, deleted since
+	for _, id := range []string{"app:id:Visual Studio Code", "file:" + file, "file:" + gone} {
+		if _, err := s.Tag(id, "Work"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Tag("app:id:Calculator", "math"); err != nil {
+		t.Fatal(err)
+	}
+
+	list := s.Query("#", ModeAll)
+	if list.Mode != ModeTags || kinds(list) != "tag|tag" || list.Items[0].Title != "#work" || list.Items[0].Subtitle != "3 items" {
+		t.Fatalf("# listed %q %+v", kinds(list), list.Items)
+	}
+	if got := titlesOf(s.Query("#wo", ModeAll)); got != "#work" {
+		t.Errorf("#wo listed %q, want the matching tag", got)
+	}
+	work := s.Query("#work", ModeAll)
+	if got := titlesOf(work); got != "Visual Studio Code|budget.xlsx" || kinds(work) != "app|file" {
+		t.Errorf("#work listed %q (%s); the deleted file must be left out", got, kinds(work))
+	}
+	if got := titlesOf(s.Query("#work budget", ModeAll)); got != "budget.xlsx" {
+		t.Errorf("#work budget listed %q, want only the match", got)
+	}
+	if work.Items[1].Subtitle != filepath.Dir(file) || len(work.Items[1].Actions) == 0 {
+		t.Errorf("a tagged file shows its folder and can be revealed: %+v", work.Items[1])
+	}
+}
+
+func TestTaggingTogglesAndReportsWhatTheThingCarries(t *testing.T) {
+	s, _ := newService(t)
+	tags, err := s.Tag("app:x", "#Dev Tools")
+	if err != nil || len(tags) != 1 || tags[0] != "dev-tools" {
+		t.Fatalf("Tag = %v, %v", tags, err)
+	}
+	if got := s.TagsOf([]string{"app:x", "app:y"}); len(got) != 1 || got["app:x"][0] != "dev-tools" {
+		t.Fatalf("TagsOf = %v (things without tags are left out)", got)
+	}
+	if tags, err := s.Tag("app:x", "dev tools"); err != nil || len(tags) != 0 {
+		t.Fatalf("a second Tag must take it off, got %v, %v", tags, err)
+	}
+	if _, err := s.Tag("web:search", "x"); err == nil {
+		t.Error("only apps and files can be tagged")
+	}
+	if _, err := s.Tag("app:x", "!!!"); err == nil {
+		t.Error("an unusable tag must be refused")
+	}
+	if got := s.Tags(); len(got) != 0 {
+		t.Errorf("an emptied tag must be gone, got %v", got)
+	}
+}
+
+func TestTaggedFilesOpenThroughTheFilesService(t *testing.T) {
+	catalog := apps.NewCatalog("", "")
+	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
+	f := &fakeFiles{}
+	s := New(catalog, history, &fakeBrowser{}, f, func() {})
+	if err := s.Do(`file:C:\docs\a.pdf`, "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != `C:\docs\a.pdf` {
+		t.Fatalf("opened %v, %v", f.opened, err)
+	}
+	if err := s.Do(`file:C:\docs\a.pdf`, "reveal", ""); err != nil || len(f.revealed) != 1 {
+		t.Fatalf("revealed %v, %v", f.revealed, err)
+	}
+	if err := s.Do(`file:x`, "admin", ""); err == nil {
+		t.Error("a file has no administrator action")
+	}
+}
+
+// titlesOf lists the titles of every row of an answer.
+func titlesOf(a Answer) string {
+	var out []string
+	for _, item := range a.Items {
+		out = append(out, item.Title)
+	}
+	return strings.Join(out, "|")
 }

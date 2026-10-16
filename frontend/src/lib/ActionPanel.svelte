@@ -1,19 +1,28 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { filterActions, type Action } from "./actions";
+  import { filterActions } from "./actions";
+
+  /** One line of the panel: an action of a row, or a tag to put on it. */
+  type Line = { id: string; title: string; keys?: string };
 
   interface Props {
-    actions: readonly Action[];
-    onrun: (id: Action["id"]) => void;
+    actions: readonly Line[];
+    onrun: (id: string) => void;
     onclose: () => void;
+    placeholder?: string;
+    /** A line offered for the text typed when nothing in the list is it (a new tag), or null. */
+    create?: (text: string) => Line | null;
   }
-  let { actions, onrun, onclose }: Props = $props();
+  let { actions, onrun, onclose, placeholder = "Filter actions", create }: Props = $props();
 
   let text = $state("");
   let selected = $state(0);
   let field: HTMLInputElement;
 
-  const shown = $derived(filterActions(actions, text));
+  const shown = $derived.by(() => {
+    const made = create?.(text.trim());
+    return [...filterActions(actions, text), ...(made ? [made] : [])];
+  });
   // Typing can shorten the list under the selection.
   $effect(() => {
     if (selected >= shown.length) selected = Math.max(0, shown.length - 1);
@@ -42,10 +51,10 @@
     bind:value={text}
     {onkeydown}
     type="text"
-    placeholder="Filter actions"
+    {placeholder}
     spellcheck="false"
     autocomplete="off"
-    aria-label="Filter actions"
+    aria-label={placeholder}
   />
   <ul role="listbox" aria-label="Actions">
     {#each shown as action, index (action.id)}
@@ -58,10 +67,10 @@
         onclick={() => onrun(action.id)}
       >
         <span>{action.title}</span>
-        <kbd>{action.keys}</kbd>
+        {#if action.keys}<kbd>{action.keys}</kbd>{/if}
       </li>
     {:else}
-      <li class="none">No such action</li>
+      <li class="none">Nothing here</li>
     {/each}
   </ul>
 </div>

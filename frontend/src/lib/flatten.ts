@@ -47,3 +47,15 @@ export function openLine(item: FileItem): number {
 export function pathOf(item: FileItem): string {
   return item.row.Path;
 }
+
+/** The id a row is tagged by: `file:<path>` for a file (and each of its matches), the entry's own id for an app or a tagged file. */
+export function tagIdOf(item: Item): string | null {
+  if (item.kind !== "entry") return "file:" + item.row.Path;
+  return item.entry.Kind === "app" || item.entry.Kind === "file" ? item.entry.ID : null;
+}
+
+/** The file on disk behind a row, if it has one (a file result, or a tagged file). */
+export function filePathOf(item: Item): string | null {
+  if (item.kind !== "entry") return item.row.Path;
+  return item.entry.Kind === "file" ? item.entry.ID.slice("file:".length) : null;
+}

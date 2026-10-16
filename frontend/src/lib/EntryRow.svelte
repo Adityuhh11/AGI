@@ -8,8 +8,14 @@
     selected: boolean;
     onhover: () => void;
     onactivate: () => void;
+    /** The tags this thing carries. */
+    tags?: string[];
   }
-  let { entry, id, selected, onhover, onactivate }: Props = $props();
+  let { entry, id, selected, onhover, onactivate, tags = [] }: Props = $props();
+
+  const glyph = $derived(
+    entry.Kind === "app" ? "app" : entry.Kind === "tag" ? "tag" : entry.Kind === "file" ? "file" : "web",
+  );
 
   // An icon the launcher could not make (the handler answers 404) keeps the plain glyph.
   let iconFailed = $state(false);
@@ -27,12 +33,15 @@
     {#if entry.Icon && !iconFailed}
       <img src={entry.Icon} alt="" onerror={() => (iconFailed = true)} />
     {:else}
-      <Icon name={entry.Kind === "app" ? "app" : "web"} />
+      <Icon name={glyph} />
     {/if}
   </span>
   <div class="body">
     <span class="name">{entry.Title}</span>
   </div>
+  {#if tags.length > 0}
+    <span class="tags">{#each tags as tag}<span class="tag">#{tag}</span>{/each}</span>
+  {/if}
   <span class="kind">{entry.Subtitle}</span>
 </div>
 
@@ -87,6 +96,19 @@
     font-size: 14.5px;
     font-weight: 520;
     letter-spacing: -0.005em;
+  }
+  .tags {
+    flex: none;
+    display: flex;
+    gap: 5px;
+    align-self: center;
+  }
+  .tag {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--tile);
+    color: var(--text-2);
+    font: 500 10.5px var(--mono);
   }
   .kind {
     flex: none;

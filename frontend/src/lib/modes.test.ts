@@ -7,8 +7,9 @@ test("Tab walks the modes and wraps, Shift+Tab walks back", () => {
   assert.equal(cycle("all", 1), "apps");
   assert.equal(cycle("apps", 1), "files");
   assert.equal(cycle("files", 1), "web");
-  assert.equal(cycle("web", 1), "all");
-  assert.equal(cycle("all", -1), "web");
+  assert.equal(cycle("web", 1), "tags");
+  assert.equal(cycle("tags", 1), "all");
+  assert.equal(cycle("all", -1), "tags");
   assert.equal(cycle("apps", -1), "all");
 });
 
@@ -24,4 +25,5 @@ test("the all mode shows no chip and the others name themselves", () => {
   assert.equal(label.apps, "Apps");
   assert.equal(label.files, "Files");
   assert.equal(label.web, "Web");
+  assert.equal(label.tags, "Tags");
 });
