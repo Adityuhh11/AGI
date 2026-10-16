@@ -52,6 +52,13 @@ func (i *Index) Set(apps []App) {
 	i.mu.Unlock()
 }
 
+// All returns a copy of the list.
+func (i *Index) All() []App {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return append([]App(nil), i.apps...)
+}
+
 // Len is how many apps there are.
 func (i *Index) Len() int {
 	i.mu.RLock()

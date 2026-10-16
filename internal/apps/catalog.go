@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 )
 
@@ -22,14 +23,29 @@ type Catalog struct {
 	Index *Index
 
 	cache string
+	icons string                                    // where icons are cached; empty to not warm them
 	list  func(ctx context.Context) ([]byte, error) // Get-StartApps as JSON; tests replace it
 	now   func() time.Time
 	poke  chan struct{}
+	warm  atomic.Bool // icons are being made
 }
 
-// NewCatalog returns a catalog that caches its list in the file cache.
-func NewCatalog(cache string) *Catalog {
-	return &Catalog{Index: &Index{}, cache: cache, list: startApps, now: time.Now, poke: make(chan struct{}, 1)}
+// NewCatalog returns a catalog that caches its list in the file cache and the icons of its apps in the
+// folder icons.
+func NewCatalog(cache, icons string) *Catalog {
+	return &Catalog{Index: &Index{}, cache: cache, icons: icons, list: startApps, now: time.Now, poke: make(chan struct{}, 1)}
+}
+
+// warmIcons makes the icons of the current list in the background, one pass at a time.
+func (c *Catalog) warmIcons(ctx context.Context) {
+	if c.icons == "" || !c.warm.CompareAndSwap(false, true) {
+		return
+	}
+	apps := c.Index.All()
+	go func() {
+		defer c.warm.Store(false)
+		warmIcons(ctx, apps, c.icons)
+	}()
 }
 
 // Refresh asks for the list to be rebuilt soon. Asking twice before it runs is the same as once.
@@ -51,6 +67,7 @@ func (c *Catalog) Run(ctx context.Context) {
 	if len(apps) == 0 || c.now().Sub(saved) > refreshEvery {
 		c.rebuild(ctx)
 	}
+	c.warmIcons(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -59,6 +76,7 @@ func (c *Catalog) Run(ctx context.Context) {
 		case <-time.After(refreshEvery):
 		}
 		c.rebuild(ctx)
+		c.warmIcons(ctx)
 	}
 }
 
@@ -71,6 +89,7 @@ func (c *Catalog) rebuild(ctx context.Context) {
 		return
 	}
 	apps, err := parse(data)
+	apps = withoutDead(apps)
 	if err != nil || len(apps) == 0 {
 		log.Printf("apps: the list from Windows was unusable (%d apps, error %v); keeping the old one", len(apps), err)
 		return

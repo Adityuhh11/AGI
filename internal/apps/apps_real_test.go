@@ -69,3 +69,17 @@ func TestRealStartMenu(t *testing.T) {
 		t.Logf("%-5s -> %v", typed, top)
 	}
 }
+
+// loadReal returns the kept apps of this machine's real Start Menu.
+func loadReal(t *testing.T) []App {
+	t.Helper()
+	data, err := startApps(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, err := parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return withoutDead(kept)
+}

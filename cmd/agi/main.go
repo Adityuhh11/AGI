@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -87,12 +88,18 @@ func run() error {
 		return fmt.Errorf("locate the cache directory: %w", err)
 	}
 	var bar *panel.Panel
-	catalog := apps.NewCatalog(filepath.Join(cacheDir, "AGI", "apps.json"))
+	iconDir := filepath.Join(cacheDir, "AGI", "icons")
+	catalog := apps.NewCatalog(filepath.Join(cacheDir, "AGI", "apps.json"), iconDir)
+	thumbnails := files.Thumbnails(cfg.Roots, filepath.Join(cacheDir, "AGI", "thumbs"))
+	icons := apps.Icons(catalog.Index, iconDir)
 	app := application.New(application.Options{
 		Name: "AGI",
 		Assets: application.AssetOptions{
-			Handler:    application.AssetFileServerFS(assets),
-			Middleware: files.Thumbnails(cfg.Roots, filepath.Join(cacheDir, "AGI", "thumbs")),
+			Handler: application.AssetFileServerFS(assets),
+			// /thumb serves picture thumbnails, /icon the icons of apps; anything else is the page.
+			Middleware: func(next http.Handler) http.Handler {
+				return thumbnails(icons(next))
+			},
 		},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
