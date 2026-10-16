@@ -127,7 +127,9 @@ func initials(q string, words []word) bool {
 }
 
 // scattered finds the letters of q in order, the first at the start of a word, taking each next
-// letter as soon as it appears. The score falls as the letters spread out.
+// letter as soon as it appears. The score rises with letters that sit on the start of a word (a hump
+// of PowerPoint counts) and falls as the letters spread out, so `ppt` prefers PowerPoint, whose second
+// P starts a word, to Prompt, whose letters are only close together.
 //
 // ponytail: greedy, not the best alignment; a title with a better later alignment scores a little low.
 // Upgrade to a small dynamic program if the owner's real queries show a wrong order.
@@ -136,11 +138,15 @@ func scattered(q string, title []rune, words []word) float64 {
 	if len(letters) < 2 {
 		return 0
 	}
+	starts := make(map[int]bool, len(words))
+	for _, w := range words {
+		starts[w.start] = true
+	}
 	for _, w := range words {
 		if w.text[0] != letters[0] {
 			continue
 		}
-		at, matched := w.start, 1
+		at, matched, onStart := w.start, 1, 1
 		for _, l := range letters[1:] {
 			next := -1
 			for j := at + 1; j < len(title); j++ {
@@ -153,9 +159,14 @@ func scattered(q string, title []rune, words []word) float64 {
 				break
 			}
 			at, matched = next, matched+1
+			if starts[next] {
+				onStart++
+			}
 		}
 		if matched == len(letters) {
-			return 0.4 * float64(len(letters)) / float64(at-w.start+1)
+			tight := float64(len(letters)) / float64(at-w.start+1)
+			boundary := float64(onStart) / float64(len(letters))
+			return 0.4 * (0.5*tight + 0.5*boundary)
 		}
 	}
 	return 0

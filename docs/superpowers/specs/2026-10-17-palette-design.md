@@ -114,11 +114,13 @@ choose it twice), which is how Raycast's ranking feels so right.
 
 ## Apps (P1)
 
-**How they are found.** Two sources, merged by target: the Start Menu folders (130 shortcuts here, 110 ms to scan) and
-Windows' own list (`shell:AppsFolder`, 203 entries, the only way to see Store apps). Windows' list is reached by running
-`Get-StartApps` in a background process (1.25 s, off the hot path), cached to disk, and refreshed at start, when the Start
-Menu folders change (the file watcher already exists) and daily. A native COM enumeration would remove the 1.25 s but
-adds a dependency for no visible gain; it is upgraded only if the refresh ever matters.
+**How they are found.** One source: Windows' own list of everything its Start Menu shows (`Get-StartApps`: 203 entries here,
+a superset of the 130 shortcut files, and the only way to see Store apps). It is reached by running `Get-StartApps` in a
+background process (1.25 s, off the hot path), kept through a keep-list (176 of the 203 are applications; the rest are
+documentation, websites and stray files, see `docs/eval/2026-10-17-app-index.md`), cached to disk, and refreshed at start,
+when the Start Menu folders change (the file watcher already exists) and daily. Parsing shortcut files and merging two
+lists was dropped once the measurement showed one list holds everything. A native COM enumeration would remove the 1.25 s
+but adds a dependency for no visible gain; it is upgraded only if the refresh ever matters.
 
 **How "what is there and what is not" is kept.** The index is rebuilt from the sources on each refresh, so an uninstalled app
 disappears at the next refresh; and every launch checks the target first, dropping the entry if it vanished

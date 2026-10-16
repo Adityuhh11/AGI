@@ -15,6 +15,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"agi"
+	"agi/internal/apps"
 	"agi/internal/config"
 	"agi/internal/files"
 	"agi/internal/indexing"
@@ -86,6 +87,7 @@ func run() error {
 		return fmt.Errorf("locate the cache directory: %w", err)
 	}
 	var bar *panel.Panel
+	catalog := apps.NewCatalog(filepath.Join(cacheDir, "AGI", "apps.json"))
 	app := application.New(application.Options{
 		Name: "AGI",
 		Assets: application.AssetOptions{
@@ -148,6 +150,10 @@ func run() error {
 			close(engineStopped)
 		}()
 		go indexer.Run(ctx)
+		// The list of installed apps is served from its cache at once and rebuilt in the background,
+		// again whenever a program is installed or removed.
+		go catalog.Run(ctx)
+		go watcher.Watch(ctx, apps.StartMenuFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
 		// A file that appears, moves or goes is in the index a few seconds after the folder goes
 		// quiet (and within 30 s even if it never does).
 		go watcher.Watch(ctx, cfg.Roots, 3*time.Second, 30*time.Second, indexer.Changed)
