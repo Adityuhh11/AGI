@@ -351,8 +351,8 @@
     outline: 0;
     background: transparent;
     color: var(--text);
-    font: 500 21px/1 var(--display);
-    letter-spacing: -0.015em;
+    font: 400 19px/1 var(--display);
+    letter-spacing: -0.01em;
   }
   input::placeholder {
     color: var(--text-3);

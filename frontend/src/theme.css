@@ -22,8 +22,8 @@
   --radius: 30px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1); /* exponential ease-out */
 
-  /* The words you type and the placeholder: a grotesk with some character, the one voice that is not Geist. */
-  --display: "Bricolage Grotesque Variable", "Segoe UI Variable Display", system-ui, sans-serif;
+  /* The words you type and the placeholder: a geometric, open face, the one voice that is not Geist. */
+  --display: "Sora Variable", "Segoe UI Variable Display", system-ui, sans-serif;
   --sans: "Geist Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --mono: "Geist Mono Variable", "Cascadia Mono", Consolas, monospace;
 
