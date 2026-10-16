@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -80,6 +82,9 @@ type Manager struct {
 	poll  time.Duration // between job progress checks and readiness checks
 	retry time.Duration // after a failed sync
 
+	// deleted says whether a root was removed from a disk that is still there; tests replace it.
+	deleted func(root string) bool
+
 	rescan chan struct{}
 
 	mu     sync.Mutex
@@ -91,7 +96,7 @@ type Manager struct {
 func New(engine Engine, roots []string, ready func() bool, onChange func(Status)) *Manager {
 	return &Manager{
 		engine: engine, roots: roots, ready: ready, onChange: onChange,
-		poll: 500 * time.Millisecond, retry: time.Minute,
+		poll: 500 * time.Millisecond, retry: time.Minute, deleted: wasDeleted,
 		rescan: make(chan struct{}, 1),
 		status: Status{State: Waiting},
 	}
@@ -163,11 +168,28 @@ func (m *Manager) cycle(ctx context.Context) bool {
 	return true
 }
 
-// syncAll forgets sources that are no longer configured and syncs every root. A root that fails
-// does not stop the others; its problem is returned.
+// wasDeleted reports whether root is gone while the folder that held it is still there: the user
+// deleted it. A root whose parent is missing too (an unplugged drive) is not a deletion, so its
+// index is kept for when the drive is back.
+func wasDeleted(root string) bool {
+	if _, err := os.Stat(root); !errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	_, err := os.Stat(filepath.Dir(root))
+	return err == nil
+}
+
+// syncAll forgets sources that are no longer configured (or whose folder was deleted) and syncs
+// every other root. A root that fails does not stop the others; its problem is returned.
 func (m *Manager) syncAll(ctx context.Context) (problems []string, err error) {
+	var roots []string
 	ids := make(map[string]bool, len(m.roots))
 	for _, root := range m.roots {
+		if m.deleted(root) {
+			log.Printf("indexing: %s no longer exists, so its index entries are dropped", root)
+			continue
+		}
+		roots = append(roots, root)
 		ids[config.SourceID(root)] = true
 	}
 	sources, err := m.engine.Sources(ctx)
@@ -182,7 +204,7 @@ func (m *Manager) syncAll(ctx context.Context) (problems []string, err error) {
 			return nil, fmt.Errorf("forget %s: %w", source.Root, err)
 		}
 	}
-	for _, root := range m.roots {
+	for _, root := range roots {
 		if err := m.syncRoot(ctx, root); err != nil {
 			problems = append(problems, filepath.Base(root)+": "+err.Error())
 		}

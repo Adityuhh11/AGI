@@ -3,10 +3,13 @@ package indexing
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
+	"agi/internal/config"
 	"agi/internal/sidecar"
 )
 
@@ -84,6 +87,7 @@ func runOnce(t *testing.T, engine Engine, roots []string) (*Manager, bool) {
 	t.Helper()
 	m := New(engine, roots, func() bool { return true }, nil)
 	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false } // the fake roots do not exist on disk
 	return m, m.cycle(context.Background())
 }
 
@@ -111,6 +115,47 @@ func TestCycleForgetsSourcesThatAreNoLongerConfigured(t *testing.T) {
 	}
 	if got := m.Status().Chunks; got != 10 {
 		t.Errorf("totals include the forgotten source: %d chunks", got)
+	}
+}
+
+func TestARootThatWasDeletedIsForgottenAndNotSynced(t *testing.T) {
+	fake := newFake(sidecar.Source{ID: config.SourceID(`C:\gone`), Root: `C:\gone`, Files: 9, Chunks: 99})
+	m := New(fake, []string{`C:\gone`, `C:\kept`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(root string) bool { return root == `C:\gone` }
+	if !m.cycle(context.Background()) {
+		t.Fatalf("cycle failed: %v", m.Status())
+	}
+	if len(fake.deleted) != 1 || fake.deleted[0] != config.SourceID(`C:\gone`) {
+		t.Errorf("deleted sources %v, want the removed folder's", fake.deleted)
+	}
+	if len(fake.submitted) != 1 || fake.submitted[0] != `C:\kept` {
+		t.Errorf("submitted %v, want only the kept root", fake.submitted)
+	}
+	if got := m.Status().Chunks; got != 10 {
+		t.Errorf("totals count %d chunks, want the kept root's 10", got)
+	}
+}
+
+func TestWasDeleted(t *testing.T) {
+	dir := t.TempDir()
+	here := filepath.Join(dir, "here")
+	if err := os.Mkdir(here, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		root string
+		want bool
+	}{
+		{"a folder that exists", here, false},
+		{"a folder removed from a disk that is still there", filepath.Join(dir, "removed"), true},
+		{"a folder whose parent is missing too (an unplugged drive)", filepath.Join(dir, "no-drive", "removed"), false},
+	}
+	for _, tt := range tests {
+		if got := wasDeleted(tt.root); got != tt.want {
+			t.Errorf("%s: got %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }
 
@@ -142,6 +187,7 @@ func TestRunSyncsAgainOnRescan(t *testing.T) {
 	fake := newFake()
 	m := New(fake, []string{`C:\a`}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { m.Run(ctx); close(done) }()
