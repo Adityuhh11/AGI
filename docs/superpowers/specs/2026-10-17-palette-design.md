@@ -1,6 +1,6 @@
 # Palette: apps, commands, browsing and tags in the one bar
 
-Date: 2026-10-17. Status: proposed, for the owner's review. Branch `feat/palette`. Builds on the launcher
+Date: 2026-10-17. Status: approved by the owner on 2026-10-17 (decision models on the back burner). Branch `feat/palette`. Builds on the launcher
 (`2026-10-15-launcher-design.md`, `2026-10-15-launcher-visual-design.md`) and the memory engine (`docs/api.md`). The v1 spec
 listed "app and command launching" as its own later spec; this is it, with browsing, tags and the decision-model question.
 
