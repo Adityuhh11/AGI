@@ -38,6 +38,12 @@ Start here: `docs/README.md` (index), then `docs/STATUS.md` (what is built, what
 - `docs/decisions/`: short decision records (what we chose, alternatives, why)
 - Update docs in the same commit as the code they describe.
 
+## Branches
+
+`main` holds the stable product and only changes by pull request that the owner merges. Work happens on `dev`, or on a
+feature branch cut from `dev` and merged back into it. After `dev` goes into `main`, `dev` is brought up to date with `main`
+(rebase or merge) before more work starts. Never push to `main` directly.
+
 ## Commits
 
 Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). Small and focused.
