@@ -14,7 +14,8 @@ weight and brightness.
 - **Capsule to card.** At rest the bar is a 680 x 65 capsule (radius 32.5 px, a perfect semicircle end). Results grow it
   into a card of the same width and the same corner radius; only the height animates (240 ms, exponential ease-out).
   The window around it is clear and transparent (`BackgroundTypeTransparent`), 20 px wider on each side and 12 px above
-  and 40 px below the card, for the shadow.
+  and 40 px below the card, for the shadow. The shadow (`--shadow`) must fit inside those margins (blur minus spread under
+  the margin on every side); a larger one is cut off by the window edge as a hard straight line, which showed over white pages.
 - **The ring.** A WebGL liquid-metal shader (`@paper-design/shaders`, vanilla `ShaderMount`) fills the card; the plate sits
   2.5 px inside it, so only a ring of flowing chrome shows. Graphite base `#8b8e98`, white tint, dispersion 0.08 so it stays
   neutral. Speed 0.35, 1.1 while a search is in flight, 0 (and no animation frames) when the panel does not have the

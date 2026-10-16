@@ -297,9 +297,7 @@
     border-radius: var(--radius);
     /* The ring's fallback and its first frame: static chrome, in case the shader cannot run. */
     background: linear-gradient(135deg, #565963, #e4e8f0 45%, #565963 70%, #c9ced9);
-    box-shadow:
-      0 16px 36px rgba(0, 0, 0, 0.5),
-      0 2px 8px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--shadow);
     /* Height is animated on purpose: one small element, its content is absolutely positioned inside,
        and it only runs for 240 ms when results appear or go. */
     transition: height 240ms var(--ease);
