@@ -86,9 +86,11 @@ type Manager struct {
 	deleted func(root string) bool
 
 	rescan chan struct{}
+	wake   chan struct{} // a folder changed on disk (see Changed)
 
 	mu     sync.Mutex
 	status Status
+	dirty  map[string]bool // roots whose folders changed since they were last synced
 }
 
 // New returns a manager for roots. ready says whether the engine can take work; onChange (may be
@@ -98,6 +100,8 @@ func New(engine Engine, roots []string, ready func() bool, onChange func(Status)
 		engine: engine, roots: roots, ready: ready, onChange: onChange,
 		poll: 500 * time.Millisecond, retry: time.Minute, deleted: wasDeleted,
 		rescan: make(chan struct{}, 1),
+		wake:   make(chan struct{}, 1),
+		dirty:  map[string]bool{},
 		status: Status{State: Waiting},
 	}
 }
@@ -117,18 +121,47 @@ func (m *Manager) Rescan() {
 	}
 }
 
-// Run syncs, then waits for Rescan (or, after a failure, for the retry pause) until ctx ends.
+// Changed says that something changed under root (one of the configured folders): it is synced soon,
+// on its own, without touching the other roots.
+func (m *Manager) Changed(root string) {
+	m.mu.Lock()
+	m.dirty[root] = true
+	m.mu.Unlock()
+	select {
+	case m.wake <- struct{}{}:
+	default:
+	}
+}
+
+// takeDirty returns the roots that changed since the last call, and forgets them.
+func (m *Manager) takeDirty() map[string]bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	taken := m.dirty
+	m.dirty = map[string]bool{}
+	return taken
+}
+
+// Run syncs everything, then syncs again when asked: all roots on Rescan (and, after a failure,
+// when the retry pause is over), just the changed roots on Changed. It returns when ctx ends.
 func (m *Manager) Run(ctx context.Context) {
+	ok := m.cycle(ctx, nil)
 	for {
-		var again <-chan time.Time
-		if !m.cycle(ctx) {
-			again = time.After(m.retry)
+		var retry <-chan time.Time
+		if !ok {
+			retry = time.After(m.retry)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-m.rescan:
-		case <-again:
+			ok = m.cycle(ctx, nil)
+		case <-retry:
+			ok = m.cycle(ctx, nil)
+		case <-m.wake:
+			if changed := m.takeDirty(); len(changed) > 0 {
+				ok = m.cycle(ctx, changed)
+			}
 		}
 	}
 }
@@ -143,9 +176,15 @@ func (m *Manager) set(s Status) {
 	}
 }
 
-// cycle runs one full sync and reports whether it succeeded.
-func (m *Manager) cycle(ctx context.Context) bool {
-	m.set(Status{State: Waiting})
+// cycle runs one sync of the roots in only (every root when only is nil) and reports whether it
+// succeeded. A full cycle also covers whatever the watcher had reported so far.
+func (m *Manager) cycle(ctx context.Context, only map[string]bool) bool {
+	if only == nil {
+		m.takeDirty()
+	}
+	if !m.ready() {
+		m.set(Status{State: Waiting})
+	}
 	for !m.ready() {
 		select {
 		case <-ctx.Done():
@@ -153,7 +192,7 @@ func (m *Manager) cycle(ctx context.Context) bool {
 		case <-time.After(m.poll):
 		}
 	}
-	problems, err := m.syncAll(ctx)
+	problems, err := m.syncAll(ctx, only)
 	if ctx.Err() != nil {
 		return true
 	}
@@ -180,8 +219,9 @@ func wasDeleted(root string) bool {
 }
 
 // syncAll forgets sources that are no longer configured (or whose folder was deleted) and syncs
-// every other root. A root that fails does not stop the others; its problem is returned.
-func (m *Manager) syncAll(ctx context.Context) (problems []string, err error) {
+// every other root, or only those in only when it is not nil. A root that fails does not stop the
+// others; its problem is returned.
+func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems []string, err error) {
 	var roots []string
 	ids := make(map[string]bool, len(m.roots))
 	for _, root := range m.roots {
@@ -205,6 +245,9 @@ func (m *Manager) syncAll(ctx context.Context) (problems []string, err error) {
 		}
 	}
 	for _, root := range roots {
+		if only != nil && !only[root] {
+			continue
+		}
 		if err := m.syncRoot(ctx, root); err != nil {
 			problems = append(problems, filepath.Base(root)+": "+err.Error())
 		}

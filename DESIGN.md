@@ -45,8 +45,10 @@ whatever app is in front, so the plate stays dark regardless of what is behind i
 
 ## Type
 
-Geist Variable for text, Geist Mono Variable for paths, locations, counts and key caps (measurement and data only).
-Both are bundled from `@fontsource-variable` (OFL), never loaded from a network. Scale: input 20 / 440, names 14.5 / 520,
+Geist Variable for text, Geist Mono Variable for paths, locations, counts and key caps (measurement and data only), and
+Bricolage Grotesque Variable (21 px / 500, tracking -0.015em) for the one thing you type and its placeholder, chosen by the
+owner from six candidates on 2026-10-16.
+All three are bundled from `@fontsource-variable` (OFL), never loaded from a network. Scale: names 14.5 / 520,
 snippets 12.5, notes 12.5, paths 11.5 mono, locations and chips 11 mono, hints 11.5.
 
 ## Components

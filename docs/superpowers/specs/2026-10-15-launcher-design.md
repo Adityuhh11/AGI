@@ -21,7 +21,7 @@ change. Only code is wanted from repositories: dependency and build folders (`no
 are already skipped by the engine's scanner.
 
 Out of scope for v1 (each is its own later spec): any LLM feature, UI design beyond a plain black bar, a settings
-screen (config is a file), app and command launching, clipboard history, Office files, file watching, packaging and
+screen (config is a file), app and command launching, clipboard history, Office files, file watching (built later: `internal/watcher`), packaging and
 installers, auto-update, macOS and Linux.
 
 ## Constraints (from `AGENTS.md`, measured where it matters)

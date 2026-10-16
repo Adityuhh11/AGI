@@ -23,6 +23,7 @@ import (
 	"agi/internal/sidecar"
 	"agi/internal/status"
 	"agi/internal/tray"
+	"agi/internal/watcher"
 )
 
 func main() {
@@ -146,6 +147,9 @@ func run() error {
 			close(engineStopped)
 		}()
 		go indexer.Run(ctx)
+		// A file that appears, moves or goes is in the index a few seconds after the folder goes
+		// quiet (and within 30 s even if it never does).
+		go watcher.Watch(ctx, cfg.Roots, 3*time.Second, 30*time.Second, indexer.Changed)
 	})
 
 	runErr := app.Run()

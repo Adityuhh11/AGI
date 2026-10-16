@@ -194,7 +194,8 @@ submitted to `POST /sources`.
   slice, not for the whole batch: on the sample folder a search during a job takes about 150 ms median and 250-310 ms at the
   95th percentile (idle: about 80 ms), at a cost of roughly 10-15% indexing time.
 - Posting an already-indexed folder again is an incremental sync: unchanged files are skipped, changed ones
-  replaced, deleted ones removed. That is the refresh mechanism; nothing watches the disk.
+  replaced, deleted ones removed. That is the refresh mechanism; the engine does not watch the disk itself, the launcher does (`internal/watcher`)
+  and repeats the call for the folder that changed.
 - Job history lives in memory (last 50) and is lost on restart. The index itself is durable.
 - Paths must be absolute local paths and exist. Secrets are never indexed (deny list; counted in `report.denied`).
 
