@@ -4,11 +4,11 @@ import { test } from "node:test";
 import { shortFolder } from "./path.ts";
 
 test("a short path is shown whole, as folders", () => {
-  assert.equal(shortFolder("C:\\Users\\saipr"), "C: › Users › saipr");
+  assert.equal(shortFolder("C:\\Users\\me"), "C: › Users › me");
 });
 
 test("a long path keeps its last three folders", () => {
-  assert.equal(shortFolder("C:\\Users\\saipr\\OneDrive\\Documents\\Prob and stats"), "… › OneDrive › Documents › Prob and stats");
+  assert.equal(shortFolder("C:\\Users\\me\\OneDrive\\Documents\\Prob and stats"), "… › OneDrive › Documents › Prob and stats");
 });
 
 test("forward slashes and doubled separators are handled", () => {
