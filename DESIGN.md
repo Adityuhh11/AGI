@@ -20,8 +20,10 @@ whatever app is in front, so the plate stays dark regardless of what is behind i
   2.5 px inside it, so only a ring of flowing metal shows. The metal is one of ten in `lib/palettes.ts` (chrome, copper, ember,
   gold, ice, violet, emerald, rose, and two two-colour ones, sunset and aurora, whose highlights are another hue). A new one is
   chosen, never the same twice in a row, at the moment the panel loses the keyboard, so the colour never changes while it is
-  looked at. Dispersion 0.08 keeps each metal clean. Speed 0.35, 1.1 while a search is in flight, 0 (and no animation frames) when the panel does not have the
-  keyboard or the user prefers reduced motion. Rendered at 1 pixel per CSS pixel, 700k pixels at most.
+  looked at. Dispersion 0.08 keeps each metal clean. Speed settles at 0.6, or 1.5 while you type or a
+  search is in flight and for 0.7 s after; every change eases in over about 350 ms (a ring that lurches with each keystroke
+  looks broken), and the ring starts from rest each time the panel opens. It stops completely, with no animation frames,
+  when the panel does not have the keyboard or the user prefers reduced motion. Rendered at 1 pixel per CSS pixel, 700k pixels at most.
 - **Loader.** A turning chrome orb and the words under way, each letter breathing a beat after the last (90 ms stagger,
   1.8 s). Used for "Warming up" and "Indexing". Everything animated pauses via `html[data-active="false"]`.
 - **Content.** The list fades in 60 ms after the card starts growing; old results dim to 55% while a new search is in

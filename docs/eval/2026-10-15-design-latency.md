@@ -18,6 +18,15 @@ one; the shader on the page costs nothing on the hotkey path because it is alrea
 paused only while the panel is closed. `go run ./cmd/panelbench -real` measures the page in `frontend/dist`; `-pill` measures
 the stand-in; `-hold 12s` keeps the panel open after the first run so it can be looked at.
 
+## Correction, 2026-10-16: the ring was not pausing
+
+The ring was told its speed but never that the panel had closed, so it kept animating, invisibly, while cloaked: **the launcher's
+web view used 35% of a CPU core with the panel closed** (8 s sample, nothing else running). The ring now takes a `running` flag
+(false when the panel loses the keyboard) and stops the shader outright: **0.0% of a core** closed. Its speed also eases (350 ms)
+instead of jumping between 0.35 and 1.1 on every keystroke, which looked jerky once searches took 20 ms. The page gets frames
+at 144 per second with a longest gap of 7 ms while the ring runs, so frame pacing was never the problem. The ring restarting on
+each opening costs about 5 ms: hotkey to focused input on the real page is now p50 44 ms, p95 53 ms, max 55 ms (two runs of 50).
+
 ## Why the cloak stays
 
 Earlier numbers (launcher experiments): Wails `Show()`/`Hide()` median 72 ms, max 96 ms; cloak 41 ms, max 58 ms. A hide also
