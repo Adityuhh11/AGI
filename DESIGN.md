@@ -5,10 +5,10 @@ The visual system of the launcher panel, recorded from the built page (`frontend
 
 ## World
 
-Platinum black and chrome. The plate is the black metal card: neutral graphite, lightest at the top left and
-nearly black at the far corner, a fine horizontal brushed grain, one soft band of light across it and a lit top rim. It is
-opaque (glass was tried and dropped on 2026-10-16: a blurred picture of the screen behind made bright pages turn the plate
-grey, and cost 9 to 17 ms to take on every opening). The interface itself has no accent hue (emphasis is
+Pure black and chrome. The plate is flat `#000`, like an OLED screen or black paint on a sports car: no gradient,
+no texture (a brushed grain, a band of light, a graphite gradient and frosted glass were all tried on 2026-10-16 and
+dropped; they read as stray lines or turned the plate grey). The premium comes from a lit top rim and a hairline edge, and
+from the ring. It is opaque, so it stays black whatever is behind the panel. The interface itself has no accent hue (emphasis is
 weight and brightness); the only colour is the ring, a metal that changes every time the panel closes.
 
 ## Shape and motion
@@ -40,9 +40,7 @@ weight and brightness); the only colour is the ring, a metal that changes every 
 
 | Token | Value | Use |
 |---|---|---|
-| `--plate` | `#0e0e10` | the plate |
-| `--plate-tint` | opaque graphite gradient plus a band of light | the finish over the plate |
-| `--grain` | SVG noise, 0.004 x 0.7 frequency | brushed streaks over the tint |
+| `--plate` | `#000` | the plate, flat |
 | `--lift` | `rgba(255,255,255,.075)` | selected row |
 | `--tile` | `rgba(255,255,255,.055)` | icon tiles, count and key chips |
 | `--line` | `rgba(255,255,255,.07)` | hairlines between bar, list and hints |

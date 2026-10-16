@@ -327,19 +327,12 @@
     overflow: hidden;
     isolation: isolate;
   }
-  .surface::before,
   .surface::after {
     content: "";
     position: absolute;
     inset: 0;
     border-radius: inherit;
     pointer-events: none;
-  }
-  .surface::before {
-    background: var(--plate-tint);
-  }
-  .surface::after {
-    background: var(--grain);
     /* The edge: a lit top rim and a hairline all round, as on a machined card. */
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.13),

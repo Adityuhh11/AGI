@@ -34,11 +34,12 @@ float along(vec2 p, vec2 half_, float r) {
   return s / (4.0 * quarter);
 }
 
-// The metal at one point of the cycle: dark body, bright edge, a white-hot core.
+// The metal at one point of the cycle: a dark body, the metal's own colour through most of the band,
+// and its highlight colour at the peak. White is kept to a trace so a coloured metal stays coloured.
 vec3 metal(float h, vec3 body, vec3 tint) {
-  vec3 c = body * mix(0.28, 0.95, smoothstep(0.0, 0.7, h));
-  c = mix(c, tint, smoothstep(0.6, 0.96, h));
-  return mix(c, vec3(1.0), 0.5 * smoothstep(0.94, 1.0, h));
+  vec3 c = body * mix(0.25, 1.05, smoothstep(0.0, 0.6, h));
+  c = mix(c, tint, 0.8 * smoothstep(0.62, 0.98, h));
+  return mix(c, vec3(1.0), 0.18 * smoothstep(0.96, 1.0, h));
 }
 
 void main() {
