@@ -3,7 +3,10 @@
 // the card's outline each pixel is and lays the light along that distance: it travels around the rim
 // in one direction, and two fronts on opposite sides keep the whole outline lit.
 export const ringShader = `#version 300 es
-precision highp float;
+// mediump, as in Paper's own shaders: ShaderMount's vertex shader declares u_resolution mediump, and a
+// real GPU refuses to link the program when the two stages disagree on a uniform's precision (a software
+// renderer does not, which is how this shipped broken).
+precision mediump float;
 
 uniform vec2 u_resolution;
 uniform float u_pixelRatio;
@@ -34,12 +37,14 @@ float along(vec2 p, vec2 half_, float r) {
   return s / (4.0 * quarter);
 }
 
-// The metal at one point of the cycle: a dark body, the metal's own colour through most of the band,
-// and its highlight colour at the peak. White is kept to a trace so a coloured metal stays coloured.
+// The metal at one point of the cycle. The body colour shows all the way round, only a little darker
+// in the troughs, so the ring always reads as that metal; the highlight colour rides on the peaks and a
+// trace of white sits on the very top. A trough as dark as the page would leave a thin lit streak and
+// no colour.
 vec3 metal(float h, vec3 body, vec3 tint) {
-  vec3 c = body * mix(0.25, 1.05, smoothstep(0.0, 0.6, h));
-  c = mix(c, tint, 0.8 * smoothstep(0.62, 0.98, h));
-  return mix(c, vec3(1.0), 0.18 * smoothstep(0.96, 1.0, h));
+  vec3 c = body * mix(0.62, 1.15, smoothstep(0.0, 0.65, h));
+  c = mix(c, tint, 0.85 * smoothstep(0.6, 0.97, h));
+  return mix(c, vec3(1.0), 0.15 * smoothstep(0.96, 1.0, h));
 }
 
 void main() {

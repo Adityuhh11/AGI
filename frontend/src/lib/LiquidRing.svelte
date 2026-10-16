@@ -78,12 +78,13 @@
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   });
-  $effect(() =>
-    mount?.setUniforms({
-      u_colorBack: getShaderColorFromString(metal.back),
-      u_colorTint: getShaderColorFromString(metal.tint),
-    }),
-  );
+  // The colours are read before `mount` is looked at: `mount?.setUniforms(...)` would skip reading them
+  // while there is no mount yet, and an effect that read nothing never runs again.
+  $effect(() => {
+    const back = getShaderColorFromString(metal.back);
+    const tint = getShaderColorFromString(metal.tint);
+    mount?.setUniforms({ u_colorBack: back, u_colorTint: tint });
+  });
 </script>
 
 <div class="ring" bind:this={host} aria-hidden="true"></div>
