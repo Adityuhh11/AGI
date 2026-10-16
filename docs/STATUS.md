@@ -27,7 +27,8 @@ Updated at the end of every phase. Last updated: 2026-10-15.
 
 ## Next
 
-Launcher block H: the acceptance list by hand, the merge on the owner's word; see `superpowers/plans/2026-10-15-launcher-v1.md`. Then, in this order of value: the search-quality items found on the real index (search is now 16 ms p50; the vector scan and common-word keyword search are the largest parts), file-name search for types the engine does not read (Office files, videos, archives) and a power and idle policy for big syncs. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). 
+The palette (apps, commands, browsing in Zen, tags, a decision model) is specified in `superpowers/specs/2026-10-17-palette-design.md` and planned, for phases P0 to P2, in `superpowers/plans/2026-10-17-palette-p0-p2.md`, on branch `feat/palette`. Launcher block H still has the acceptance list by hand. Then, in this order of value: the search-quality items found on the real index (search is now 16 ms p50; the vector scan and common-word keyword search are the largest parts), file-name search for types the engine does not read (Office files, videos, archives) and a power and idle policy for big syncs. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). 
+
 
 ## Known gaps and deviations from the spec
 
