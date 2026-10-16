@@ -8,16 +8,18 @@
     liquidMetalFragmentShader,
   } from "@paper-design/shaders";
 
+  import type { Metal } from "./palettes";
+
   interface Props {
     /** Flow speed; 0 stops the animation (and its animation frames) entirely. */
     speed: number;
+    /** What the metal is made of; it can change while the ring runs. */
+    metal: Metal;
   }
-  let { speed }: Props = $props();
+  let { speed, metal }: Props = $props();
 
-  // Liquid chrome: graphite base, white highlights. The shader fills the whole card; the page's own
-  // surface covers all but the outer rim, so what shows is a ring of flowing metal.
-  const BACK = "#8b8e98";
-  const TINT = "#ffffff";
+  // The shader fills the whole card; the page's own surface covers all but the outer rim, so what
+  // shows is a ring of flowing metal.
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -30,8 +32,8 @@
         host,
         liquidMetalFragmentShader,
         {
-          u_colorBack: getShaderColorFromString(BACK),
-          u_colorTint: getShaderColorFromString(TINT),
+          u_colorBack: getShaderColorFromString(metal.back),
+          u_colorTint: getShaderColorFromString(metal.tint),
           u_repetition: 4,
           u_softness: 0.55,
           u_shiftRed: 0.08,
@@ -59,6 +61,12 @@
   });
 
   $effect(() => mount?.setSpeed(reduceMotion ? 0 : speed));
+  $effect(() =>
+    mount?.setUniforms({
+      u_colorBack: getShaderColorFromString(metal.back),
+      u_colorTint: getShaderColorFromString(metal.tint),
+    }),
+  );
 
   function sizing() {
     const s = { ...defaultObjectSizing, fit: "none" as const };

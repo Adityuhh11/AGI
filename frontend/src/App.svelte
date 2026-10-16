@@ -11,6 +11,7 @@
   import Icon from "./lib/Icon.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
+  import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
   import { flatten, openLine, pathOf, step, type Item } from "./lib/flatten";
 
@@ -29,6 +30,7 @@
   let expanded = $state(new Set<string>());
   let problem = $state("");
   let active = $state(false); // the panel has the keyboard
+  let metal = $state(0); // which of METALS the ring is made of; changes whenever the panel closes
   let pending = $state(false); // a search is in flight
   let input: HTMLInputElement;
   let content: HTMLElement;
@@ -57,7 +59,8 @@
     } else if (results?.State === "unavailable" || results?.State === "error") {
       out.push({ text: results.Message, problem: true });
     } else if (results) {
-      if (items.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
+      if (items.length === 0 && results.Message) out.push({ text: results.Message, problem: false });
+      else if (items.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
       else if (!results.Confident) out.push({ text: "No strong match. The closest files:", problem: false });
     }
     return out;
@@ -96,6 +99,12 @@
     input.focus();
     input.select();
     refreshInfo();
+  }
+
+  // The panel lost the keyboard, which is also when it closes: choose the next metal now, unseen.
+  function onBlur() {
+    active = false;
+    metal = nextMetal(metal);
   }
 
   const refreshInfo = () => Status.Info().then((i) => (info = i));
@@ -215,11 +224,11 @@
   });
 </script>
 
-<svelte:window onfocus={takeFocus} onblur={() => (active = false)} onkeydown={onKeydown} />
+<svelte:window onfocus={takeFocus} onblur={onBlur} onkeydown={onKeydown} />
 
 <main>
   <div class="card" style:height="{cardHeight}px">
-    <LiquidRing speed={pending ? 1.1 : 0.35} />
+    <LiquidRing speed={pending ? 1.1 : 0.35} metal={METALS[metal]} />
     <div class="surface">
       <div class="content" bind:this={content}>
         <header class="bar">
@@ -240,6 +249,8 @@
           />
           {#if waiting}
             <span class="status" transition:fade={{ duration: 160 }}><Loader text={waiting} /></span>
+          {:else if results?.Scope}
+            <span class="status scope">{results.Scope}</span>
           {/if}
         </header>
 
@@ -343,6 +354,13 @@
   .status {
     flex: none;
     margin-left: auto;
+  }
+  .scope {
+    padding: 3px 11px;
+    border-radius: 999px;
+    background: var(--tile);
+    color: var(--text-2);
+    font: 500 11.5px var(--mono);
   }
   .panel {
     border-top: 1px solid var(--line);

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -24,7 +25,10 @@ import (
 const (
 	maxFiles       = 10
 	matchesPerFile = 3
-	searchTimeout  = 10 * time.Second
+	// spareFiles are asked for on top of maxFiles: files deleted since the last sync are left out of
+	// the answer, and the list should still be full.
+	spareFiles    = 5
+	searchTimeout = 10 * time.Second
 )
 
 // States of an answer.
@@ -73,7 +77,9 @@ type Results struct {
 	Stale bool
 	// Confident is false when the best row is probably noise: show "no match".
 	Confident bool
-	Rows      []Row
+	// Scope names the kind of file searched when the query began with "code:", "img:" and the like.
+	Scope string
+	Rows  []Row
 }
 
 // Service is bound to the frontend; its exported methods become TypeScript functions.
@@ -81,6 +87,7 @@ type Service struct {
 	engine Engine
 	roots  map[string]string // source id -> folder on disk
 	status func() sidecar.Status
+	exists func(path string) bool // false for a file deleted since the last sync; tests replace it
 
 	mu     sync.Mutex
 	latest int
@@ -90,7 +97,7 @@ type Service struct {
 // New returns a search service. roots maps each source id to the folder it was indexed from;
 // status reports whether the engine can answer.
 func New(engine Engine, roots map[string]string, status func() sidecar.Status) *Service {
-	return &Service{engine: engine, roots: roots, status: status}
+	return &Service{engine: engine, roots: roots, status: status, exists: fileExists}
 }
 
 // Search finds files for query. token identifies the request; use a larger one for each new one.
@@ -109,6 +116,14 @@ func (s *Service) Search(query string, token int) Results {
 	if query == "" {
 		return out
 	}
+	var filters *sidecar.Filters
+	if sc, rest, scoped := parseScope(query); scoped {
+		out.Scope, query, filters = sc.label, rest, &sidecar.Filters{Kinds: sc.kinds}
+		if query == "" {
+			out.Message = "Searching " + strings.ToLower(sc.label) + ". Type what to look for."
+			return out
+		}
+	}
 	switch st := s.status(); st.State {
 	case sidecar.StateReady:
 	case sidecar.StateFailed:
@@ -117,7 +132,9 @@ func (s *Service) Search(query string, token int) Results {
 		return Results{Token: token, State: StateWarming, Message: "Search is starting up..."}
 	}
 
-	resp, err := s.engine.SearchFiles(ctx, sidecar.SearchFilesRequest{Query: query, K: maxFiles, PerFile: matchesPerFile})
+	resp, err := s.engine.SearchFiles(ctx, sidecar.SearchFilesRequest{
+		Query: query, K: maxFiles + spareFiles, PerFile: matchesPerFile, Filters: filters,
+	})
 	if s.isStale(token) || errors.Is(ctx.Err(), context.Canceled) {
 		return Results{Token: token, Stale: true}
 	}
@@ -130,11 +147,19 @@ func (s *Service) Search(query string, token int) Results {
 	}
 	out.Confident = resp.Confident
 	for _, file := range resp.Files {
-		if row, ok := s.row(file); ok {
+		if row, ok := s.row(file); ok && s.exists(row.Path) {
 			out.Rows = append(out.Rows, row)
 		}
 	}
+	if len(out.Rows) > maxFiles {
+		out.Rows = out.Rows[:maxFiles]
+	}
 	return out
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (s *Service) isStale(token int) bool {
