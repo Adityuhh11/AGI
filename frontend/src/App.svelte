@@ -8,11 +8,13 @@
   import type { Results } from "../bindings/agi/internal/search";
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
+  import ActionPanel from "./lib/ActionPanel.svelte";
   import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
   import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
+  import { fileActions, type Action } from "./lib/actions";
   import { flatten, openLine, pathOf, step, type Item } from "./lib/flatten";
 
   const DEBOUNCE_MS = 120;
@@ -33,6 +35,7 @@
   let metal = $state(0); // which of METALS the ring is made of; changes whenever the panel closes
   let pending = $state(false); // a search is in flight
   let typing = $state(false); // a key was pressed in the last moment
+  let target = $state<Item | null>(null); // the row the open action panel acts on (null: panel closed)
   let input: HTMLInputElement;
   let content: HTMLElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -105,6 +108,7 @@
   // The panel lost the keyboard, which is also when it closes: choose the next metal now, unseen.
   function onBlur() {
     active = false;
+    closeActions();
     metal = nextMetal(metal);
   }
 
@@ -143,6 +147,31 @@
     expanded = new Set();
   }
 
+  // The panel acts on the row that was selected when it opened, even if the pointer wanders over
+  // others while it is open.
+  function openActions() {
+    if (current) target = current;
+  }
+
+  async function closeActions() {
+    target = null;
+    await tick();
+    input?.focus();
+  }
+
+  async function runAction(id: Action["id"]) {
+    const item = target;
+    await closeActions();
+    if (!item) return;
+    if (id === "copy-path") copyPath(item);
+    else open(item, id === "reveal");
+  }
+
+  function copyPath(item: Item) {
+    Clipboard.SetText(pathOf(item));
+    Panel.Hide(); // copied to be pasted elsewhere: give the keyboard back
+  }
+
   async function open(item: Item | undefined, reveal = false) {
     if (!item) return;
     try {
@@ -170,6 +199,7 @@
   }
 
   function onKeydown(event: KeyboardEvent) {
+    if (target) return; // the action panel has the keyboard
     switch (event.key) {
       case "Escape":
         event.preventDefault();
@@ -201,7 +231,14 @@
       case "c":
         if (event.ctrlKey && event.shiftKey && current) {
           event.preventDefault();
-          Clipboard.SetText(pathOf(current));
+          copyPath(current);
+        }
+        break;
+      case "K":
+      case "k":
+        if (event.ctrlKey && current) {
+          event.preventDefault();
+          openActions();
         }
         break;
     }
@@ -236,7 +273,7 @@
   <div class="card" style:height="{cardHeight}px">
     <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={METALS[metal]} />
     <div class="surface">
-      <div class="content" bind:this={content}>
+      <div class="content" class:acting={target} bind:this={content}>
         <header class="bar">
           <span class="glass"><SearchGlyph size={22} busy={pending} /></span>
           <input
@@ -284,6 +321,7 @@
                 <span><kbd>↑↓</kbd>move</span>
                 <span><kbd>Enter</kbd>open</span>
                 <span><kbd>Ctrl+Enter</kbd>reveal</span>
+                <span><kbd>Ctrl+K</kbd>actions</span>
                 {#if current && current.row.Matches && current.row.Matches.length > 1}
                   <span><kbd>→</kbd>more</span>
                 {/if}
@@ -296,6 +334,9 @@
           </div>
         {/if}
       </div>
+      {#if target}
+        <ActionPanel actions={fileActions} onrun={runAction} onclose={closeActions} />
+      {/if}
     </div>
   </div>
   <p class="live" role="status" aria-live="polite">
@@ -341,6 +382,10 @@
   .content {
     position: relative;
     z-index: 1;
+  }
+  /* Room for the action panel above the footer, however few rows there are. */
+  .content.acting {
+    min-height: 270px;
   }
   .bar {
     display: flex;
