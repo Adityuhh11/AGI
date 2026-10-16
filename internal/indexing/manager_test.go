@@ -17,8 +17,9 @@ import (
 type fakeEngine struct {
 	mu        sync.Mutex
 	sources   map[string]sidecar.Source
-	jobs      map[string]int // job id -> checks so far
-	submitted []string       // roots, in order
+	jobs      map[string]int      // job id -> checks so far
+	submitted []string            // roots, in order
+	excluded  map[string][]string // what each root was told to leave out
 	deleted   []string
 	busyWith  string // while set, AddSource answers 409 for this job once
 	failRoot  string // jobs for this root fail
@@ -43,7 +44,7 @@ func (f *fakeEngine) Sources(context.Context) ([]sidecar.Source, error) {
 	return out, nil
 }
 
-func (f *fakeEngine) AddSource(_ context.Context, root, id string) (string, error) {
+func (f *fakeEngine) AddSource(_ context.Context, root, id string, exclude []string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.busyWith != "" {
@@ -53,6 +54,10 @@ func (f *fakeEngine) AddSource(_ context.Context, root, id string) (string, erro
 		return "", &sidecar.BusyError{JobID: job, Message: job + " is still running"}
 	}
 	f.submitted = append(f.submitted, root)
+	if f.excluded == nil {
+		f.excluded = map[string][]string{}
+	}
+	f.excluded[root] = exclude
 	job := "job-" + id
 	f.jobs[job], f.jobRoot[job] = 0, root
 	f.sources[id] = sidecar.Source{ID: id, Root: root, Files: 3, Chunks: 10}
@@ -303,5 +308,38 @@ func TestAFullSyncCoversWhatWasReportedBeforeIt(t *testing.T) {
 	m.cycle(context.Background(), nil)
 	if left := m.takeDirty(); len(left) != 0 {
 		t.Errorf("a full sync left %v marked as changed", left)
+	}
+}
+
+func TestExcludedFoldersGoToTheEngineRelativeToTheirOwnRoot(t *testing.T) {
+	fake := newFake()
+	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	m.Exclude = []string{`C:\a\vendor\skills`, `C:\b\old`}
+	if !m.cycle(context.Background(), nil) {
+		t.Fatalf("cycle failed: %v", m.Status())
+	}
+	if got := fake.excluded[`C:\a`]; len(got) != 1 || got[0] != "vendor/skills" {
+		t.Errorf("root a was told to exclude %v", got)
+	}
+	if got := fake.excluded[`C:\b`]; len(got) != 1 || got[0] != "old" {
+		t.Errorf("root b was told to exclude %v", got)
+	}
+}
+
+func TestTheRetryPauseDoublesWithEachFailureUpToALimit(t *testing.T) {
+	m := New(newFake(), nil, func() bool { return true }, nil)
+	tests := []struct {
+		failures int
+		want     time.Duration
+	}{
+		{1, time.Minute}, {2, 2 * time.Minute}, {3, 4 * time.Minute}, {4, 8 * time.Minute},
+		{5, 15 * time.Minute}, {40, 15 * time.Minute},
+	}
+	for _, tt := range tests {
+		if got := m.retryPause(tt.failures); got != tt.want {
+			t.Errorf("after %d failures the pause is %v, want %v", tt.failures, got, tt.want)
+		}
 	}
 }

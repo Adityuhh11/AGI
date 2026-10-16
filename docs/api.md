@@ -66,7 +66,10 @@ failed to load. `embedded_items` is the number of chunks in the index and works 
 
 Index a folder (or refresh it if it was indexed before: the sync is incremental).
 
-Request: `{"path": "C:\\Users\\me\\project", "source_id": "project"}`. Unknown fields are rejected.
+Request: `{"path": "C:\\Users\\me\\project", "source_id": "project", "exclude": ["vendor/skills"]}`. Unknown
+fields are rejected. `exclude` is optional: folders below `path` to leave out, written relative and with `/`
+(matched whole and without regard to case). What they held is dropped from the index at the sync, so adding one to
+an indexed source shrinks it. Each counts once in `ignored`.
 
 - `202` `{"job_id": "job-1"}`
 - `400` `path` is not an absolute local path to an existing folder. Network (UNC) paths are refused.
@@ -74,7 +77,7 @@ Request: `{"path": "C:\\Users\\me\\project", "source_id": "project"}`. Unknown f
   job instead. Also `409` (with `"job_id": null`) when `source_id` was already indexed from a different folder:
   `DELETE` it first, so a typo cannot wipe an index. The same folder written differently (case, slashes) is a refresh.
 - `422` bad body, or `source_id` does not match `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`, or `path` is empty / over 1024
-  characters.
+  characters, or an `exclude` entry is absolute or climbs out with `..`.
 - `503` model not ready.
 
 ### `GET /sources`
@@ -108,7 +111,9 @@ start once the scan finishes. When `done`, `report` is:
 
 `reused` counts new files that are identical to a file already indexed (moved, renamed or copied): their image and PDF page
 vectors are copied instead of computed again, so moving a long PDF costs seconds, not minutes (they also count in `added`).
-`errors` lists files that could not be read or decoded; every other file is still indexed. `denied` counts files
+`errors` lists files that could not be read, decoded or processed (whatever went wrong, as `ExceptionType: message`);
+every other file is still indexed. Corrupt or unreadable files are skipped however many there are, but if five files in a row fail in an unexpected way, the cause is not the files (a failing GPU or disk) and
+the job `failed`s with the last error. `ignored` counts `.gitignore` hits and excluded folders. `denied` counts files
 the secret deny list refused to open (`.env`, keys, credential JSON, ...). When `failed`, `error` is
 `"<ExceptionType>: <message>"` (for example the folder disappeared) and `report` is `null`.
 

@@ -120,6 +120,7 @@ func run() error {
 	}
 	indexer = indexing.New(engine.Client(), cfg.Roots, func() bool { return engine.Status().State == sidecar.StateReady },
 		func(indexing.Status) { refresh() })
+	indexer.Exclude = cfg.Exclude
 
 	roots := map[string]string{}
 	for _, root := range cfg.Roots {

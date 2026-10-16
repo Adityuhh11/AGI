@@ -76,7 +76,7 @@ def add_source(
             },
         )
     try:
-        job = engine.jobs.submit(body.source_id, root)
+        job = engine.jobs.submit(body.source_id, root, body.exclude)
     except JobBusyError as busy:
         raise HTTPException(
             status_code=409, detail={"message": str(busy), "job_id": busy.job_id}

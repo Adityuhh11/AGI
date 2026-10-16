@@ -6,16 +6,20 @@ from many small files are embedded together (one GPU call has a ~200 ms fixed co
 per file would dominate indexing time); PDFs and images are embedded per file because they are
 heavy and rendered lazily. Each file lands in the store atomically (`FlatStore.replace_file`).
 
-Failure policy: a file that cannot be read or chunked is recorded in the report and skipped; an
-embedder or store failure aborts the sync (everything committed so far stays valid, and the
-next sync continues from there because file records are written last).
+Failure policy: a file that cannot be read, chunked or rendered, whatever the reason, is recorded
+in the report and skipped, so one bad file never costs the rest of the folder. Files that are
+plainly bad (unreadable, corrupt) are skipped however many there are; but a run of
+`MAX_CONSECUTIVE_FAILURES` files in a row that fail in unexpected ways means the cause is not the
+files (a failing GPU or disk), and the sync aborts with the last error. A failure while embedding
+a batch of text chunks or writing to the store aborts at once. Everything committed so far stays
+valid, and the next sync continues from there because file records are written last.
 """
 
 from __future__ import annotations
 
 import hashlib
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,6 +37,7 @@ from agi_memory.store import FlatStore
 from agi_memory.types import Chunk, ChunkKind, FileRecord
 
 _TEXT_ROUTES = frozenset({Route.CODE, Route.MARKDOWN, Route.TEXT})
+MAX_CONSECUTIVE_FAILURES = 5
 
 
 def _title(uri: str) -> str:
@@ -89,12 +94,17 @@ class Indexer:
         source_id: str,
         root: Path,
         *,
+        exclude: Collection[str] = (),
         on_progress: Callable[[int, int], None] | None = None,
     ) -> SyncReport:
-        """Index new and changed files under `root`, drop vanished ones, return what happened."""
+        """Index new and changed files under `root`, drop vanished ones, return what happened.
+
+        `exclude` lists folders below the root to leave out (and to drop from the index if they
+        were indexed before), as '/'-separated relative paths."""
         if not root.is_dir():
             raise FileNotFoundError(f"source root is not a folder: {root}")
-        scanned = scan(root, self._settings)
+        skipped = frozenset(f"{p.strip('/').lower()}/" for p in exclude if p.strip("/"))
+        scanned = scan(root, self._settings, skipped)
         report = SyncReport(
             denied=scanned.denied,
             ignored=scanned.ignored,
@@ -112,13 +122,22 @@ class Indexer:
 
         pending: list[_Pending] = []
         total = len(scanned.files)
+        failures = 0  # files in a row that failed
         for number, file in enumerate(scanned.files, start=1):
             try:
                 self._index_file(source_id, file, known.get(file.uri), report, pending, donors)
+                failures = 0
             except NotTextError:
                 report.unsupported += 1
-            except (ChunkingError, OSError) as error:
+                failures = 0
+            except (ChunkingError, OSError) as error:  # this file is the problem: skip it
                 report.errors.append(FileError(file.uri, str(error)))
+                failures = 0
+            except Exception as error:  # a library failed on it, or something else is wrong
+                report.errors.append(FileError(file.uri, f"{type(error).__name__}: {error}"))
+                failures += 1
+                if failures >= MAX_CONSECUTIVE_FAILURES:
+                    raise
             if sum(len(item.chunks) for item in pending) >= self._settings.flush_chunks:
                 self._flush(pending, report)
             if on_progress is not None:

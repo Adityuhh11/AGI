@@ -22,7 +22,7 @@ import (
 // Engine is the part of the engine's API the manager uses; *sidecar.Client satisfies it.
 type Engine interface {
 	Sources(ctx context.Context) ([]sidecar.Source, error)
-	AddSource(ctx context.Context, root, id string) (string, error)
+	AddSource(ctx context.Context, root, id string, exclude []string) (string, error)
 	Job(ctx context.Context, id string) (sidecar.Job, error)
 	DeleteSource(ctx context.Context, id string) (int, error)
 }
@@ -79,8 +79,11 @@ type Manager struct {
 	ready    func() bool
 	onChange func(Status)
 
+	// Exclude are folders inside the roots to leave out of the index; set it before Run.
+	Exclude []string
+
 	poll  time.Duration // between job progress checks and readiness checks
-	retry time.Duration // after a failed sync
+	retry time.Duration // the pause after a first failed sync; it doubles with each failure in a row
 
 	// deleted says whether a root was removed from a disk that is still there; tests replace it.
 	deleted func(root string) bool
@@ -142,25 +145,46 @@ func (m *Manager) takeDirty() map[string]bool {
 	return taken
 }
 
+// maxRetryPause is the longest the manager waits before trying a failed sync again.
+const maxRetryPause = 15 * time.Minute
+
+// retryPause is how long to wait after failures syncs in a row have failed: the first pause, doubled
+// each time, up to maxRetryPause. A sync that fails for a lasting reason is not worth hammering.
+func (m *Manager) retryPause(failures int) time.Duration {
+	pause := m.retry
+	for i := 1; i < failures && pause < maxRetryPause; i++ {
+		pause *= 2
+	}
+	return min(pause, maxRetryPause)
+}
+
 // Run syncs everything, then syncs again when asked: all roots on Rescan (and, after a failure,
 // when the retry pause is over), just the changed roots on Changed. It returns when ctx ends.
 func (m *Manager) Run(ctx context.Context) {
-	ok := m.cycle(ctx, nil)
+	failures := 0 // syncs in a row that failed
+	run := func(only map[string]bool) {
+		if m.cycle(ctx, only) {
+			failures = 0
+		} else {
+			failures++
+		}
+	}
+	run(nil)
 	for {
 		var retry <-chan time.Time
-		if !ok {
-			retry = time.After(m.retry)
+		if failures > 0 {
+			retry = time.After(m.retryPause(failures))
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-m.rescan:
-			ok = m.cycle(ctx, nil)
+			run(nil)
 		case <-retry:
-			ok = m.cycle(ctx, nil)
+			run(nil)
 		case <-m.wake:
 			if changed := m.takeDirty(); len(changed) > 0 {
-				ok = m.cycle(ctx, changed)
+				run(changed)
 			}
 		}
 	}
@@ -273,7 +297,7 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 func (m *Manager) syncRoot(ctx context.Context, root string) error {
 	id := config.SourceID(root)
 	for {
-		jobID, err := m.engine.AddSource(ctx, root, id)
+		jobID, err := m.engine.AddSource(ctx, root, id, config.ExcludedUnder(root, m.Exclude))
 		var busy *sidecar.BusyError
 		if err == nil {
 			return m.follow(ctx, root, jobID)

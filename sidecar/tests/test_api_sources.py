@@ -210,3 +210,15 @@ def test_listing_sources_works_while_the_model_is_still_loading(tmp_path):
     with running_app(tmp_path / "idx", slow_load, wait=False) as client:
         assert client.get("/sources").status_code == 200  # reads the store only, not the model
         release.set()
+
+
+def test_excluded_folders_are_left_out_and_a_bad_exclude_is_a_422(api, folder):
+    (folder / "vendor").mkdir()
+    (folder / "vendor" / "lib.txt").write_text("vendored text", encoding="utf-8")
+    body = {"path": str(folder), "source_id": "repo", "exclude": ["vendor"]}
+    job_id = api.post("/sources", json=body).json()["job_id"]
+    wait_for(lambda: api.get(f"/jobs/{job_id}").json()["state"] != "running")
+    assert api.get(f"/jobs/{job_id}").json()["report"]["added"] == 3  # the fixture's three files
+    for bad in ["../outside", "/abs", "C:/abs", r"a\..\b"]:
+        response = api.post("/sources", json={**body, "exclude": [bad]})
+        assert response.status_code == 422, bad

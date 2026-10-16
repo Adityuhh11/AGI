@@ -21,6 +21,8 @@ DENIED = [
     "package-lock.json",
     "web/yarn.lock",
     "uv.lock",
+    "CODE_Logos/__MACOSX/CODE_Logos/Overview.png",
+    "photos/._IMG_0001.jpg",
     "go.sum",
     "node_modules/left-pad/index.js",
     "a/b/node_modules/x.js",
