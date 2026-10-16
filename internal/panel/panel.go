@@ -40,6 +40,7 @@ type Panel struct {
 	previous     uintptr // the window that had the keyboard before the panel opened
 	heightDIP    int
 	hotkeyErrMsg string
+	backdrop     []byte // the picture of the screen behind the open panel (a BMP), nil while closed
 }
 
 // New creates the (still invisible) window and arranges to bind hotkey once the app runs.
@@ -135,7 +136,13 @@ func (p *Panel) Show() {
 	p.mu.Unlock()
 
 	work, dpi := cursorMonitor()
-	moveTopmost(hwnd, place(work, dpi, height))
+	at := place(work, dpi, height)
+	moveTopmost(hwnd, at)
+	// Taken while the panel is still cloaked, so it is not in the picture.
+	picture := backdropPicture(at, dpi)
+	p.mu.Lock()
+	p.backdrop = picture
+	p.mu.Unlock()
 	cloak(hwnd, false)
 	p.win.Focus()
 }
@@ -178,6 +185,7 @@ func (p *Panel) hide(restoreFocus bool) {
 	cloak(hwnd, true)
 	p.mu.Lock()
 	previous := p.previous
+	p.backdrop = nil // what was on the screen is not kept once it is no longer needed
 	p.mu.Unlock()
 	if restoreFocus && isWindow(previous) {
 		setForeground(previous)

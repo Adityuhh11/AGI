@@ -8,7 +8,7 @@
   import type { Results } from "../bindings/agi/internal/search";
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
-  import Icon from "./lib/Icon.svelte";
+  import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
   import { METALS, nextMetal } from "./lib/palettes";
@@ -33,6 +33,8 @@
   let metal = $state(0); // which of METALS the ring is made of; changes whenever the panel closes
   let pending = $state(false); // a search is in flight
   let typing = $state(false); // a key was pressed in the last moment
+  let backdrop = $state(""); // where the picture of the screen behind the panel can be fetched
+  let backdropReady = $state(false); // it has loaded, so the glass can fade it in
   let input: HTMLInputElement;
   let content: HTMLElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -97,6 +99,7 @@
   // text every time the window regains the keyboard, so typing replaces it.
   function takeFocus() {
     active = true;
+    backdrop = `/backdrop?${performance.now()}`; // the panel took its picture just before it opened
     input.focus();
     input.select();
     refreshInfo();
@@ -105,6 +108,8 @@
   // The panel lost the keyboard, which is also when it closes: choose the next metal now, unseen.
   function onBlur() {
     active = false;
+    backdrop = ""; // the next opening has a different screen behind it; the glass starts clear again
+    backdropReady = false;
     metal = nextMetal(metal);
   }
 
@@ -236,9 +241,12 @@
   <div class="card" style:height="{cardHeight}px">
     <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={METALS[metal]} />
     <div class="surface">
+      {#if backdrop}
+        <img class="backdrop" class:ready={backdropReady} src={backdrop} alt="" onload={() => (backdropReady = true)} />
+      {/if}
       <div class="content" bind:this={content}>
         <header class="bar">
-          <span class="glass"><Icon name="search" size={21} /></span>
+          <span class="glass"><SearchGlyph size={22} busy={pending} /></span>
           <input
             bind:this={input}
             bind:value={query}
@@ -323,8 +331,49 @@
     position: absolute;
     inset: var(--ring);
     border-radius: calc(var(--radius) - var(--ring));
-    background: var(--ground);
+    background: var(--plate);
     overflow: hidden;
+    isolation: isolate;
+  }
+  /* The glass: a blurred, darkened picture of the screen behind the panel (taken as the panel opened),
+     stretched over the card, under a graphite tint and a fine brushed grain. The picture is the
+     window's width and as tall as the bare bar, so at rest it sits exactly where it was taken; when the
+     card grows it stretches, which the blur hides. */
+  .backdrop {
+    position: absolute;
+    left: calc(-1 * (20px + var(--ring)));
+    top: calc(-1 * (12px + var(--ring)));
+    width: 100vw;
+    max-width: none;
+    height: calc(100% + 2 * var(--ring) + 52px);
+    filter: blur(22px) saturate(1.3) brightness(0.55);
+    opacity: 0;
+    transition: opacity 220ms ease-out;
+  }
+  .backdrop.ready {
+    opacity: 1;
+  }
+  .surface::before,
+  .surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .surface::before {
+    background: var(--plate-tint);
+  }
+  .surface::after {
+    background: var(--grain);
+    /* The edge: a lit top rim and a hairline all round, as on a machined card. */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.13),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+  }
+  .content {
+    position: relative;
+    z-index: 1;
   }
   .bar {
     display: flex;

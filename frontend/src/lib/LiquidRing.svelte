@@ -1,14 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    ShaderMount,
-    ShaderFitOptions,
-    defaultObjectSizing,
-    getShaderColorFromString,
-    liquidMetalFragmentShader,
-  } from "@paper-design/shaders";
+  import { ShaderMount, getShaderColorFromString } from "@paper-design/shaders";
 
   import type { Metal } from "./palettes";
+  import { ringShader } from "./ringShader";
 
   interface Props {
     /** The flow speed to settle at; the ring eases there instead of jumping. */
@@ -24,8 +19,10 @@
   // and a ring that lurches with every keystroke looks broken.
   const EASE_MS = 350;
 
-  // The shader fills the whole card; the page's own surface covers all but the outer rim, so what
-  // shows is a ring of flowing metal.
+  // The shader fills the whole card and the stylesheet keeps only the rim (the plate is glass, so it
+  // cannot cover the middle of the shader), which makes a ring of flowing metal.
+
+  const RADIUS = 30; // the card's corner radius in px (--radius in theme.css)
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -36,20 +33,11 @@
     try {
       mount = new ShaderMount(
         host,
-        liquidMetalFragmentShader,
+        ringShader,
         {
           u_colorBack: getShaderColorFromString(metal.back),
           u_colorTint: getShaderColorFromString(metal.tint),
-          u_repetition: 4,
-          u_softness: 0.55,
-          u_shiftRed: 0.08,
-          u_shiftBlue: 0.08,
-          u_distortion: 0.15,
-          u_contour: 0.75,
-          u_angle: 70,
-          u_shape: 0,
-          u_isImage: false,
-          ...sizing(),
+          u_radius: RADIUS,
         },
         undefined,
         0, // stopped until the ring is told it is running
@@ -96,33 +84,33 @@
       u_colorTint: getShaderColorFromString(metal.tint),
     }),
   );
-
-  function sizing() {
-    const s = { ...defaultObjectSizing, fit: "none" as const };
-    return {
-      u_fit: ShaderFitOptions[s.fit],
-      u_scale: s.scale,
-      u_rotation: s.rotation,
-      u_originX: s.originX,
-      u_originY: s.originY,
-      u_offsetX: s.offsetX,
-      u_offsetY: s.offsetY,
-      u_worldWidth: s.worldWidth,
-      u_worldHeight: s.worldHeight,
-    };
-  }
 </script>
 
-<div class="ring" bind:this={host} aria-hidden="true"></div>
+<div class="ring" aria-hidden="true"><div class="host" bind:this={host}></div></div>
 
 <style>
+  /* A border-wide frame: the mask keeps the border box minus the padding box, whose corners are
+     rounded to follow the card. The host reaches out over the border, so the shader draws on the whole
+     card and the frame shows its rim. */
   .ring {
     position: absolute;
     inset: 0;
+    border: var(--ring) solid transparent;
     border-radius: inherit;
-    overflow: hidden;
+    -webkit-mask:
+      linear-gradient(#000 0 0) padding-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) padding-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
   }
-  .ring :global(canvas) {
+  .host {
+    position: absolute;
+    inset: calc(-1 * var(--ring));
+  }
+  .host :global(canvas) {
     display: block;
     width: 100%;
     height: 100%;

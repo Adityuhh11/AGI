@@ -5,9 +5,11 @@ The visual system of the launcher panel, recorded from the built page (`frontend
 
 ## World
 
-Obsidian and chrome. One near-black plate with a cool tilt, one material: a ring of liquid metal. The panel floats over
-whatever app is in front, so the plate stays dark regardless of what is behind it. The interface itself has no accent hue
-(emphasis is weight and brightness); the only colour is the ring, a metal that changes every time the panel closes.
+Platinum black glass and chrome. The plate is the black metal card: neutral graphite, lightest at the top left and
+nearly black at the far corner, a fine horizontal brushed grain, one soft band of light across it and a lit top rim. It is
+also glass: under the tint lies a blurred picture of what is behind the panel. The panel floats over whatever app is in
+front, so the tint keeps the plate dark whatever the glass shows. The interface itself has no accent hue (emphasis is
+weight and brightness); the only colour is the ring, a metal that changes every time the panel closes.
 
 ## Shape and motion
 
@@ -16,14 +18,25 @@ whatever app is in front, so the plate stays dark regardless of what is behind i
   The window around it is clear and transparent (`BackgroundTypeTransparent`), 20 px wider on each side and 12 px above
   and 40 px below the card, for the shadow. The shadow (`--shadow`) must fit inside those margins (blur minus spread under
   the margin on every side); a larger one is cut off by the window edge as a hard straight line, which showed over white pages.
-- **The ring.** A WebGL liquid-metal shader (`@paper-design/shaders`, vanilla `ShaderMount`) fills the card; the plate sits
-  2.5 px inside it, so only a ring of flowing metal shows. The metal is one of ten in `lib/palettes.ts` (chrome, copper, ember,
+- **The ring.** Our own WebGL shader (`lib/ringShader.ts`, run by Paper's vanilla `ShaderMount`) draws on the whole card and
+  a CSS mask keeps its 2.5 px rim, so the glass plate inside is not covered. The light is laid along the distance travelled
+  round the card's outline, not across it as Paper's liquid-metal stripes do (on a thin rim those seemed to come and go from
+  different sides): it circulates clockwise only, two fronts on opposite sides keep the whole outline lit, and a slow wobble in
+  the phase makes the bands breathe; the colour channels sit a hair apart for coloured fringes. The metal is one of ten in `lib/palettes.ts` (chrome, copper, ember,
   gold, ice, violet, emerald, rose, and two two-colour ones, sunset and aurora, whose highlights are another hue). A new one is
   chosen, never the same twice in a row, at the moment the panel loses the keyboard, so the colour never changes while it is
-  looked at. Dispersion 0.08 keeps each metal clean. Speed settles at 0.6, or 1.5 while you type or a
+  looked at. Speed settles at 0.6, or 1.5 while you type or a
   search is in flight and for 0.7 s after; every change eases in over about 350 ms (a ring that lurches with each keystroke
   looks broken), and the ring starts from rest each time the panel opens. It stops completely, with no animation frames,
   when the panel does not have the keyboard or the user prefers reduced motion. Rendered at 1 pixel per CSS pixel, 700k pixels at most.
+- **Glass.** As the panel opens, the Go side reads the screen behind the bar (`internal/panel/backdrop.go`, 9 to 17 ms,
+  taken while the panel is still cloaked so it is not in the picture), keeps it in memory only and serves it at `/backdrop`.
+  The page blurs it (22 px), darkens it (brightness 0.55) and fades it in under the tint over 220 ms; it is dropped when
+  the panel closes. Only the bar is read (reading the screen costs time by area: about 10 ms for the bar, 25 ms for a full
+  card), and the page stretches it over the card when results open, which the blur hides. Until it lands, and if it never
+  does, the plate is a solid `--plate`.
+- **Search glyph.** A hairline lens (1.3 px stroke), a short detached handle and a small glint inside the lens. The glint
+  is the only moving part: still at the top left, circling once every 1.1 s while a search is in flight.
 - **Loader.** A turning chrome orb and the words under way, each letter breathing a beat after the last (90 ms stagger,
   1.8 s). Used for "Warming up" and "Indexing". Everything animated pauses via `html[data-active="false"]`.
 - **Content.** The list fades in 60 ms after the card starts growing; old results dim to 55% while a new search is in
@@ -33,14 +46,16 @@ whatever app is in front, so the plate stays dark regardless of what is behind i
 
 | Token | Value | Use |
 |---|---|---|
-| `--ground` | `#0b0c0e` | the plate |
-| `--lift` | `#1a1c21` | selected row |
+| `--plate` | `#0e0e10` | the solid plate under the glass |
+| `--plate-tint` | graphite gradient, alpha .80 to .88, plus a band of light | the tint over the glass (lower the alphas for clearer glass) |
+| `--grain` | SVG noise, 0.004 x 0.7 frequency | brushed streaks over the tint |
+| `--lift` | `rgba(255,255,255,.075)` | selected row |
 | `--tile` | `rgba(255,255,255,.055)` | icon tiles, count and key chips |
 | `--line` | `rgba(255,255,255,.07)` | hairlines between bar, list and hints |
 | `--text` | `#eceef2` | names, input |
-| `--text-2` | `#a9adb8` | snippets, notes |
-| `--text-3` | `#868b97` | placeholder, paths, locations (5:1 on the plate) |
-| `--chrome` | `#dfe4ee` | caret, focused glyph, selected tile |
+| `--text-2` | `#aaacb2` | snippets, notes |
+| `--text-3` | `#8a8c93` | placeholder, paths, locations (5:1 on the plate) |
+| `--chrome` | `#e6e8ec` | caret, focused glyph, selected tile |
 | `--danger` | `#e0877f` | problems only |
 
 ## Type
