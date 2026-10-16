@@ -321,3 +321,86 @@ def test_every_file_gets_its_own_vectors_across_batched_flushes(store, embedder,
     for chunk in chunks.values():
         own_vector = embedder.embed_documents([chunk.text], [Path(chunk.uri).name])[0]
         assert store.search_vectors(own_vector, 1)[0].id == chunk.id
+
+
+def png(colour):
+    buffer = io.BytesIO()
+    Image.new("RGB", (8, 8), colour).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def vector_of(store, uri):
+    return store.vectors_of("s", uri, [ChunkKind.IMAGE])["{}"]
+
+
+def test_a_moved_image_keeps_its_vector_and_costs_no_embedding(indexer, store, embedder, root):
+    (root / "inbox").mkdir()
+    (root / "inbox" / "photo.png").write_bytes(png("red"))
+    indexer.sync("s", root)
+    before = vector_of(store, "inbox/photo.png")
+    calls = embedder.image_calls
+
+    (root / "albums").mkdir()
+    (root / "inbox" / "photo.png").rename(root / "albums" / "holiday.png")  # moved and renamed
+    report = indexer.sync("s", root)
+
+    assert embedder.image_calls == calls
+    assert (report.added, report.removed, report.reused) == (1, 1, 1)
+    assert sorted(c.uri for c in all_chunks(store).values()) == ["albums/holiday.png"]
+    after = vector_of(store, "albums/holiday.png")
+    assert (after == before).all()
+
+
+def test_a_copy_of_an_indexed_image_reuses_its_vector(indexer, store, embedder, root):
+    (root / "a.png").write_bytes(png("green"))
+    indexer.sync("s", root)
+    calls = embedder.image_calls
+    (root / "b.png").write_bytes(png("green"))
+    report = indexer.sync("s", root)
+    assert embedder.image_calls == calls
+    assert report.reused == 1
+    assert (vector_of(store, "a.png") == vector_of(store, "b.png")).all()
+
+
+def test_a_moved_pdf_reuses_its_page_images_but_embeds_its_text_again(
+    indexer, store, embedder, root
+):
+    (root / "paper.pdf").write_bytes(make_text_pdf(["Confidence intervals", "z table"]))
+    indexer.sync("s", root)
+    pages = store.vectors_of("s", "paper.pdf", [ChunkKind.PDF_PAGE])
+    images, documents = embedder.image_calls, embedder.document_calls
+
+    (root / "paper.pdf").rename(root / "stats.pdf")
+    report = indexer.sync("s", root)
+
+    assert embedder.image_calls == images  # no page was rendered or embedded
+    assert embedder.document_calls > documents  # the text carries the path, so it is embedded again
+    assert report.reused == 1
+    moved = store.vectors_of("s", "stats.pdf", [ChunkKind.PDF_PAGE])
+    assert moved.keys() == pages.keys()
+    assert all((moved[k] == pages[k]).all() for k in pages)
+    assert {c.uri for c in all_chunks(store).values()} == {"stats.pdf"}
+
+
+def test_a_file_edited_in_the_same_sync_is_never_a_donor(indexer, store, embedder, root):
+    (root / "a.png").write_bytes(png("red"))
+    indexer.sync("s", root)
+    old_red = vector_of(store, "a.png")
+
+    # a.png now holds blue, and b.png appears with a.png's old red bytes: b must get red's vector,
+    # not the blue one a.png is about to receive.
+    (root / "a.png").write_bytes(png("blue"))
+    (root / "b.png").write_bytes(png("red"))
+    report = indexer.sync("s", root)
+
+    assert report.reused == 0
+    assert (vector_of(store, "b.png") == old_red).all()
+    assert not (vector_of(store, "a.png") == old_red).all()
+
+
+def test_different_images_never_share_a_vector(indexer, store, root):
+    (root / "r.png").write_bytes(png("red"))
+    (root / "g.png").write_bytes(png("green"))
+    report = indexer.sync("s", root)
+    assert report.reused == 0
+    assert not (vector_of(store, "r.png") == vector_of(store, "g.png")).all()

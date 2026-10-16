@@ -47,6 +47,7 @@ class ReportOut(_Response):
     updated: int
     unchanged: int
     removed: int
+    reused: int
     denied: int
     ignored: int
     unsupported: int

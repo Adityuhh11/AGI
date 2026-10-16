@@ -17,7 +17,7 @@ from __future__ import annotations
 import heapq
 import sqlite3
 import threading
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -359,6 +359,25 @@ class FlatStore:
             ]
             self.delete(stale)
             self._catalog.write_file(record)
+
+    def vectors_of(
+        self, source_id: str, uri: str, kinds: Collection[ChunkKind]
+    ) -> dict[str, np.ndarray]:
+        """The stored vectors of one file's chunks of the given kinds, keyed by locator.
+
+        Lets the indexer give an identical file (moved, renamed or copied) the vectors the model
+        already computed for it instead of computing them again.
+        """
+        marks = ",".join("?" * len(kinds))
+        query = (
+            "SELECT locator, vec_row FROM chunks "
+            f"WHERE source_id = ? AND uri = ? AND kind IN ({marks})"
+        )
+        with self._lock:
+            rows = self._db.execute(
+                query, [source_id, uri, *(kind.value for kind in kinds)]
+            ).fetchall()
+            return {locator: self._vectors.read(row) for locator, row in rows}
 
     def touch_file(self, record: FileRecord) -> None:
         """Update a file's remembered size/mtime/hash when its content is known to be unchanged."""

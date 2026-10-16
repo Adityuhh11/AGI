@@ -102,10 +102,12 @@ answers while the model is still loading.
 start once the scan finishes. When `done`, `report` is:
 
 ```json
-{"added": 3, "updated": 0, "unchanged": 0, "removed": 0, "denied": 1, "ignored": 0, "unsupported": 0,
+{"added": 3, "updated": 0, "unchanged": 0, "removed": 0, "reused": 0, "denied": 1, "ignored": 0, "unsupported": 0,
  "too_large": 0, "chunks_written": 3, "errors": [{"uri": "broken.png", "message": "..."}]}
 ```
 
+`reused` counts new files that are identical to a file already indexed (moved, renamed or copied): their image and PDF page
+vectors are copied instead of computed again, so moving a long PDF costs seconds, not minutes (they also count in `added`).
 `errors` lists files that could not be read or decoded; every other file is still indexed. `denied` counts files
 the secret deny list refused to open (`.env`, keys, credential JSON, ...). When `failed`, `error` is
 `"<ExceptionType>: <message>"` (for example the folder disappeared) and `report` is `null`.
