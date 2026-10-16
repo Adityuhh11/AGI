@@ -3,19 +3,23 @@
   import { fade } from "svelte/transition";
   import { Clipboard } from "@wailsio/runtime";
   import { Service as Files } from "../bindings/agi/internal/files";
+  import { Service as Palette } from "../bindings/agi/internal/palette";
+  import type { Item as Entry } from "../bindings/agi/internal/palette";
   import { Service as Panel } from "../bindings/agi/internal/panel";
   import { Service as Search } from "../bindings/agi/internal/search";
   import type { Results } from "../bindings/agi/internal/search";
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
   import ActionPanel from "./lib/ActionPanel.svelte";
+  import AppRow from "./lib/AppRow.svelte";
   import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
   import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
-  import { fileActions, type Action } from "./lib/actions";
-  import { flatten, openLine, pathOf, step, type Item } from "./lib/flatten";
+  import { actionsFor, type Action } from "./lib/actions";
+  import { flatten, openLine, pathOf, step, type FileItem, type Item } from "./lib/flatten";
+  import { cycle, escapeStep, label, type Mode } from "./lib/modes";
 
   const DEBOUNCE_MS = 120;
   const RING = 2.5; // px of metal around the card
@@ -36,13 +40,21 @@
   let pending = $state(false); // a search is in flight
   let typing = $state(false); // a key was pressed in the last moment
   let target = $state<Item | null>(null); // the row the open action panel acts on (null: panel closed)
+  let mode = $state<Mode>("all"); // the chip: what a search covers, cycled with Tab
+  let effective = $state<Mode>("all"); // the mode of the text once a prefix such as "app:" is taken off
+  let entries = $state<Entry[]>([]); // the instant answers (apps): they arrive in a millisecond, before the files
+  let instant = 0;
   let input: HTMLInputElement;
   let content: HTMLElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let token = 0;
 
-  const items = $derived<Item[]>(flatten(results?.Rows ?? [], expanded));
+  // Beside apps, files without a confident match are probably noise, so they are not shown at all.
+  const fileRows = $derived(results && (results.Confident || entries.length === 0) ? (results.Rows ?? []) : []);
+  const items = $derived<Item[]>(flatten(fileRows, expanded, entries));
   const current = $derived<Item | undefined>(items[selected]);
+  const sections = $derived(entries.length > 0 && fileRows.length > 0); // two kinds of rows: label them
+  const chip = $derived(results?.Scope || label[effective]);
 
   // What the page waits for, in a word or two, shown as the loader in the bar.
   const waiting = $derived.by(() => {
@@ -58,6 +70,8 @@
     if (problem) out.push({ text: problem, problem: true });
     if (query.trim() === "") {
       if (info?.Engine === "failed") out.push({ text: info.EngineMessage, problem: true });
+    } else if (effective === "apps") {
+      if (entries.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
     } else if (results?.State === "warming") {
       out.push({ text: results.Message, problem: false });
     } else if (results?.State === "unavailable" || results?.State === "error") {
@@ -65,7 +79,7 @@
     } else if (results) {
       if (items.length === 0 && results.Message) out.push({ text: results.Message, problem: false });
       else if (items.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
-      else if (!results.Confident) out.push({ text: "No strong match. The closest files:", problem: false });
+      else if (!results.Confident && entries.length === 0) out.push({ text: "No strong match. The closest files:", problem: false });
     }
     return out;
   });
@@ -109,6 +123,8 @@
   function onBlur() {
     active = false;
     closeActions();
+    mode = "all"; // the next opening starts from everything
+    effective = "all";
     metal = nextMetal(metal);
   }
 
@@ -126,12 +142,41 @@
       // Nothing to search for: drop the old answer at once, so the card closes back into the capsule
       // and no half-answer ("nothing matched") flashes while the next word is typed.
       token++;
+      instant++;
+      pending = false;
+      results = null;
+      answered = "";
+      entries = [];
+      effective = mode;
+      return;
+    }
+    update();
+  }
+
+  // Asks Go for the instant answers (apps), which come back in a millisecond, and then lets the files
+  // follow after the usual pause. In the Apps mode there is no file search.
+  async function update() {
+    const mine = ++instant;
+    const answer = await Palette.Query(query, mode);
+    if (mine !== instant) return; // a newer keystroke is already being answered
+    entries = answer.Items ?? [];
+    effective = answer.Mode as Mode;
+    selected = 0;
+    clearTimeout(timer);
+    if (effective === "apps") {
+      token++;
       pending = false;
       results = null;
       answered = "";
       return;
     }
     timer = setTimeout(runSearch, DEBOUNCE_MS);
+  }
+
+  function setMode(next: Mode) {
+    mode = next;
+    effective = next;
+    if (query.trim() !== "") update();
   }
 
   async function runSearch() {
@@ -163,27 +208,36 @@
     const item = target;
     await closeActions();
     if (!item) return;
-    if (id === "copy-path") copyPath(item);
-    else open(item, id === "reveal");
+    if (id === "copy-path" && item.kind !== "app") copyPath(item);
+    else if (id !== "copy-path") run(item, id);
   }
 
-  function copyPath(item: Item) {
+  function copyPath(item: FileItem) {
     Clipboard.SetText(pathOf(item));
     Panel.Hide(); // copied to be pasted elsewhere: give the keyboard back
   }
 
-  async function open(item: Item | undefined, reveal = false) {
+  /** Whether the row can be revealed or run as administrator (files can be revealed; apps say what they can). */
+  function available(item: Item, how: "reveal" | "admin"): boolean {
+    if (item.kind !== "app") return how === "reveal";
+    return item.entry.Actions?.includes(how) ?? false;
+  }
+
+  async function run(item: Item | undefined, how: "open" | "reveal" | "admin" = "open") {
     if (!item) return;
+    if (how !== "open" && !available(item, how)) return;
     try {
-      if (reveal) await Files.Reveal(pathOf(item));
+      if (item.kind === "app") await Palette.Do(item.entry.ID, how, query);
+      else if (how === "reveal") await Files.Reveal(pathOf(item));
       else await Files.Open(pathOf(item), openLine(item));
     } catch (error) {
       problem = String((error as Error)?.message ?? error);
+      if (item.kind === "app") update(); // an app that is gone has left the list
     }
   }
 
   function toggle(open: boolean) {
-    const row = current?.row;
+    const row = current && current.kind !== "app" ? current.row : undefined;
     if (!row || (row.Matches?.length ?? 0) < 2) return;
     const next = new Set(expanded);
     if (open) next.add(row.Path);
@@ -201,9 +255,21 @@
   function onKeydown(event: KeyboardEvent) {
     if (target) return; // the action panel has the keyboard
     switch (event.key) {
-      case "Escape":
+      case "Escape": {
         event.preventDefault();
-        Panel.Hide();
+        const next = escapeStep(mode, query);
+        if (next === "mode") setMode("all");
+        else if (next === "text") {
+          query = "";
+          onInput();
+        } else Panel.Hide();
+        break;
+      }
+      case "Tab":
+        if (!event.ctrlKey && !event.altKey) {
+          event.preventDefault();
+          setMode(cycle(mode, event.shiftKey ? -1 : 1));
+        }
         break;
       case "ArrowDown":
       case "ArrowUp":
@@ -213,7 +279,7 @@
         break;
       case "Enter":
         event.preventDefault();
-        open(current, event.ctrlKey);
+        run(current, event.ctrlKey && event.shiftKey ? "admin" : event.ctrlKey ? "reveal" : "open");
         break;
       case "ArrowRight":
         if (atEndOfText() && current) {
@@ -222,14 +288,14 @@
         }
         break;
       case "ArrowLeft":
-        if (atEndOfText() && current && (current.kind === "match" || expanded.has(current.row.Path))) {
+        if (atEndOfText() && current && current.kind !== "app" && (current.kind === "match" || expanded.has(current.row.Path))) {
           event.preventDefault();
           toggle(false);
         }
         break;
       case "C":
       case "c":
-        if (event.ctrlKey && event.shiftKey && current) {
+        if (event.ctrlKey && event.shiftKey && current && current.kind !== "app") {
           event.preventDefault();
           copyPath(current);
         }
@@ -250,7 +316,8 @@
   }
 
   const optionId = (index: number) => `option-${index}`;
-  const itemKey = (item: Item) => (item.kind === "row" ? item.row.Path : item.row.Path + "#" + item.match.Line);
+  const itemKey = (item: Item) =>
+    item.kind === "app" ? item.entry.ID : item.kind === "row" ? item.row.Path : item.row.Path + "#" + item.match.Line;
 
   onMount(() => {
     takeFocus();
@@ -281,19 +348,19 @@
             bind:value={query}
             oninput={onInput}
             type="text"
-            placeholder="Search your files"
+            placeholder="Search apps and files"
             spellcheck="false"
             autocomplete="off"
             role="combobox"
-            aria-label="Search your files"
+            aria-label="Search apps and files"
             aria-expanded={showPanel}
             aria-controls="results"
             aria-activedescendant={current ? optionId(selected) : undefined}
           />
           {#if waiting}
             <span class="status" transition:fade={{ duration: 160 }}><Loader text={waiting} /></span>
-          {:else if results?.Scope}
-            <span class="status scope">{results.Scope}</span>
+          {:else if chip}
+            <span class="status scope">{chip}</span>
           {/if}
         </header>
 
@@ -305,26 +372,39 @@
             {#if items.length > 0}
               <div class="results" class:stale={pending} id="results" role="listbox" aria-label="Results">
                 {#each items as item, index (itemKey(item))}
-                  <ResultRow
-                    id={optionId(index)}
-                    row={item.row}
-                    match={item.kind === "match" ? item.match : undefined}
-                    query={answered}
-                    selected={index === selected}
-                    expanded={expanded.has(item.row.Path)}
-                    onhover={() => (selected = index)}
-                    onactivate={() => open(item)}
-                  />
+                  {#if sections && index === 0}<h3 class="section">Apps</h3>{/if}
+                  {#if sections && index === entries.length}<h3 class="section">Files</h3>{/if}
+                  {#if item.kind === "app"}
+                    <AppRow
+                      id={optionId(index)}
+                      entry={item.entry}
+                      selected={index === selected}
+                      onhover={() => (selected = index)}
+                      onactivate={() => run(item)}
+                    />
+                  {:else}
+                    <ResultRow
+                      id={optionId(index)}
+                      row={item.row}
+                      match={item.kind === "match" ? item.match : undefined}
+                      query={answered}
+                      selected={index === selected}
+                      expanded={expanded.has(item.row.Path)}
+                      onhover={() => (selected = index)}
+                      onactivate={() => run(item)}
+                    />
+                  {/if}
                 {/each}
               </div>
               <footer class="hints">
                 <span><kbd>↑↓</kbd>move</span>
                 <span><kbd>Enter</kbd>open</span>
-                <span><kbd>Ctrl+Enter</kbd>reveal</span>
+                {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
                 <span><kbd>Ctrl+K</kbd>actions</span>
-                {#if current && current.row.Matches && current.row.Matches.length > 1}
+                {#if current && current.kind !== "app" && current.row.Matches && current.row.Matches.length > 1}
                   <span><kbd>→</kbd>more</span>
                 {/if}
+                <span><kbd>Tab</kbd>mode</span>
                 <span><kbd>Esc</kbd>close</span>
                 {#if info && info.IndexState && info.IndexState !== "uptodate"}
                   <span class="index">{info.IndexText}</span>
@@ -335,7 +415,7 @@
         {/if}
       </div>
       {#if target}
-        <ActionPanel actions={fileActions} onrun={runAction} onclose={closeActions} />
+        <ActionPanel actions={actionsFor(target)} onrun={runAction} onclose={closeActions} />
       {/if}
     </div>
   </div>
@@ -451,6 +531,16 @@
   }
   .results.stale {
     opacity: 0.55; /* the answer to an older query, until the new one lands */
+  }
+  .section {
+    margin: 4px 24px 2px;
+    color: var(--text-3);
+    font: 500 10.5px var(--mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .section:not(:first-child) {
+    margin-top: 10px;
   }
   .results::-webkit-scrollbar {
     width: 10px;

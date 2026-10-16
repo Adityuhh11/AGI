@@ -1,6 +1,6 @@
 <script lang="ts">
   interface Props {
-    name: "code" | "text" | "image" | "file";
+    name: "code" | "text" | "image" | "file" | "app";
     size?: number;
   }
   let { name, size = 20 }: Props = $props();
@@ -12,6 +12,7 @@
     text: `${page} M9 12h6 M9 15h6 M9 18h3.5`,
     image: "M5 5h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z M4.5 16.5l4.2-4.2 3 3 2.3-2.3 5.5 5.5 M15.5 9.7a.7.7 0 1 0 0 .01",
     file: page,
+    app: "M5 5h5.5v5.5H5z M13.5 5H19v5.5h-5.5z M5 13.5h5.5V19H5z M13.5 13.5H19V19h-5.5z",
   };
 </script>
 

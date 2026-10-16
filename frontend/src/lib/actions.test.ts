@@ -1,7 +1,11 @@
 // Run with: node --test src/lib/actions.test.ts (Node strips the types itself)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fileActions, filterActions } from "./actions.ts";
+import { actionsFor, filterActions } from "./actions.ts";
+
+const file = { kind: "row", row: {} };
+const app = (actions) => ({ kind: "app", entry: { ID: "app:x", Actions: actions } });
+const fileActions = actionsFor(file);
 
 const ids = (text: string) => filterActions(fileActions, text).map((a) => a.id);
 
@@ -18,6 +22,13 @@ test("typing narrows by words, in any case", () => {
 
 test("a word that matches nothing leaves an empty list", () => {
   assert.deepEqual(ids("delete"), []);
+});
+
+test("a file always offers all three, an app only what its entry can do", () => {
+  assert.deepEqual(actionsFor(file).map((a) => a.id), ["open", "reveal", "copy-path"]);
+  assert.deepEqual(actionsFor(app(null)).map((a) => a.id), ["open"]);
+  assert.deepEqual(actionsFor(app(["reveal", "admin"])).map((a) => a.id), ["open", "reveal", "admin"]);
+  assert.deepEqual(actionsFor(app(["admin"])).map((a) => a.id), ["open", "admin"]);
 });
 
 test("every action names the shortcut that does the same without the panel", () => {

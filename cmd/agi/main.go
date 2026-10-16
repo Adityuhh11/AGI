@@ -20,9 +20,11 @@ import (
 	"agi/internal/config"
 	"agi/internal/files"
 	"agi/internal/indexing"
+	"agi/internal/palette"
 	"agi/internal/panel"
 	"agi/internal/search"
 	"agi/internal/sidecar"
+	"agi/internal/state"
 	"agi/internal/status"
 	"agi/internal/tray"
 	"agi/internal/watcher"
@@ -136,6 +138,13 @@ func run() error {
 		roots[config.SourceID(root)] = root
 	}
 
+	// What the bar has learned about its user (what was launched, and after typing what) lives beside the
+	// settings.
+	history, err := state.Open(filepath.Join(filepath.Dir(path), "state.json"))
+	if err != nil {
+		return err
+	}
+
 	bar = panel.New(app, cfg.Hotkey)
 	bar.OnHotkeyError = refresh
 	icon = tray.New(app, bar.Show, indexer.Rescan)
@@ -144,6 +153,7 @@ func run() error {
 		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), roots, engine.Status)),
 		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, bar.HideForLaunch)),
 	} {
 		app.RegisterService(service)
 	}

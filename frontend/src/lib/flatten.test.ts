@@ -30,6 +30,19 @@ test("expanding a file with a single match adds nothing", () => {
   assert.equal(flatten([c], new Set(["c.png"])).length, 1);
 });
 
+const entry = (id) => ({ ID: "app:" + id, Kind: "app", Title: id, Subtitle: "Application", Icon: "", Actions: null });
+
+test("apps come first, then the files with their matches", () => {
+  const items = flatten([a, b], new Set(["a.js"]), [entry("x"), entry("y")]);
+  assert.deepEqual(items.map((i) => i.kind), ["app", "app", "row", "match", "match", "row"]);
+  assert.equal(items[0].entry.ID, "app:x");
+});
+
+test("apps alone make a list, and no apps leave the files as they were", () => {
+  assert.deepEqual(flatten([], new Set(), [entry("x")]).map((i) => i.kind), ["app"]);
+  assert.equal(flatten([a], new Set(), []).length, 1);
+});
+
 test("moreCount counts matches beyond the first and tolerates none", () => {
   assert.equal(moreCount(a), 2);
   assert.equal(moreCount(b), 0);

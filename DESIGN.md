@@ -29,6 +29,15 @@ weight and brightness); the only colour is the ring, a metal that changes every 
   search is in flight and for 0.7 s after; every change eases in over about 350 ms (a ring that lurches with each keystroke
   looks broken), and the ring starts from rest each time the panel opens. It stops completely, with no animation frames,
   when the panel does not have the keyboard or the user prefers reduced motion. Rendered at 1 pixel per CSS pixel, 700k pixels at most.
+- **Rows.** Three kinds share one list: apps (their own icon on the plate, name, "Application" at the right), files (tile, name,
+  folder, the matching chunk) and, when both show, each group under a small label (Apps, Files). Apps come first, so a strong
+  name match is the selected row and Enter launches it. Beside apps, files without a confident match are not shown.
+- **Mode chip.** The chip at the right of the bar says what a search covers: nothing for everything, "Apps" or "Files" when Tab
+  chose it (Shift+Tab backwards, a prefix such as `app:` does the same), or the file kind a `code:` prefix chose. Esc leaves the
+  mode, then clears the text, then closes; closing the bar always returns to everything.
+- **Action panel.** Ctrl+K opens a small panel above the footer with what can be done with the selected row, filtered by typing,
+  each action with the key that does it directly. It acts on the row that was selected when it opened and owns the keyboard
+  while open (Esc or Ctrl+K closes it). The card keeps room for it however few rows there are.
 - **Search glyph.** A hairline lens (1.3 px stroke), a short detached handle and a small glint inside the lens. The glint
   is the only moving part: still at the top left, circling once every 1.1 s while a search is in flight.
 - **Loader.** A turning chrome orb and the words under way, each letter breathing a beat after the last (90 ms stagger,
