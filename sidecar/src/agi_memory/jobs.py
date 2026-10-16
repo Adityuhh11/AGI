@@ -49,9 +49,12 @@ class JobBusyError(Exception):
 
 
 class JobManager:
-    def __init__(self, indexer: Indexer, *, keep: int = 50) -> None:
+    def __init__(
+        self, indexer: Indexer, *, keep: int = 50, on_done: Callable[[], object] | None = None
+    ) -> None:
         self._indexer = indexer
         self._keep = keep
+        self._on_done = on_done  # runs after a job that finished, with the index changed
         self._lock = threading.Lock()
         self._jobs: OrderedDict[str, Job] = OrderedDict()
         self._counter = 0
@@ -112,3 +115,8 @@ class JobManager:
             with self._lock:
                 job.report = report
                 job.state = JobState.DONE
+            if self._on_done is not None:
+                try:
+                    self._on_done()
+                except Exception:  # a failed follow-up must not turn a finished job into a failure
+                    logger.exception("the follow-up of index job %s failed", job.id)

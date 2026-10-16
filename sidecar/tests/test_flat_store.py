@@ -143,3 +143,12 @@ def test_a_bare_string_is_not_a_list_of_ids(store, method):
     with pytest.raises(TypeError, match="single string"):
         getattr(store, method)(chunk.id)
     assert store.count() == 1
+
+
+def test_warming_an_index_changes_nothing_a_search_can_see(store):
+    store.warm()  # an empty index
+    a, b = make_chunk("a"), make_chunk("b", "other text")
+    store.upsert([a, b], unit_vectors(2))
+    store.warm()
+    assert store.search_vectors(unit_vectors(2)[0], 2)[0].id == a.id
+    assert store.count() == 2

@@ -177,3 +177,18 @@ def test_a_file_search_keeps_filters_confidence_and_blank_queries(two_files):
     assert searcher.search_files("other.txt").confident  # a file name is a deliberate match
     blank = searcher.search_files("   ")
     assert (blank.files, blank.confident) == ([], False)
+
+
+def test_calibrating_makes_the_measured_noise_ceiling_the_threshold(world, monkeypatch):
+    searcher, _ = world
+    assert searcher.confident_cosine == 0.65
+    monkeypatch.setattr("agi_memory.search.searcher.noise_ceiling", lambda store, embedder: 0.42)
+    assert searcher.calibrate() == 0.42
+    assert searcher.confident_cosine == 0.42
+
+
+def test_an_index_too_small_to_measure_keeps_the_default_threshold(world, monkeypatch):
+    searcher, _ = world
+    monkeypatch.setattr("agi_memory.search.searcher.noise_ceiling", lambda store, embedder: None)
+    assert searcher.calibrate() is None
+    assert searcher.confident_cosine == 0.65

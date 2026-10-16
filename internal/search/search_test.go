@@ -3,6 +3,8 @@ package search
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,6 +21,13 @@ type fakeEngine struct {
 func (f *fakeEngine) SearchFiles(ctx context.Context, req sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
 	f.asked = append(f.asked, req)
 	return f.respond(ctx, req)
+}
+
+// newTest is New for files that exist only in the test: every path counts as present.
+func newTest(engine Engine, roots map[string]string, status func() sidecar.Status) *Service {
+	svc := New(engine, roots, status)
+	svc.exists = func(string) bool { return true }
+	return svc
 }
 
 func ready() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
@@ -47,7 +56,7 @@ func TestRowsAreMappedOntoDiskAndDescribeTheirMatches(t *testing.T) {
 			{SourceID: "gone", URI: "orphan.txt", Kind: "text", Score: 0.4},
 		}}, nil
 	}}
-	got := New(engine, map[string]string{"s1": root}, ready).Search("jwt", 1)
+	got := newTest(engine, map[string]string{"s1": root}, ready).Search("jwt", 1)
 
 	if got.State != StateResults || !got.Confident || got.Stale || got.Token != 1 {
 		t.Fatalf("results = %+v", got)
@@ -82,11 +91,11 @@ func TestTheEngineIsAskedForTenFilesWithThreeChunksEach(t *testing.T) {
 	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
 		return sidecar.SearchFilesResponse{}, nil
 	}}
-	New(engine, nil, ready).Search("  find me  ", 1)
+	newTest(engine, nil, ready).Search("  find me  ", 1)
 	if len(engine.asked) != 1 {
 		t.Fatalf("asked %d times", len(engine.asked))
 	}
-	if req := engine.asked[0]; req.Query != "find me" || req.K != 10 || req.PerFile != 3 {
+	if req := engine.asked[0]; req.Query != "find me" || req.K != maxFiles+spareFiles || req.PerFile != 3 {
 		t.Fatalf("request = %+v", req)
 	}
 }
@@ -96,7 +105,7 @@ func TestABlankQueryDoesNotBotherTheEngine(t *testing.T) {
 		t.Fatal("the engine must not be asked about a blank query")
 		return sidecar.SearchFilesResponse{}, nil
 	}}
-	svc := New(engine, nil, ready)
+	svc := newTest(engine, nil, ready)
 	for _, query := range []string{"", "   ", "\t\n"} {
 		if got := svc.Search(query, 1); got.State != StateResults || len(got.Rows) != 0 {
 			t.Fatalf("Search(%q) = %+v", query, got)
@@ -146,7 +155,7 @@ func TestEngineErrorsBecomeStatesNotCrashes(t *testing.T) {
 			engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
 				return sidecar.SearchFilesResponse{}, tt.err
 			}}
-			if got := New(engine, nil, ready).Search("x", 1); got.State != tt.wantState {
+			if got := newTest(engine, nil, ready).Search("x", 1); got.State != tt.wantState {
 				t.Fatalf("state = %q, want %q (%+v)", got.State, tt.wantState, got)
 			}
 		})
@@ -164,7 +173,7 @@ func TestAnOlderSearchIsCancelledAndItsAnswerMarkedStale(t *testing.T) {
 		}
 		return sidecar.SearchFilesResponse{Confident: true}, nil
 	}
-	svc := New(engine, nil, ready)
+	svc := newTest(engine, nil, ready)
 
 	old := make(chan Results, 1)
 	go func() { old <- svc.Search("slow", 1) }()
@@ -192,7 +201,7 @@ func TestAnAnswerThatArrivesAfterANewerRequestIsStaleEvenIfNotCancelled(t *testi
 		}
 		return sidecar.SearchFilesResponse{Confident: true}, nil
 	}}
-	svc := New(engine, nil, ready)
+	svc := newTest(engine, nil, ready)
 	old := make(chan Results, 1)
 	go func() { old <- svc.Search("old", 1) }()
 	for i := 0; i < 200; i++ { // wait until the old request is in flight
@@ -244,5 +253,101 @@ func TestDisplayKinds(t *testing.T) {
 		if got := displayKind(kind); got != expected {
 			t.Errorf("displayKind(%q) = %q, want %q", kind, got, expected)
 		}
+	}
+}
+
+func TestParseScope(t *testing.T) {
+	tests := []struct {
+		query     string
+		wantLabel string // "" when the query is not scoped
+		wantRest  string
+	}{
+		{"code: retry with backoff", "Code", "retry with backoff"},
+		{"CODE:retry", "Code", "retry"},
+		{"img: a dog on the beach", "Images", "a dog on the beach"},
+		{"image:dog", "Images", "dog"},
+		{"pdf: lease clause about pets", "PDFs", "lease clause about pets"},
+		{"notes: meeting", "Documents", "meeting"},
+		{"code:", "Code", ""},
+		{"  code :  spaced out  ", "Code", "spaced out"},
+		{"note to self: buy milk", "", "note to self: buy milk"},
+		{"http://example.com", "", "http://example.com"},
+		{"no scope here", "", "no scope here"},
+	}
+	for _, tt := range tests {
+		sc, rest, scoped := parseScope(tt.query)
+		if scoped != (tt.wantLabel != "") || sc.label != tt.wantLabel || rest != tt.wantRest {
+			t.Errorf("parseScope(%q) = %q, %q, %v; want %q, %q", tt.query, sc.label, rest, scoped, tt.wantLabel, tt.wantRest)
+		}
+	}
+}
+
+func TestAScopeNarrowsTheKindsTheEngineSearches(t *testing.T) {
+	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
+		return sidecar.SearchFilesResponse{}, nil
+	}}
+	svc := newTest(engine, nil, ready)
+	got := svc.Search("pdf: lease", 1)
+	if got.Scope != "PDFs" {
+		t.Errorf("scope = %q", got.Scope)
+	}
+	req := engine.asked[0]
+	if req.Query != "lease" || req.Filters == nil || len(req.Filters.Kinds) != 2 ||
+		req.Filters.Kinds[0] != "pdf_text" || req.Filters.Kinds[1] != "pdf_page" {
+		t.Errorf("request = %+v (filters %+v)", req, req.Filters)
+	}
+	svc.Search("lease", 2)
+	if engine.asked[1].Filters != nil || engine.asked[1].Query != "lease" {
+		t.Errorf("an unscoped query must carry no filter: %+v", engine.asked[1])
+	}
+}
+
+func TestAScopeAloneAsksTheEngineNothingAndSaysWhatToDo(t *testing.T) {
+	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
+		t.Fatal("the engine must not be asked when only a scope was typed")
+		return sidecar.SearchFilesResponse{}, nil
+	}}
+	got := newTest(engine, nil, ready).Search("code:", 1)
+	if got.Scope != "Code" || len(got.Rows) != 0 || got.Message != "Searching code. Type what to look for." {
+		t.Errorf("results = %+v", got)
+	}
+}
+
+func TestFilesDeletedSinceTheLastSyncAreLeftOutAndTheListStaysFull(t *testing.T) {
+	var files []sidecar.File
+	for i := range maxFiles + spareFiles {
+		files = append(files, sidecar.File{SourceID: "s1", URI: fmt.Sprintf("f%02d.txt", i), Kind: "text"})
+	}
+	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
+		return sidecar.SearchFilesResponse{Files: files}, nil
+	}}
+	svc := newTest(engine, map[string]string{"s1": `C:\Data`}, ready)
+	deleted := map[string]bool{
+		filepath.Join(`C:\Data`, "f00.txt"): true,
+		filepath.Join(`C:\Data`, "f03.txt"): true,
+	}
+	svc.exists = func(path string) bool { return !deleted[path] }
+	got := svc.Search("anything", 1)
+	if len(got.Rows) != maxFiles {
+		t.Fatalf("got %d rows, want a full list of %d", len(got.Rows), maxFiles)
+	}
+	for _, row := range got.Rows {
+		if deleted[row.Path] {
+			t.Errorf("deleted file %s is still listed", row.Path)
+		}
+	}
+	if got.Rows[0].Name != "f01.txt" {
+		t.Errorf("first row is %s, want f01.txt (f00 was deleted)", got.Rows[0].Name)
+	}
+}
+
+func TestFileExists(t *testing.T) {
+	dir := t.TempDir()
+	present := filepath.Join(dir, "here.txt")
+	if err := os.WriteFile(present, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !fileExists(present) || fileExists(filepath.Join(dir, "gone.txt")) {
+		t.Error("fileExists must be true for a file that is there and false for one that is not")
 	}
 }

@@ -13,10 +13,17 @@
   --chrome: #dfe4ee;
   --danger: #e0877f;
 
+  /* The window around the card is clear and only 20 px wider on each side, 12 above and 40 below: a
+     shadow reaching further would be cut off in a hard straight edge. Blur minus spread stays under
+     the margin on every side. */
+  --shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+
   --ring: 2.5px;
   --radius: 30px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1); /* exponential ease-out */
 
+  /* The words you type and the placeholder: a geometric, open face, the one voice that is not Geist. */
+  --display: "Sora Variable", "Segoe UI Variable Display", system-ui, sans-serif;
   --sans: "Geist Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --mono: "Geist Mono Variable", "Cascadia Mono", Consolas, monospace;
 

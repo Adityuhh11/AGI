@@ -24,9 +24,9 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
 | `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
-| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed | built |
+| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed, and a moved, renamed or copied file takes its image and PDF-page vectors from the identical file already indexed | built |
 | `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
-| `search/` | `Searcher`: vector, bm25 and path search blended into one score (`fusion.py`), `confident` flag, filters | built |
+| `search/` | `Searcher`: vector, bm25 and path search blended into one score (`fusion.py`), `confident` flag against a noise ceiling the index measures itself (`calibration.py`), filters | built |
 | `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
 | `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search`; see `api.md` | built |
 | `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |

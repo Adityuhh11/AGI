@@ -102,10 +102,12 @@ answers while the model is still loading.
 start once the scan finishes. When `done`, `report` is:
 
 ```json
-{"added": 3, "updated": 0, "unchanged": 0, "removed": 0, "denied": 1, "ignored": 0, "unsupported": 0,
+{"added": 3, "updated": 0, "unchanged": 0, "removed": 0, "reused": 0, "denied": 1, "ignored": 0, "unsupported": 0,
  "too_large": 0, "chunks_written": 3, "errors": [{"uri": "broken.png", "message": "..."}]}
 ```
 
+`reused` counts new files that are identical to a file already indexed (moved, renamed or copied): their image and PDF page
+vectors are copied instead of computed again, so moving a long PDF costs seconds, not minutes (they also count in `added`).
 `errors` lists files that could not be read or decoded; every other file is still indexed. `denied` counts files
 the secret deny list refused to open (`.env`, keys, credential JSON, ...). When `failed`, `error` is
 `"<ExceptionType>: <message>"` (for example the folder disappeared) and `report` is `null`.
@@ -143,9 +145,12 @@ optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_
  "confident": true}
 ```
 
-`confident` is `false` when the best hit is probably noise: its cosine is below 0.65 and the query is not part of its
-path. Show "no match" instead of the list; the hits are still returned. On the sample corpus every on-topic query was
-confident and 14 of 15 off-topic ones were not. It is a flag calibrated on one corpus, not a guarantee.
+`confident` is `false` when the best hit is probably noise: its cosine is below the index's own noise ceiling and the query is
+not part of its path. The ceiling is measured by the engine (60 nonsense probe queries, the cosine 9 in 10 of them stayed
+under) at startup and after every index job, so it follows the index: 0.671 on the 431-chunk sample, 0.717 on a 44,000-chunk
+index. An index under 100 chunks uses 0.65. Show "no match" instead of the list; the hits are still returned. On the sample
+corpus every on-topic query was confident and every off-topic one was not; on a 44,000-chunk index 1 in 35 of each kind was
+wrong (`decisions/0003-confidence-from-a-measured-noise-ceiling.md`). It is a flag, not a guarantee.
 
 `uri` is relative to the source root with `/` separators. `locator` is JSON text (`{"lines":[a,b]}`, `{"page":n}`,
 ...). `score` is cosine similarity plus small keyword and file-name boosts (about 0.5 to 1.0 for real matches): use it to
@@ -189,7 +194,8 @@ submitted to `POST /sources`.
   slice, not for the whole batch: on the sample folder a search during a job takes about 150 ms median and 250-310 ms at the
   95th percentile (idle: about 80 ms), at a cost of roughly 10-15% indexing time.
 - Posting an already-indexed folder again is an incremental sync: unchanged files are skipped, changed ones
-  replaced, deleted ones removed. That is the refresh mechanism; nothing watches the disk.
+  replaced, deleted ones removed. That is the refresh mechanism; the engine does not watch the disk itself, the launcher does (`internal/watcher`)
+  and repeats the call for the folder that changed.
 - Job history lives in memory (last 50) and is lost on restart. The index itself is durable.
 - Paths must be absolute local paths and exist. Secrets are never indexed (deny list; counted in `report.denied`).
 

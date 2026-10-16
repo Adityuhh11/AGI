@@ -95,6 +95,15 @@ window.addEventListener('focus', () => {
   send('focus');
   requestAnimationFrame(() => requestAnimationFrame(() => send('painted')));
 });
+// How evenly does the page get frames while the ring runs? Reported once, 2 s after the first focus.
+window.addEventListener('focus', () => requestAnimationFrame(start => {
+  let frames = 0, worst = 0, last = start;
+  requestAnimationFrame(function tick(now) {
+    if (now - start > 2000) { send('fps-' + Math.round(frames / ((now - start) / 1000)) + '-' + Math.round(worst)); return; }
+    worst = Math.max(worst, now - last); last = now; frames++;
+    requestAnimationFrame(tick);
+  });
+}), { once: true });
 fetch('/ready');
 </script>`
 
@@ -179,7 +188,14 @@ func main() {
 		default:
 		}
 	})
-	mux.HandleFunc("/m", func(_ http.ResponseWriter, r *http.Request) { ev.record(r.URL.Query().Get("ev")) })
+	mux.HandleFunc("/m", func(_ http.ResponseWriter, r *http.Request) {
+		name := r.URL.Query().Get("ev")
+		if strings.HasPrefix(name, "fps-") { // "fps-<frames per second>-<longest gap in ms>"
+			fmt.Printf("page frame cadence: %s (frames per second, longest gap in ms)\n", strings.TrimPrefix(name, "fps-"))
+			return
+		}
+		ev.record(name)
+	})
 	if *real {
 		dist, err := fs.Sub(agi.Frontend, "frontend/dist")
 		if err != nil {

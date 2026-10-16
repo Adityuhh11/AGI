@@ -8,16 +8,24 @@
     liquidMetalFragmentShader,
   } from "@paper-design/shaders";
 
-  interface Props {
-    /** Flow speed; 0 stops the animation (and its animation frames) entirely. */
-    speed: number;
-  }
-  let { speed }: Props = $props();
+  import type { Metal } from "./palettes";
 
-  // Liquid chrome: graphite base, white highlights. The shader fills the whole card; the page's own
-  // surface covers all but the outer rim, so what shows is a ring of flowing metal.
-  const BACK = "#8b8e98";
-  const TINT = "#ffffff";
+  interface Props {
+    /** The flow speed to settle at; the ring eases there instead of jumping. */
+    speed: number;
+    /** False while the panel is closed: the ring stops, and with it every animation frame it costs. */
+    running: boolean;
+    /** What the metal is made of; it can change while the ring runs. */
+    metal: Metal;
+  }
+  let { speed, running, metal }: Props = $props();
+
+  // A change of speed takes about this long to settle. Typing changes the speed many times a second,
+  // and a ring that lurches with every keystroke looks broken.
+  const EASE_MS = 350;
+
+  // The shader fills the whole card; the page's own surface covers all but the outer rim, so what
+  // shows is a ring of flowing metal.
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -30,8 +38,8 @@
         host,
         liquidMetalFragmentShader,
         {
-          u_colorBack: getShaderColorFromString(BACK),
-          u_colorTint: getShaderColorFromString(TINT),
+          u_colorBack: getShaderColorFromString(metal.back),
+          u_colorTint: getShaderColorFromString(metal.tint),
           u_repetition: 4,
           u_softness: 0.55,
           u_shiftRed: 0.08,
@@ -44,7 +52,7 @@
           ...sizing(),
         },
         undefined,
-        reduceMotion ? 0 : speed,
+        0, // stopped until the ring is told it is running
         0,
         // The ring is a few pixels wide: one pixel per CSS pixel is plenty, and the GPU is shared with
         // the embedding model.
@@ -58,7 +66,36 @@
     return () => mount?.dispose();
   });
 
-  $effect(() => mount?.setSpeed(reduceMotion ? 0 : speed));
+  // Eases the shader's speed toward `speed` while running, one step per frame, and stops asking for
+  // frames once it has arrived. Closing the panel stops the shader at once (nobody sees it stop).
+  let current = 0;
+  let frame = 0;
+  $effect(() => {
+    const target = running && !reduceMotion ? speed : 0;
+    cancelAnimationFrame(frame);
+    if (!mount) return;
+    if (target === 0) {
+      current = 0;
+      mount.setSpeed(0);
+      return;
+    }
+    let last = performance.now();
+    const step = (now: number) => {
+      current += (target - current) * (1 - Math.exp(-(now - last) / EASE_MS));
+      last = now;
+      if (Math.abs(target - current) < 0.01) current = target;
+      mount?.setSpeed(current);
+      if (current !== target) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  });
+  $effect(() =>
+    mount?.setUniforms({
+      u_colorBack: getShaderColorFromString(metal.back),
+      u_colorTint: getShaderColorFromString(metal.tint),
+    }),
+  );
 
   function sizing() {
     const s = { ...defaultObjectSizing, fit: "none" as const };

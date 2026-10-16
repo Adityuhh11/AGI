@@ -30,7 +30,7 @@ from agi_memory.embedding.base import Embedder
 from agi_memory.sources.folder import ScannedFile, scan
 from agi_memory.sources.rules import Route
 from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, FileRecord
+from agi_memory.types import Chunk, ChunkKind, FileRecord
 
 _TEXT_ROUTES = frozenset({Route.CODE, Route.MARKDOWN, Route.TEXT})
 
@@ -52,6 +52,7 @@ class SyncReport:
     updated: int = 0
     unchanged: int = 0
     removed: int = 0
+    reused: int = 0  # files that got the vectors of an identical indexed file instead of new ones
     denied: int = 0
     ignored: int = 0
     unsupported: int = 0
@@ -107,13 +108,13 @@ class Indexer:
         on_disk = {file.uri for file in scanned.files}
         protected = tuple(prefix for prefix, _ in scanned.unreadable)  # could not look in there
         gone = [u for u in sorted(known) if u not in on_disk and not u.startswith(protected)]
-        report.removed = self._store.remove_files(source_id, gone)
+        donors = self._donors(known, gone, scanned.files)
 
         pending: list[_Pending] = []
         total = len(scanned.files)
         for number, file in enumerate(scanned.files, start=1):
             try:
-                self._index_file(source_id, file, known.get(file.uri), report, pending)
+                self._index_file(source_id, file, known.get(file.uri), report, pending, donors)
             except NotTextError:
                 report.unsupported += 1
             except (ChunkingError, OSError) as error:
@@ -123,8 +124,31 @@ class Indexer:
             if on_progress is not None:
                 on_progress(number, total)
         self._flush(pending, report)
+        # After the files above, so a moved file's old chunks were still there to take vectors from.
+        report.removed = self._store.remove_files(source_id, gone)
         self._store.mark_scanned(source_id, self._clock())
         return report
+
+    @staticmethod
+    def _donors(
+        known: dict[str, FileRecord], gone: list[str], scanned: list[ScannedFile]
+    ) -> dict[str, str]:
+        """Content hash -> uri of an indexed file whose chunks are safe to take vectors from.
+
+        That is one that vanished (moved or renamed) or is still on disk unchanged. A file edited by
+        this very sync is not: its old vectors are about to be replaced."""
+        same = {
+            f.uri
+            for f in scanned
+            if (record := known.get(f.uri))
+            and (record.size, record.mtime_ns) == (f.size, f.mtime_ns)
+        }
+        usable = same | set(gone)
+        donors: dict[str, str] = {}
+        for uri in sorted(known):
+            if uri in usable:
+                donors.setdefault(known[uri].sha256, uri)
+        return donors
 
     # --- per file -----------------------------------------------------------------------
 
@@ -135,6 +159,7 @@ class Indexer:
         known: FileRecord | None,
         report: SyncReport,
         pending: list[_Pending],
+        donors: dict[str, str],
     ) -> None:
         if known is not None and known.size == file.size and known.mtime_ns == file.mtime_ns:
             report.unchanged += 1
@@ -147,15 +172,16 @@ class Indexer:
             report.unchanged += 1
             return
         is_new = known is None
+        donor = donors.get(digest) if is_new else None  # moved, renamed or copied: same bytes
         if file.route in _TEXT_ROUTES:
             chunks = chunk_text_document(
                 source_id, file.uri, file.route, data, file.mtime_ns, self._settings
             )
             pending.append(_Pending(record, chunks, is_new))
         elif file.route is Route.PDF:
-            self._index_pdf(record, data, file.mtime_ns, is_new, report)
+            self._index_pdf(record, data, file.mtime_ns, is_new, report, donor)
         else:
-            self._index_image(record, data, file.mtime_ns, is_new, report)
+            self._index_image(record, data, file.mtime_ns, is_new, report, donor)
 
     def _flush(self, pending: list[_Pending], report: SyncReport) -> None:
         """Embed every pending text chunk in one call, then store each file atomically."""
@@ -193,7 +219,13 @@ class Indexer:
             report.updated += 1
 
     def _index_pdf(
-        self, record: FileRecord, data: bytes, mtime_ns: int, is_new: bool, report: SyncReport
+        self,
+        record: FileRecord,
+        data: bytes,
+        mtime_ns: int,
+        is_new: bool,
+        report: SyncReport,
+        donor: str | None,
     ) -> None:
         with PdfPages(data) as pdf:
             text_chunks = pdf_text_chunks(
@@ -205,14 +237,27 @@ class Indexer:
             text_vectors = self._embedder.embed_documents(
                 [c.text for c in text_chunks], [_title(c.uri) for c in text_chunks]
             )
+            # A page's vector comes from its pixels alone, so an identical file's pages are reused;
+            # the text chunks carry the path and are cheap, so they are embedded again.
+            reuse = (
+                self._store.vectors_of(record.source_id, donor, (ChunkKind.PDF_PAGE,))
+                if donor
+                else {}
+            )
             page_vectors = np.zeros((len(page_chunks), self._embedder.dim), dtype=np.float32)
+            missing = []
+            for index, chunk in enumerate(page_chunks):
+                if chunk.locator in reuse:
+                    page_vectors[index] = reuse[chunk.locator]
+                else:
+                    missing.append(index)
+            if reuse:
+                report.reused += 1
             step = self._settings.image_batch_size
-            for start in range(0, len(page_chunks), step):
-                stop = min(start + step, len(page_chunks))
-                images = [
-                    pdf.render(i, self._settings.pdf_render_scale) for i in range(start, stop)
-                ]
-                page_vectors[start:stop] = self._embedder.embed_images(images)
+            for start in range(0, len(missing), step):
+                batch = missing[start : start + step]
+                images = [pdf.render(i, self._settings.pdf_render_scale) for i in batch]
+                page_vectors[batch] = self._embedder.embed_images(images)
         self._commit(
             record,
             text_chunks + page_chunks,
@@ -222,8 +267,21 @@ class Indexer:
         )
 
     def _index_image(
-        self, record: FileRecord, data: bytes, mtime_ns: int, is_new: bool, report: SyncReport
+        self,
+        record: FileRecord,
+        data: bytes,
+        mtime_ns: int,
+        is_new: bool,
+        report: SyncReport,
+        donor: str | None,
     ) -> None:
-        image = load_image(data, self._settings.image_max_side)
         chunk = image_chunk(record.source_id, record.uri, record.sha256, mtime_ns)
+        stored = (
+            self._store.vectors_of(record.source_id, donor, (ChunkKind.IMAGE,)) if donor else {}
+        )
+        if chunk.locator in stored:  # the same picture: its vector is already known
+            report.reused += 1
+            self._commit(record, [chunk], stored[chunk.locator][None, :], is_new, report)
+            return
+        image = load_image(data, self._settings.image_max_side)
         self._commit(record, [chunk], self._embedder.embed_images([image]), is_new, report)

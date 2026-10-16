@@ -11,6 +11,7 @@
   import Icon from "./lib/Icon.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
+  import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
   import { flatten, openLine, pathOf, step, type Item } from "./lib/flatten";
 
@@ -29,7 +30,9 @@
   let expanded = $state(new Set<string>());
   let problem = $state("");
   let active = $state(false); // the panel has the keyboard
+  let metal = $state(0); // which of METALS the ring is made of; changes whenever the panel closes
   let pending = $state(false); // a search is in flight
+  let typing = $state(false); // a key was pressed in the last moment
   let input: HTMLInputElement;
   let content: HTMLElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -57,7 +60,8 @@
     } else if (results?.State === "unavailable" || results?.State === "error") {
       out.push({ text: results.Message, problem: true });
     } else if (results) {
-      if (items.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
+      if (items.length === 0 && results.Message) out.push({ text: results.Message, problem: false });
+      else if (items.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
       else if (!results.Confident) out.push({ text: "No strong match. The closest files:", problem: false });
     }
     return out;
@@ -98,10 +102,21 @@
     refreshInfo();
   }
 
+  // The panel lost the keyboard, which is also when it closes: choose the next metal now, unseen.
+  function onBlur() {
+    active = false;
+    metal = nextMetal(metal);
+  }
+
   const refreshInfo = () => Status.Info().then((i) => (info = i));
+
+  let typingTimer: ReturnType<typeof setTimeout> | undefined;
 
   function onInput() {
     problem = "";
+    typing = true; // the ring flows faster while you type, and settles a moment after you stop
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => (typing = false), 700);
     clearTimeout(timer);
     if (query.trim() === "") {
       // Nothing to search for: drop the old answer at once, so the card closes back into the capsule
@@ -215,11 +230,11 @@
   });
 </script>
 
-<svelte:window onfocus={takeFocus} onblur={() => (active = false)} onkeydown={onKeydown} />
+<svelte:window onfocus={takeFocus} onblur={onBlur} onkeydown={onKeydown} />
 
 <main>
   <div class="card" style:height="{cardHeight}px">
-    <LiquidRing speed={pending ? 1.1 : 0.35} />
+    <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={METALS[metal]} />
     <div class="surface">
       <div class="content" bind:this={content}>
         <header class="bar">
@@ -240,6 +255,8 @@
           />
           {#if waiting}
             <span class="status" transition:fade={{ duration: 160 }}><Loader text={waiting} /></span>
+          {:else if results?.Scope}
+            <span class="status scope">{results.Scope}</span>
           {/if}
         </header>
 
@@ -297,9 +314,7 @@
     border-radius: var(--radius);
     /* The ring's fallback and its first frame: static chrome, in case the shader cannot run. */
     background: linear-gradient(135deg, #565963, #e4e8f0 45%, #565963 70%, #c9ced9);
-    box-shadow:
-      0 16px 36px rgba(0, 0, 0, 0.5),
-      0 2px 8px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--shadow);
     /* Height is animated on purpose: one small element, its content is absolutely positioned inside,
        and it only runs for 240 ms when results appear or go. */
     transition: height 240ms var(--ease);
@@ -336,8 +351,8 @@
     outline: 0;
     background: transparent;
     color: var(--text);
-    font: 440 20px/1 var(--sans);
-    letter-spacing: -0.012em;
+    font: 400 19px/1 var(--display);
+    letter-spacing: -0.01em;
   }
   input::placeholder {
     color: var(--text-3);
@@ -345,6 +360,13 @@
   .status {
     flex: none;
     margin-left: auto;
+  }
+  .scope {
+    padding: 3px 11px;
+    border-radius: 999px;
+    background: var(--tile);
+    color: var(--text-2);
+    font: 500 11.5px var(--mono);
   }
   .panel {
     border-top: 1px solid var(--line);

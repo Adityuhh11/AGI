@@ -16,8 +16,9 @@ from agi_memory.types import KeywordHit, VectorHit
 
 KEYWORD_WEIGHT = 0.02
 PATH_WEIGHT = 0.2
-# Below this cosine the best hit is treated as noise. Measured on the sample corpus: on-topic
-# queries had a top cosine of at least 0.674, off-topic ones at most 0.666 (a thin margin).
+# Where "a real match" starts until the index has measured its own noise ceiling
+# (`search/calibration.py`): on the sample corpus on-topic queries had a top cosine of at least
+# 0.674, off-topic ones at most 0.666. It does not hold on a bigger index, hence the calibration.
 CONFIDENT_COSINE = 0.65
 
 

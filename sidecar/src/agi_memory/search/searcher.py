@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agi_memory.embedding.base import Embedder
+from agi_memory.search.calibration import noise_ceiling
 from agi_memory.search.fusion import CONFIDENT_COSINE, blend
 from agi_memory.store import FlatStore
 from agi_memory.types import Chunk, FileHit, FileSearchResult, Filters, SearchHit, SearchResult
@@ -32,6 +33,20 @@ class Searcher:
         self._embedder = embedder
         self._pool = pool
         self._confident_cosine = confident_cosine
+
+    @property
+    def confident_cosine(self) -> float:
+        """The best cosine from which a hit counts as a real match."""
+        return self._confident_cosine
+
+    def calibrate(self) -> float | None:
+        """Measure the index's noise ceiling and make it the confidence threshold; call again when
+        the index has changed a lot. Returns the ceiling, or None (threshold unchanged) when the
+        index is too small to measure."""
+        ceiling = noise_ceiling(self._store, self._embedder)
+        if ceiling is not None:
+            self._confident_cosine = ceiling
+        return ceiling
 
     def search(self, query: str, k: int = 10, filters: Filters | None = None) -> SearchResult:
         """Top-`k` chunks for `query`, best first; no hits for a blank query or `k <= 0`.

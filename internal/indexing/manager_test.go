@@ -3,10 +3,13 @@ package indexing
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
+	"agi/internal/config"
 	"agi/internal/sidecar"
 )
 
@@ -84,7 +87,8 @@ func runOnce(t *testing.T, engine Engine, roots []string) (*Manager, bool) {
 	t.Helper()
 	m := New(engine, roots, func() bool { return true }, nil)
 	m.poll = time.Millisecond
-	return m, m.cycle(context.Background())
+	m.deleted = func(string) bool { return false } // the fake roots do not exist on disk
+	return m, m.cycle(context.Background(), nil)
 }
 
 func TestCycleSyncsRootsInOrderAndTotalsThem(t *testing.T) {
@@ -111,6 +115,47 @@ func TestCycleForgetsSourcesThatAreNoLongerConfigured(t *testing.T) {
 	}
 	if got := m.Status().Chunks; got != 10 {
 		t.Errorf("totals include the forgotten source: %d chunks", got)
+	}
+}
+
+func TestARootThatWasDeletedIsForgottenAndNotSynced(t *testing.T) {
+	fake := newFake(sidecar.Source{ID: config.SourceID(`C:\gone`), Root: `C:\gone`, Files: 9, Chunks: 99})
+	m := New(fake, []string{`C:\gone`, `C:\kept`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(root string) bool { return root == `C:\gone` }
+	if !m.cycle(context.Background(), nil) {
+		t.Fatalf("cycle failed: %v", m.Status())
+	}
+	if len(fake.deleted) != 1 || fake.deleted[0] != config.SourceID(`C:\gone`) {
+		t.Errorf("deleted sources %v, want the removed folder's", fake.deleted)
+	}
+	if len(fake.submitted) != 1 || fake.submitted[0] != `C:\kept` {
+		t.Errorf("submitted %v, want only the kept root", fake.submitted)
+	}
+	if got := m.Status().Chunks; got != 10 {
+		t.Errorf("totals count %d chunks, want the kept root's 10", got)
+	}
+}
+
+func TestWasDeleted(t *testing.T) {
+	dir := t.TempDir()
+	here := filepath.Join(dir, "here")
+	if err := os.Mkdir(here, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name string
+		root string
+		want bool
+	}{
+		{"a folder that exists", here, false},
+		{"a folder removed from a disk that is still there", filepath.Join(dir, "removed"), true},
+		{"a folder whose parent is missing too (an unplugged drive)", filepath.Join(dir, "no-drive", "removed"), false},
+	}
+	for _, tt := range tests {
+		if got := wasDeleted(tt.root); got != tt.want {
+			t.Errorf("%s: got %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }
 
@@ -142,6 +187,7 @@ func TestRunSyncsAgainOnRescan(t *testing.T) {
 	fake := newFake()
 	m := New(fake, []string{`C:\a`}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { m.Run(ctx); close(done) }()
@@ -184,4 +230,78 @@ func waitFor(t *testing.T, condition func() bool) {
 		}
 	}
 	t.Fatal(errors.New("condition not met in time"))
+}
+
+func TestAChangedFolderIsSyncedAloneAndAnUnchangedOneIsLeftBe(t *testing.T) {
+	fake := newFake()
+	roots := []string{`C:\a`, `C:\b`, `C:\c`}
+	m := New(fake, roots, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { m.Run(ctx); close(done) }()
+	defer func() { cancel(); <-done }()
+
+	submitted := func() []string {
+		fake.mu.Lock()
+		defer fake.mu.Unlock()
+		return append([]string(nil), fake.submitted...)
+	}
+	waitFor(t, func() bool { return len(submitted()) == 3 }) // the first, full sync
+
+	m.Changed(`C:\b`)
+	waitFor(t, func() bool { return len(submitted()) == 4 })
+	m.Changed(`C:\b`)
+	m.Changed(`C:\c`)
+	waitFor(t, func() bool { return len(submitted()) >= 5 })
+	time.Sleep(50 * time.Millisecond) // nothing else may follow
+	got := submitted()
+	if got[3] != `C:\b` || len(got) > 6 {
+		t.Fatalf("submitted %v: after the full sync only the changed roots may be synced", got)
+	}
+	for _, root := range got[3:] {
+		if root == `C:\a` {
+			t.Fatalf("the unchanged root was synced again: %v", got)
+		}
+	}
+	if s := m.Status(); s.State != UpToDate {
+		t.Errorf("status after a background sync = %+v", s)
+	}
+}
+
+func TestABackgroundSyncDoesNotFlashWaitingForTheEngine(t *testing.T) {
+	fake := newFake()
+	var states []State
+	var mu sync.Mutex
+	m := New(fake, []string{`C:\a`}, func() bool { return true }, func(s Status) {
+		mu.Lock()
+		defer mu.Unlock()
+		states = append(states, s.State)
+	})
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	m.cycle(context.Background(), nil) // the first sync, once the engine is ready
+	mu.Lock()
+	states = nil
+	mu.Unlock()
+	m.cycle(context.Background(), map[string]bool{`C:\a`: true})
+	mu.Lock()
+	defer mu.Unlock()
+	for _, s := range states {
+		if s == Waiting {
+			t.Fatalf("states during a background sync: %v", states)
+		}
+	}
+}
+
+func TestAFullSyncCoversWhatWasReportedBeforeIt(t *testing.T) {
+	m := New(newFake(), []string{`C:\a`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	m.Changed(`C:\a`)
+	m.cycle(context.Background(), nil)
+	if left := m.takeDirty(); len(left) != 0 {
+		t.Errorf("a full sync left %v marked as changed", left)
+	}
 }

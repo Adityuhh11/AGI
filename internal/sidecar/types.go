@@ -46,6 +46,7 @@ type Report struct {
 	Updated       int         `json:"updated"`
 	Unchanged     int         `json:"unchanged"`
 	Removed       int         `json:"removed"`
+	Reused        int         `json:"reused"`
 	Denied        int         `json:"denied"`
 	Ignored       int         `json:"ignored"`
 	Unsupported   int         `json:"unsupported"`
