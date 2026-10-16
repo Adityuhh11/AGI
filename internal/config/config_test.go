@@ -93,6 +93,13 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"duplicate root", "roots = ['C:\\Docs', 'c:\\docs\\']\n", "repeats"},
 		{"relative exclude", "roots = ['C:\\Docs']\nexclude = ['vendor']\n", "must be an absolute path"},
 		{"exclude outside every root", "roots = ['C:\\Docs']\nexclude = ['D:\\Other']\n", "not inside any root"},
+		{"search_url without a place for the text", "search_url = 'https://example.com/'\n", "must contain {q}"},
+		{"search_url that is not a web address", "search_url = 'example.com/?q={q}'\n", "must start with https://"},
+		{"quicklink without a trigger", "[[quicklink]]\ntrigger = ''\ntitle = 'x'\nurl = 'https://x/?q={q}'\n", "one word"},
+		{"quicklink with a two-word trigger", "[[quicklink]]\ntrigger = 'a b'\ntitle = 'x'\nurl = 'https://x/?q={q}'\n", "one word"},
+		{"quicklink without a title", "[[quicklink]]\ntrigger = 'gh'\nurl = 'https://x/?q={q}'\n", "needs a title"},
+		{"quicklink twice", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/?q={q}'\n[[quicklink]]\ntrigger = 'GH'\ntitle = 'b'\nurl = 'https://y/?q={q}'\n", "used twice"},
+		{"quicklink with two places for the text", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/{q}/{q}'\n", "once"},
 		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
 	}
 	for _, tt := range tests {
@@ -193,5 +200,17 @@ func TestLoadReadsExcludedFolders(t *testing.T) {
 	}
 	if len(got.Exclude) != 1 || got.Exclude[0] != `C:\Docs\vendor` {
 		t.Fatalf("exclude = %v", got.Exclude)
+	}
+}
+
+func TestLoadReadsTheBrowserAndQuicklinks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "browser = 'zen'\nsearch_url = 'https://duckduckgo.com/?q={q}'\n\n[[quicklink]]\ntrigger = 'gh'\ntitle = 'GitHub'\nurl = 'https://github.com/search?q={q}'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Browser != "zen" || got.SearchURL != "https://duckduckgo.com/?q={q}" || len(got.Quicklinks) != 1 || got.Quicklinks[0].Trigger != "gh" {
+		t.Fatalf("got %+v", got)
 	}
 }
