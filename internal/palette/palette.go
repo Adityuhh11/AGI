@@ -1,5 +1,5 @@
 // Package palette answers what is typed in the bar with the things that can be answered from memory in
-// microseconds (applications for now), decides which of them are worth showing, and carries out what
+// microseconds (applications, quicklinks and a web search), decides which of them are worth showing, and carries out what
 // the user does with one. Files are not here: they come from the memory engine, a moment later, through
 // internal/search, and the page puts the two lists together.
 //
@@ -16,7 +16,9 @@ import (
 	"unicode/utf8"
 
 	"agi/internal/apps"
+	"agi/internal/config"
 	"agi/internal/state"
+	"agi/internal/web"
 )
 
 // The modes of the bar: what a search covers. The page cycles them with Tab; a prefix typed in the text
@@ -25,6 +27,7 @@ const (
 	ModeAll   = "all"
 	ModeApps  = "apps"
 	ModeFiles = "files"
+	ModeWeb   = "web"
 )
 
 const (
@@ -37,12 +40,26 @@ const (
 	shortcutLength = 5
 	// appsModeRows is how many matches the Apps mode lists, weak ones included.
 	appsModeRows = 8
+	// webMinLength is the shortest text that offers a web search: one letter is not a question.
+	webMinLength = 2
 )
+
+// Browser is what the bar needs of the web package; *web.Web satisfies it.
+type Browser interface {
+	Search(text string) error
+	Open(address string) error
+	// Quicklink recognises a trigger word followed by text.
+	Quicklink(typed string) (config.Quicklink, string, bool)
+	// Find returns the quicklink with a trigger.
+	Find(trigger string) (config.Quicklink, bool)
+}
 
 // Item is one row the bar can show.
 type Item struct {
 	// ID names the thing: the kind, a colon and the kind's own id.
-	ID       string
+	ID string
+	// Kind is "app", "quicklink" or "web". The page lists quicklinks first, then apps and files, and
+	// the web search last, as the fallback.
 	Kind     string
 	Title    string
 	Subtitle string
@@ -65,14 +82,15 @@ type Answer struct {
 type Service struct {
 	catalog *apps.Catalog
 	history *state.Store
+	browser Browser
 	dismiss func()
 	now     func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the
 // keyboard back (the program started owns it now).
-func New(catalog *apps.Catalog, history *state.Store, dismiss func()) *Service {
-	return &Service{catalog: catalog, history: history, dismiss: dismiss, now: time.Now}
+func New(catalog *apps.Catalog, history *state.Store, browser Browser, dismiss func()) *Service {
+	return &Service{catalog: catalog, history: history, browser: browser, dismiss: dismiss, now: time.Now}
 }
 
 // Query answers raw (what is in the input) in the mode the page is in.
@@ -82,21 +100,42 @@ func (s *Service) Query(raw, mode string) Answer {
 	if text == "" || mode == ModeFiles {
 		return answer
 	}
-	matches := s.catalog.Index.Query(text, appsModeRows+strongRows, s.history, s.now())
-	for _, m := range pick(matches, mode, text) {
-		answer.Items = append(answer.Items, s.item(m.App))
+	if mode == ModeAll || mode == ModeWeb {
+		if link, rest, ok := s.browser.Quicklink(text); ok {
+			answer.Items = append(answer.Items, quicklinkItem(link, rest))
+		}
+	}
+	if mode != ModeWeb {
+		matches := s.catalog.Index.Query(text, appsModeRows+strongRows, s.history, s.now())
+		for _, m := range pick(matches, mode, text) {
+			answer.Items = append(answer.Items, s.item(m.App))
+		}
+	}
+	if (mode == ModeAll || mode == ModeWeb) && utf8.RuneCountInString(text) >= webMinLength {
+		answer.Items = append(answer.Items, Item{ID: "web:" + text, Kind: "web", Title: "Search the web for “" + text + "”", Subtitle: "Web"})
 	}
 	return answer
 }
 
-// parse takes a mode prefix off the text. `app:` and `apps:` choose the Apps mode whatever the chip says.
+func quicklinkItem(link config.Quicklink, text string) Item {
+	return Item{ID: "quicklink:" + link.Trigger + ":" + text, Kind: "quicklink", Title: link.Title + ": " + text, Subtitle: "Quicklink"}
+}
+
+// parse takes a mode prefix off the text, whatever the chip says: `app:` and `apps:` choose the Apps
+// mode, `web:` and a leading `?` the Web mode.
 func parse(raw, mode string) (string, string) {
 	if mode == "" {
 		mode = ModeAll
 	}
+	if rest, ok := strings.CutPrefix(strings.TrimSpace(raw), "?"); ok {
+		return ModeWeb, strings.TrimSpace(rest)
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
-		if n := strings.ToLower(strings.TrimSpace(name)); n == "app" || n == "apps" {
+		switch strings.ToLower(strings.TrimSpace(name)) {
+		case "app", "apps":
 			return ModeApps, strings.TrimSpace(rest)
+		case "web":
+			return ModeWeb, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -140,6 +179,17 @@ func (s *Service) item(app apps.App) Item {
 // Do carries out an action on a row: "open", or one of its Actions. typed is what was in the input, so a
 // launch teaches the bar what you reach for after typing that.
 func (s *Service) Do(id, action, typed string) error {
+	if text, ok := strings.CutPrefix(id, "web:"); ok {
+		return s.browse(action, func() error { return s.browser.Search(text) })
+	}
+	if rest, ok := strings.CutPrefix(id, "quicklink:"); ok {
+		trigger, text, _ := strings.Cut(rest, ":")
+		link, found := s.browser.Find(trigger)
+		if !found {
+			return fmt.Errorf("there is no quicklink %q any more", trigger)
+		}
+		return s.browse(action, func() error { return s.browser.Open(web.Expand(link.URL, text)) })
+	}
 	appID, ok := strings.CutPrefix(id, "app:")
 	if !ok {
 		return fmt.Errorf("do not know how to run %q", id)
@@ -171,6 +221,18 @@ func (s *Service) Do(id, action, typed string) error {
 		if err := s.history.Record(id, typed, s.now()); err != nil {
 			log.Printf("palette: could not remember the launch: %v", err)
 		}
+	}
+	s.dismiss()
+	return nil
+}
+
+// browse opens something in the browser and closes the bar.
+func (s *Service) browse(action string, open func() error) error {
+	if action != "open" {
+		return fmt.Errorf("a web row can only be opened, not %q", action)
+	}
+	if err := open(); err != nil {
+		return err
 	}
 	s.dismiss()
 	return nil

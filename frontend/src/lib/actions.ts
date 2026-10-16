@@ -15,7 +15,7 @@ const admin: Action = { id: "admin", title: "Run as administrator", keys: "Ctrl+
 
 /** What can be done with a row: a file always offers all of these; an app offers what its entry says it can. */
 export function actionsFor(item: Item): Action[] {
-  if (item.kind !== "app") return [open, reveal, copyPath];
+  if (item.kind !== "entry") return [open, reveal, copyPath];
   const offered = new Set(item.entry.Actions ?? []);
   return [open, ...(offered.has("reveal") ? [reveal] : []), ...(offered.has("admin") ? [admin] : [])];
 }

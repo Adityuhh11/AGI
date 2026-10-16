@@ -11,7 +11,7 @@
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
   import ActionPanel from "./lib/ActionPanel.svelte";
-  import AppRow from "./lib/AppRow.svelte";
+  import EntryRow from "./lib/EntryRow.svelte";
   import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
@@ -43,6 +43,7 @@
   let mode = $state<Mode>("all"); // the chip: what a search covers, cycled with Tab
   let effective = $state<Mode>("all"); // the mode of the text once a prefix such as "app:" is taken off
   let entries = $state<Entry[]>([]); // the instant answers (apps): they arrive in a millisecond, before the files
+  let answerText = $state(""); // the text the instant answer searched, with any prefix taken off
   let instant = 0;
   let input: HTMLInputElement;
   let content: HTMLElement;
@@ -50,10 +51,13 @@
   let token = 0;
 
   // Beside apps, files without a confident match are probably noise, so they are not shown at all.
-  const fileRows = $derived(results && (results.Confident || entries.length === 0) ? (results.Rows ?? []) : []);
+  const local = $derived(entries.filter((e) => e.Kind !== "web")); // answers about your own machine
+  const fileRows = $derived(results && (results.Confident || local.length === 0) ? (results.Rows ?? []) : []);
   const items = $derived<Item[]>(flatten(fileRows, expanded, entries));
   const current = $derived<Item | undefined>(items[selected]);
-  const sections = $derived(entries.length > 0 && fileRows.length > 0); // two kinds of rows: label them
+  const firstApp = $derived(items.findIndex((i) => i.kind === "entry" && i.entry.Kind === "app"));
+  const firstFile = $derived(items.findIndex((i) => i.kind === "row"));
+  const sections = $derived(firstApp >= 0 && firstFile >= 0); // two kinds of rows: label them
   const chip = $derived(results?.Scope || label[effective]);
 
   // What the page waits for, in a word or two, shown as the loader in the bar.
@@ -71,15 +75,15 @@
     if (query.trim() === "") {
       if (info?.Engine === "failed") out.push({ text: info.EngineMessage, problem: true });
     } else if (effective === "apps") {
-      if (entries.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
+      if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
     } else if (results?.State === "warming") {
       out.push({ text: results.Message, problem: false });
     } else if (results?.State === "unavailable" || results?.State === "error") {
       out.push({ text: results.Message, problem: true });
     } else if (results) {
-      if (items.length === 0 && results.Message) out.push({ text: results.Message, problem: false });
-      else if (items.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
-      else if (!results.Confident && entries.length === 0) out.push({ text: "No strong match. The closest files:", problem: false });
+      if (fileRows.length + local.length === 0 && results.Message) out.push({ text: results.Message, problem: false });
+      else if (fileRows.length + local.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
+      else if (!results.Confident && local.length === 0) out.push({ text: "No strong match. The closest files:", problem: false });
     }
     return out;
   });
@@ -147,6 +151,7 @@
       results = null;
       answered = "";
       entries = [];
+      answerText = "";
       effective = mode;
       return;
     }
@@ -154,16 +159,17 @@
   }
 
   // Asks Go for the instant answers (apps), which come back in a millisecond, and then lets the files
-  // follow after the usual pause. In the Apps mode there is no file search.
+  // follow after the usual pause. In the Apps and Web modes there is no file search.
   async function update() {
     const mine = ++instant;
     const answer = await Palette.Query(query, mode);
     if (mine !== instant) return; // a newer keystroke is already being answered
     entries = answer.Items ?? [];
     effective = answer.Mode as Mode;
+    answerText = answer.Text;
     selected = 0;
     clearTimeout(timer);
-    if (effective === "apps") {
+    if (effective === "apps" || effective === "web") {
       token++;
       pending = false;
       results = null;
@@ -208,7 +214,7 @@
     const item = target;
     await closeActions();
     if (!item) return;
-    if (id === "copy-path" && item.kind !== "app") copyPath(item);
+    if (id === "copy-path" && item.kind !== "entry") copyPath(item);
     else if (id !== "copy-path") run(item, id);
   }
 
@@ -219,25 +225,39 @@
 
   /** Whether the row can be revealed or run as administrator (files can be revealed; apps say what they can). */
   function available(item: Item, how: "reveal" | "admin"): boolean {
-    if (item.kind !== "app") return how === "reveal";
+    if (item.kind !== "entry") return how === "reveal";
     return item.entry.Actions?.includes(how) ?? false;
+  }
+
+  /** Runs something the user asked for; if it fails the reason is shown above the results. */
+  async function attempt(action: () => Promise<unknown>, onFail?: () => void) {
+    try {
+      await action();
+    } catch (error) {
+      problem = String((error as Error)?.message ?? error);
+      onFail?.();
+    }
   }
 
   async function run(item: Item | undefined, how: "open" | "reveal" | "admin" = "open") {
     if (!item) return;
     if (how !== "open" && !available(item, how)) return;
-    try {
-      if (item.kind === "app") await Palette.Do(item.entry.ID, how, query);
-      else if (how === "reveal") await Files.Reveal(pathOf(item));
-      else await Files.Open(pathOf(item), openLine(item));
-    } catch (error) {
-      problem = String((error as Error)?.message ?? error);
-      if (item.kind === "app") update(); // an app that is gone has left the list
-    }
+    if (item.kind === "entry") {
+      const id = item.entry.ID;
+      // An app that is gone has left the list, so the rows are asked for again.
+      await attempt(() => Palette.Do(id, how, query), update);
+    } else if (how === "reveal") await attempt(() => Files.Reveal(pathOf(item)));
+    else await attempt(() => Files.Open(pathOf(item), openLine(item)));
+  }
+
+  /** Alt+Enter: search the web for what is typed, from any mode. */
+  function searchTheWeb() {
+    const text = (answerText || query).trim();
+    if (text) attempt(() => Palette.Do("web:" + text, "open", query));
   }
 
   function toggle(open: boolean) {
-    const row = current && current.kind !== "app" ? current.row : undefined;
+    const row = current && current.kind !== "entry" ? current.row : undefined;
     if (!row || (row.Matches?.length ?? 0) < 2) return;
     const next = new Set(expanded);
     if (open) next.add(row.Path);
@@ -279,7 +299,8 @@
         break;
       case "Enter":
         event.preventDefault();
-        run(current, event.ctrlKey && event.shiftKey ? "admin" : event.ctrlKey ? "reveal" : "open");
+        if (event.altKey) searchTheWeb();
+        else run(current, event.ctrlKey && event.shiftKey ? "admin" : event.ctrlKey ? "reveal" : "open");
         break;
       case "ArrowRight":
         if (atEndOfText() && current) {
@@ -288,14 +309,14 @@
         }
         break;
       case "ArrowLeft":
-        if (atEndOfText() && current && current.kind !== "app" && (current.kind === "match" || expanded.has(current.row.Path))) {
+        if (atEndOfText() && current && current.kind !== "entry" && (current.kind === "match" || expanded.has(current.row.Path))) {
           event.preventDefault();
           toggle(false);
         }
         break;
       case "C":
       case "c":
-        if (event.ctrlKey && event.shiftKey && current && current.kind !== "app") {
+        if (event.ctrlKey && event.shiftKey && current && current.kind !== "entry") {
           event.preventDefault();
           copyPath(current);
         }
@@ -317,7 +338,7 @@
 
   const optionId = (index: number) => `option-${index}`;
   const itemKey = (item: Item) =>
-    item.kind === "app" ? item.entry.ID : item.kind === "row" ? item.row.Path : item.row.Path + "#" + item.match.Line;
+    item.kind === "entry" ? item.entry.ID : item.kind === "row" ? item.row.Path : item.row.Path + "#" + item.match.Line;
 
   onMount(() => {
     takeFocus();
@@ -348,11 +369,11 @@
             bind:value={query}
             oninput={onInput}
             type="text"
-            placeholder="Search apps and files"
+            placeholder="Search apps, files and the web"
             spellcheck="false"
             autocomplete="off"
             role="combobox"
-            aria-label="Search apps and files"
+            aria-label="Search apps, files and the web"
             aria-expanded={showPanel}
             aria-controls="results"
             aria-activedescendant={current ? optionId(selected) : undefined}
@@ -372,10 +393,10 @@
             {#if items.length > 0}
               <div class="results" class:stale={pending} id="results" role="listbox" aria-label="Results">
                 {#each items as item, index (itemKey(item))}
-                  {#if sections && index === 0}<h3 class="section">Apps</h3>{/if}
-                  {#if sections && index === entries.length}<h3 class="section">Files</h3>{/if}
-                  {#if item.kind === "app"}
-                    <AppRow
+                  {#if sections && index === firstApp}<h3 class="section">Apps</h3>{/if}
+                  {#if sections && index === firstFile}<h3 class="section">Files</h3>{/if}
+                  {#if item.kind === "entry"}
+                    <EntryRow
                       id={optionId(index)}
                       entry={item.entry}
                       selected={index === selected}
@@ -397,14 +418,14 @@
                 {/each}
               </div>
               <footer class="hints">
-                <span><kbd>↑↓</kbd>move</span>
                 <span><kbd>Enter</kbd>open</span>
                 {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
                 <span><kbd>Ctrl+K</kbd>actions</span>
-                {#if current && current.kind !== "app" && current.row.Matches && current.row.Matches.length > 1}
+                {#if current && current.kind !== "entry" && current.row.Matches && current.row.Matches.length > 1}
                   <span><kbd>→</kbd>more</span>
                 {/if}
                 <span><kbd>Tab</kbd>mode</span>
+                <span><kbd>Alt+Enter</kbd>web</span>
                 <span><kbd>Esc</kbd>close</span>
                 {#if info && info.IndexState && info.IndexState !== "uptodate"}
                   <span class="index">{info.IndexText}</span>

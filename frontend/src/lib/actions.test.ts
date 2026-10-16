@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { actionsFor, filterActions } from "./actions.ts";
 
 const file = { kind: "row", row: {} };
-const app = (actions) => ({ kind: "app", entry: { ID: "app:x", Actions: actions } });
+const app = (actions) => ({ kind: "entry", entry: { ID: "app:x", Actions: actions } });
 const fileActions = actionsFor(file);
 
 const ids = (text: string) => filterActions(fileActions, text).map((a) => a.id);

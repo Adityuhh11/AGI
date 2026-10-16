@@ -28,6 +28,7 @@ import (
 	"agi/internal/status"
 	"agi/internal/tray"
 	"agi/internal/watcher"
+	"agi/internal/web"
 )
 
 func main() {
@@ -153,7 +154,7 @@ func run() error {
 		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), roots, engine.Status)),
 		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
-		application.NewService(palette.New(catalog, history, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks), bar.HideForLaunch)),
 	} {
 		app.RegisterService(service)
 	}

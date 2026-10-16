@@ -23,11 +23,11 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div {id} class="item" class:selected role="option" aria-selected={selected} tabindex="-1" onmousemove={onpointer} onclick={onactivate}>
-  <span class="tile">
+  <span class="tile" class:plain={!entry.Icon || iconFailed}>
     {#if entry.Icon && !iconFailed}
       <img src={entry.Icon} alt="" onerror={() => (iconFailed = true)} />
     {:else}
-      <Icon name="app" />
+      <Icon name={entry.Kind === "app" ? "app" : "web"} />
     {/if}
   </span>
   <div class="body">
@@ -59,6 +59,14 @@
     border-radius: 13px;
     color: var(--text-2);
     overflow: hidden;
+  }
+  /* A row without an icon of its own (the web) gets the same tile files have. */
+  .tile.plain {
+    background: var(--tile);
+  }
+  .selected .tile.plain {
+    color: var(--chrome);
+    background: rgba(255, 255, 255, 0.08);
   }
   /* An app's own icon sits on the plate with no tile behind it, a little smaller than the tile. */
   .tile img {

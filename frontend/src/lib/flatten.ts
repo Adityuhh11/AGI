@@ -4,8 +4,8 @@ import type { Match, Row } from "../../bindings/agi/internal/search";
 /** A line of the result list that is a file: the file itself, or (when expanded) one more match inside it. */
 export type FileItem = { kind: "row"; row: Row } | { kind: "match"; row: Row; match: Match };
 
-/** One selectable line of the result list: an app (or other instant answer), a file, or a match inside a file. */
-export type Item = { kind: "app"; entry: Entry } | FileItem;
+/** One selectable line of the result list: an instant answer (an app, a quicklink, the web search), a file, or a match inside a file. */
+export type Item = { kind: "entry"; entry: Entry } | FileItem;
 
 const matchesOf = (row: Row): Match[] => row.Matches ?? [];
 
@@ -15,17 +15,20 @@ export function moreCount(row: Row): number {
 }
 
 /**
- * The visible list: the instant answers (apps) first, then every file, each followed by its further
- * matches if the file is expanded.
+ * The visible list: a quicklink the text triggers, then the apps, then every file (each followed by its
+ * further matches if it is expanded), and the web search last.
  */
 export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Entry[] = []): Item[] {
-  const items: Item[] = entries.map((entry) => ({ kind: "app", entry }));
+  const of = (match: (e: Entry) => boolean): Item[] =>
+    entries.filter(match).map((entry) => ({ kind: "entry", entry }));
+  const items: Item[] = [...of((e) => e.Kind === "quicklink"), ...of((e) => e.Kind !== "quicklink" && e.Kind !== "web")];
   for (const row of rows) {
     items.push({ kind: "row", row });
     if (expanded.has(row.Path)) {
       for (const match of matchesOf(row).slice(1)) items.push({ kind: "match", row, match });
     }
   }
+  items.push(...of((e) => e.Kind === "web")); // the web search is the fallback, last of all
   return items;
 }
 

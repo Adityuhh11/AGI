@@ -29,10 +29,12 @@ weight and brightness); the only colour is the ring, a metal that changes every 
   search is in flight and for 0.7 s after; every change eases in over about 350 ms (a ring that lurches with each keystroke
   looks broken), and the ring starts from rest each time the panel opens. It stops completely, with no animation frames,
   when the panel does not have the keyboard or the user prefers reduced motion. Rendered at 1 pixel per CSS pixel, 700k pixels at most.
-- **Rows.** Three kinds share one list: apps (their own icon on the plate, name, "Application" at the right), files (tile, name,
-  folder, the matching chunk) and, when both show, each group under a small label (Apps, Files). Apps come first, so a strong
-  name match is the selected row and Enter launches it. Beside apps, files without a confident match are not shown.
-- **Mode chip.** The chip at the right of the bar says what a search covers: nothing for everything, "Apps" or "Files" when Tab
+- **Rows.** Four kinds share one list, in this order: a quicklink the text triggers (`gh rust`), apps (their own icon on the
+  plate, name, "Application" at the right), files (tile, name, folder, the matching chunk) and last the web search ("Search the
+  web for ...", a globe tile), which is the fallback and always the last row. When apps and files both show, each group has a
+  small label. A strong app match is the selected row, so Enter launches it. Beside apps, files without a confident match
+  are not shown. Alt+Enter searches the web for the text from any row.
+- **Mode chip.** The chip at the right of the bar says what a search covers: nothing for everything, "Apps", "Files" or "Web" when Tab
   chose it (Shift+Tab backwards, a prefix such as `app:` does the same), or the file kind a `code:` prefix chose. Esc leaves the
   mode, then clears the text, then closes; closing the bar always returns to everything.
 - **Action panel.** Ctrl+K opens a small panel above the footer with what can be done with the selected row, filtered by typing,
