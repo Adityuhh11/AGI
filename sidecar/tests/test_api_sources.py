@@ -187,3 +187,26 @@ def test_secret_files_in_an_added_folder_are_counted_not_indexed(api, folder):
     job = index(api, folder)
     assert job["report"]["denied"] == 1
     assert job["report"]["added"] == 3  # the .env file is not among the indexed files
+
+
+def test_listing_sources_shows_what_was_indexed(api, folder):
+    assert api.get("/sources").json() == []
+    index(api, folder)
+    (source,) = api.get("/sources").json()
+    assert (source["id"], source["root"]) == ("repo", str(folder))
+    assert (source["files"], source["chunks"]) == (3, 3)
+    assert source["last_scan_ns"] > 0
+    api.delete("/sources/repo")
+    assert api.get("/sources").json() == []
+
+
+def test_listing_sources_works_while_the_model_is_still_loading(tmp_path):
+    release = threading.Event()
+
+    def slow_load():
+        assert release.wait(10)
+        return FakeEmbedder(DIM)
+
+    with running_app(tmp_path / "idx", slow_load, wait=False) as client:
+        assert client.get("/sources").status_code == 200  # reads the store only, not the model
+        release.set()

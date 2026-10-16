@@ -28,7 +28,15 @@ from agi_memory.store.identifiers import path_words, split_identifiers
 from agi_memory.store.keyword import build_match, search_words
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile, VectorFileError
-from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, KeywordHit, VectorHit
+from agi_memory.types import (
+    Chunk,
+    ChunkKind,
+    FileRecord,
+    Filters,
+    KeywordHit,
+    SourceInfo,
+    VectorHit,
+)
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
@@ -310,6 +318,11 @@ class FlatStore:
         """The folder a source was last indexed from; `None` if it was never registered."""
         with self._lock:
             return self._catalog.source_root(source_id)
+
+    def sources(self) -> list[SourceInfo]:
+        """Every registered source with its file and chunk counts, by id."""
+        with self._lock:
+            return self._catalog.sources()
 
     def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
         with self._lock:

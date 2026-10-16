@@ -19,6 +19,12 @@ uv run python -m agi_memory
 
 - A corrupt or mismatched index (wrong model or dimension) makes the process exit with a traceback instead of
   answering `/health`: the launcher should treat an early exit as fatal and offer a reindex.
+- The Go launcher does not use `uv run`: it starts `sidecar\.venv\Scripts\python.exe -m agi_memory` directly (so there is
+  no wrapper process to kill and nothing syncs packages at start) and sets `HF_HUB_OFFLINE=1`, `PYTHONUTF8=1` and
+  `PYTHONUNBUFFERED=1`. Offline mode stops the model loader from contacting the Hugging Face hub at every start (it is
+  also faster: about 11 s against 19 s to ready here); the model must already be in the local cache from the first run.
+  Measured start: port open after about 1.6 s, model ready after 11-19 s, and one cold start of about 110 s after a fresh
+  build, so a client must not assume a fixed bound.
 - Bad configuration exits with status 2 and one line on stderr, before anything heavy is imported (about a second).
 - The port opens within about a second. The embedding model then loads in the background (10-15 s warm).
   Poll `GET /health` until `ready` is `true`. If `error` is non-null the model failed to load and `ready` will never
@@ -71,6 +77,18 @@ Request: `{"path": "C:\\Users\\me\\project", "source_id": "project"}`. Unknown f
   characters.
 - `503` model not ready.
 
+### `GET /sources`
+
+What is indexed: `200` a list, ordered by `id` (empty when nothing is indexed):
+
+```json
+[{"id": "project", "root": "C:\\Users\\me\\project", "last_scan_ns": 1760000000000000000, "files": 96, "chunks": 431}]
+```
+
+`root` is the folder as it was submitted to `POST /sources`, `last_scan_ns` is `0` until the first sync of that source has
+finished, `files` and `chunks` count what the index holds now. This route only reads the index, so unlike the others it
+answers while the model is still loading.
+
 ### `GET /jobs/{job_id}`
 
 `200`:
@@ -120,7 +138,7 @@ optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_
 `200`:
 
 ```json
-{"hits": [{"id": "...", "uri": "Backend/jwt.js", "kind": "code", "locator": "{\"lines\":[1,40]}",
+{"hits": [{"id": "...", "source_id": "project", "uri": "Backend/jwt.js", "kind": "code", "locator": "{\"lines\":[1,40]}",
            "score": 0.81, "vector_score": 0.79, "keyword_rank": 1, "snippet": "..."}],
  "confident": true}
 ```
@@ -138,11 +156,38 @@ Scores are not calibrated across corpora; use `confident` for "nothing relevant"
 - `422` invalid body (`k` out of range, unknown kind, over-long query, ...).
 - `503` model not ready.
 
+### `POST /search/files`
+
+The same search, shown as files: each file once, in the order of its best chunk, with its best matching chunks. This is
+what a result list wants; `POST /search` is the chunk-level view.
+
+Request: `{"query": "...", "k": 10, "per_file": 3, "filters": {...}}`. `k` is the number of files (1-50, default 10),
+`per_file` the number of chunks kept per file (1-10, default 3); `query` and `filters` are as for `/search`. Unknown fields
+are rejected.
+
+`200`:
+
+```json
+{"files": [{"source_id": "project", "uri": "Backend/jwt.js", "kind": "code", "score": 0.81,
+            "chunks": [{"id": "...", "source_id": "project", "uri": "Backend/jwt.js", "kind": "code",
+                        "locator": "{\"lines\":[1,40]}", "score": 0.81, "vector_score": 0.79,
+                        "keyword_rank": 1, "snippet": "..."}]}],
+ "confident": true}
+```
+
+`score` and `kind` of a file are those of its best chunk (`pdf_text` or `pdf_page` for a PDF), and `chunks` are best first.
+The search ranks at least 60 chunks before grouping, so a file with many matching chunks does not push other files out.
+A file's absolute path is the root of its source plus `uri`; the engine does not know roots' meaning beyond what was
+submitted to `POST /sources`.
+
+- `422` invalid body. `503` model not ready. `confident` has the same meaning as for `/search`.
+
 ## Semantics worth knowing
 
 - One index job at a time. A search issued while indexing is served normally: the job and the search take turns on
-  the one model, so a search waits for at most the embedding batch in flight (about 200 ms for text, longer while a
-  batch of images or PDF pages is being embedded).
+  the one model. Bulk embedding runs in slices of 4 texts or 1 image and queued queries go first, so a search waits for one
+  slice, not for the whole batch: on the sample folder a search during a job takes about 150 ms median and 250-310 ms at the
+  95th percentile (idle: about 80 ms), at a cost of roughly 10-15% indexing time.
 - Posting an already-indexed folder again is an incremental sync: unchanged files are skipped, changed ones
   replaced, deleted ones removed. That is the refresh mechanism; nothing watches the disk.
 - Job history lives in memory (last 50) and is lost on restart. The index itself is durable.

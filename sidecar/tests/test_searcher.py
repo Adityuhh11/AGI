@@ -126,3 +126,54 @@ def test_an_empty_index_and_a_blank_query_are_not_confident(world):
     assert searcher.search("   ").confident is False
     store.delete_source("repo")
     assert searcher.search("token") == SearchResult([], confident=False)
+
+
+@pytest.fixture
+def two_files(tmp_path):
+    embedder = FakeEmbedder(DIM)
+    store = FlatStore(tmp_path / "idx", model_id=embedder.model_id, dim=DIM)
+    root = tmp_path / "src"
+    root.mkdir()
+    (root / "big.txt").write_text("\n".join(f"zebra line {i}" for i in range(130)))
+    (root / "other.txt").write_text("zebra stands alone here")
+    Indexer(store, embedder, Settings(index_dir=tmp_path / "idx")).sync("repo", root)
+    yield Searcher(store, embedder), store
+    store.close()
+
+
+def test_hits_name_their_source(world):
+    searcher, _ = world
+    assert {hit.source_id for hit in searcher.search("token", k=5).hits} == {"repo"}
+
+
+def test_a_file_with_many_matching_chunks_is_one_result_with_its_best_chunks(two_files):
+    searcher, _ = two_files
+    chunks = searcher.search("zebra", k=20).hits
+    assert sum(hit.uri == "big.txt" for hit in chunks) >= 3  # the chunk list is mostly one file
+    result = searcher.search_files("zebra", files=5, per_file=2)
+    assert sorted(f.uri for f in result.files) == ["big.txt", "other.txt"]
+    big = next(f for f in result.files if f.uri == "big.txt")
+    assert len(big.chunks) == 2
+    assert big.score == big.chunks[0].score >= big.chunks[1].score
+    assert {f.source_id for f in result.files} == {"repo"}
+
+
+def test_files_come_in_the_order_of_their_best_chunk(two_files):
+    searcher, _ = two_files
+    flat_order = list(dict.fromkeys(hit.uri for hit in searcher.search("zebra", k=60).hits))
+    assert [f.uri for f in searcher.search_files("zebra").files] == flat_order
+
+
+def test_the_number_of_files_and_chunks_per_file_is_capped(two_files):
+    searcher, _ = two_files
+    assert len(searcher.search_files("zebra", files=1).files) == 1
+    assert all(len(f.chunks) == 1 for f in searcher.search_files("zebra", per_file=1).files)
+
+
+def test_a_file_search_keeps_filters_confidence_and_blank_queries(two_files):
+    searcher, _ = two_files
+    only_other = searcher.search_files("zebra", filters=Filters(uri_prefix="other"))
+    assert [f.uri for f in only_other.files] == ["other.txt"]
+    assert searcher.search_files("other.txt").confident  # a file name is a deliberate match
+    blank = searcher.search_files("   ")
+    assert (blank.files, blank.confident) == ([], False)

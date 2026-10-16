@@ -86,6 +86,7 @@ class SearchHit:
     """One fused search result, with enough detail to show it and to debug the ranking."""
 
     id: str
+    source_id: str
     uri: str
     kind: ChunkKind
     locator: str
@@ -101,3 +102,31 @@ class SearchResult:
 
     hits: list[SearchHit]
     confident: bool  # False: the best hit is probably noise, so "nothing relevant" is the answer
+
+
+@dataclass(frozen=True, slots=True)
+class FileHit:
+    """One file in a file-level search: where it is and the chunks of it that matched best."""
+
+    source_id: str
+    uri: str
+    kind: ChunkKind  # the kind of the best chunk (a PDF is `pdf_text` or `pdf_page`)
+    score: float  # the best chunk's score
+    chunks: list[SearchHit]  # best first; at most `per_file`
+
+
+@dataclass(frozen=True, slots=True)
+class FileSearchResult:
+    files: list[FileHit]
+    confident: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SourceInfo:
+    """One indexed source: where it came from, when it was last scanned and how much it holds."""
+
+    id: str
+    root: str
+    last_scan_ns: int  # 0 until the first sync finishes
+    files: int
+    chunks: int

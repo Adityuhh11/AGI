@@ -3,6 +3,18 @@ import pytest
 from api_helpers import SlowEmbedder, index, running_app
 from helpers import wait_for
 
+HIT_FIELDS = {
+    "id",
+    "source_id",
+    "uri",
+    "kind",
+    "locator",
+    "score",
+    "vector_score",
+    "keyword_rank",
+    "snippet",
+}
+
 
 def search(client, query, **extra):
     return client.post("/search", json={"query": query, **extra})
@@ -17,9 +29,7 @@ def indexed(api, folder):
 def test_a_search_finds_the_right_file_and_returns_the_documented_fields(indexed):
     hits = search(indexed, "how do I refresh the jwt token", k=3).json()["hits"]
     assert hits[0]["uri"] == "Backend/jwt.js"
-    assert set(hits[0]) == {
-        "id", "uri", "kind", "locator", "score", "vector_score", "keyword_rank", "snippet",
-    }  # fmt: skip
+    assert set(hits[0]) == HIT_FIELDS
     assert hits[0]["kind"] == "code"
     assert hits[0]["locator"].startswith('{"lines":[')
     assert "refresh" in hits[0]["snippet"]
@@ -127,3 +137,53 @@ def test_searching_works_while_a_job_is_indexing(tmp_path):
         assert during >= 3
         wait_for(lambda: api.get(f"/jobs/{job_id}").json()["state"] == "done")
         assert len(search(api, "alpha", k=30).json()["hits"]) == 30
+
+
+def search_files(client, query, **extra):
+    return client.post("/search/files", json={"query": query, **extra})
+
+
+def test_file_search_returns_each_file_once_with_its_best_chunks(indexed):
+    body = search_files(indexed, "refresh jwt token", k=5, per_file=2).json()
+    uris = [f["uri"] for f in body["files"]]
+    assert uris[0] == "Backend/jwt.js"
+    assert len(uris) == len(set(uris))
+    first = body["files"][0]
+    assert set(first) == {"source_id", "uri", "kind", "score", "chunks"}
+    assert first["source_id"] == "repo"
+    assert 1 <= len(first["chunks"]) <= 2
+    assert set(first["chunks"][0]) == HIT_FIELDS
+    assert first["score"] == first["chunks"][0]["score"]
+    assert isinstance(body["confident"], bool)
+
+
+def test_chunk_search_hits_name_their_source(indexed):
+    assert search(indexed, "jwt").json()["hits"][0]["source_id"] == "repo"
+
+
+def test_file_search_filters_and_limits(indexed):
+    only_docs = search_files(indexed, "the", filters={"uri_prefix": "notes"}).json()
+    assert [f["uri"] for f in only_docs["files"]] == ["notes.md"]
+    assert len(search_files(indexed, "token fox countries", k=1).json()["files"]) == 1
+
+
+def test_file_search_on_an_empty_index_and_with_a_blank_query(api, indexed):
+    assert search_files(indexed, "   ").json() == {"files": [], "confident": False}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"query": "x" * 4001},
+        {"query": "x", "k": 0},
+        {"query": "x", "k": 51},
+        {"query": "x", "per_file": 0},
+        {"query": "x", "per_file": 11},
+        {"query": 5},
+        {},
+        {"query": "x", "bogus": 1},
+        {"query": "x", "filters": {"kinds": ["bogus"]}},
+    ],
+)
+def test_invalid_file_search_bodies_are_rejected(indexed, body):
+    assert indexed.post("/search/files", json=body).status_code == 422

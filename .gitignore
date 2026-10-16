@@ -5,3 +5,8 @@ Sample Data/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+bin/
+frontend/node_modules/
+frontend/dist/*
+!frontend/dist/.gitkeep
+frontend/bindings/
