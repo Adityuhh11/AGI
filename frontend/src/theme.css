@@ -1,9 +1,8 @@
-/* Platinum black glass: the plate of a black metal card, neutral graphite with a brushed grain and one
-   soft band of light, laid over a blurred picture of what is behind the panel. One metal for the ring.
-   No accent hue; emphasis is weight and brightness. The panel floats over arbitrary content, so the
-   tint keeps the plate dark whatever the glass shows. */
+/* Platinum black: the plate of a black metal card, neutral graphite with a brushed grain and one soft
+   band of light. One metal for the ring. No accent hue; emphasis is weight and brightness. The plate is
+   opaque, so it stays dark whatever is behind the panel. */
 :root {
-  --plate: #0e0e10; /* solid, under the glass: what shows until the picture of the screen arrives */
+  --plate: #0e0e10;
   --lift: rgba(255, 255, 255, 0.075);
   --tile: rgba(255, 255, 255, 0.055);
   --line: rgba(255, 255, 255, 0.07);
@@ -19,12 +18,11 @@
      the margin on every side. */
   --shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
 
-  /* The tint over the glass: graphite lightest at the top left and nearly black at the far corner, with
-     a band of light across it, the way a card catches a lamp. The alphas are how much of the screen
-     shows through; lower them for clearer glass. */
+  /* The finish over the plate: graphite lightest at the top left and nearly black at the far corner,
+     with a band of light across it, the way a card catches a lamp. */
   --plate-tint:
     linear-gradient(112deg, transparent 20%, rgba(255, 255, 255, 0.05) 38%, rgba(255, 255, 255, 0.012) 47%, transparent 58%),
-    radial-gradient(130% 150% at 0% 0%, rgba(62, 62, 68, 0.8) 0%, rgba(26, 26, 29, 0.82) 40%, rgba(12, 12, 14, 0.88) 100%);
+    radial-gradient(130% 150% at 0% 0%, rgb(56, 56, 62) 0%, rgb(24, 24, 27) 40%, rgb(11, 11, 13) 100%);
   /* Brushed metal: fine horizontal streaks, white at a few percent. */
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.7' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0.2 0 0 0 -0.04'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
 

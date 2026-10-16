@@ -19,8 +19,8 @@
   // and a ring that lurches with every keystroke looks broken.
   const EASE_MS = 350;
 
-  // The shader fills the whole card and the stylesheet keeps only the rim (the plate is glass, so it
-  // cannot cover the middle of the shader), which makes a ring of flowing metal.
+  // The shader fills the whole card; the page's own plate covers all but the outer rim, so what shows
+  // is a ring of flowing metal.
 
   const RADIUS = 30; // the card's corner radius in px (--radius in theme.css)
 
@@ -86,31 +86,16 @@
   );
 </script>
 
-<div class="ring" aria-hidden="true"><div class="host" bind:this={host}></div></div>
+<div class="ring" bind:this={host} aria-hidden="true"></div>
 
 <style>
-  /* A border-wide frame: the mask keeps the border box minus the padding box, whose corners are
-     rounded to follow the card. The host reaches out over the border, so the shader draws on the whole
-     card and the frame shows its rim. */
   .ring {
     position: absolute;
     inset: 0;
-    border: var(--ring) solid transparent;
     border-radius: inherit;
-    -webkit-mask:
-      linear-gradient(#000 0 0) padding-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask:
-      linear-gradient(#000 0 0) padding-box,
-      linear-gradient(#000 0 0);
-    mask-composite: exclude;
+    overflow: hidden;
   }
-  .host {
-    position: absolute;
-    inset: calc(-1 * var(--ring));
-  }
-  .host :global(canvas) {
+  .ring :global(canvas) {
     display: block;
     width: 100%;
     height: 100%;

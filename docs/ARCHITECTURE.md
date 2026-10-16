@@ -68,7 +68,7 @@ Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sourc
 ## Invariants
 
 1. **Determinism.** Chunk ids are content-derived; every ranked list breaks ties by chunk id; tests never depend on the GPU or the real model unless marked `model`.
-2. **Privacy.** Nothing leaves the machine. The panel photographs the screen behind it for its glass; the picture lives in memory, is served only to the panel's own page and is dropped when the panel closes. `.env*`, keys and similar files are never read (deny list in `sources/rules.py`).
+2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list in `sources/rules.py`).
 3. **SQLite is the source of truth** for what exists in the index; vector rows without a metadata entry are garbage.
 4. **GPU = models only.** Index and search live on the CPU.
 5. **Embedder output** is float32, shape (n, 768), rows unit length to 1e-5. The GPU runs bf16, the CPU float32;
