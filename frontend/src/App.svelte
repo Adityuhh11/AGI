@@ -32,6 +32,7 @@
   let active = $state(false); // the panel has the keyboard
   let metal = $state(0); // which of METALS the ring is made of; changes whenever the panel closes
   let pending = $state(false); // a search is in flight
+  let typing = $state(false); // a key was pressed in the last moment
   let input: HTMLInputElement;
   let content: HTMLElement;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -109,8 +110,13 @@
 
   const refreshInfo = () => Status.Info().then((i) => (info = i));
 
+  let typingTimer: ReturnType<typeof setTimeout> | undefined;
+
   function onInput() {
     problem = "";
+    typing = true; // the ring flows faster while you type, and settles a moment after you stop
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => (typing = false), 700);
     clearTimeout(timer);
     if (query.trim() === "") {
       // Nothing to search for: drop the old answer at once, so the card closes back into the capsule
@@ -228,7 +234,7 @@
 
 <main>
   <div class="card" style:height="{cardHeight}px">
-    <LiquidRing speed={pending ? 1.1 : 0.35} metal={METALS[metal]} />
+    <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={METALS[metal]} />
     <div class="surface">
       <div class="content" bind:this={content}>
         <header class="bar">
