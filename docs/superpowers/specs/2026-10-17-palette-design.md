@@ -185,26 +185,62 @@ to tagged paths. The model stays that small; automatic tags suggested by a model
 
 ## Decision models (P6, optional)
 
-"Decision" here is routing a loose phrase to the right action, and answering questions. Three tiers, each used only when
-the one before is not enough:
+Researched on 2026-10-17; the field is weeks old (everything below launched in September and October 2026) and mostly
+vendor-reported, so each number is a claim until the spike measures it.
 
-1. **Deterministic** (prefix, fuzzy, quicklink trigger). Handles almost everything, costs nothing.
-2. **Embedding router.** Each command's title, keywords and a sentence of description are embedded at startup by the
-   model already loaded (embeddinggemma); a loose query ("turn off the pc") picks the nearest command above a threshold.
-   No new model, no network, milliseconds, and it needs one small engine route to embed text. Measured the way ranking
-   is: a labelled set of phrasings, accuracy at 1.
-3. **A language model**, only when you ask for it (`Tab` to Ask, an `ai` prefix, or an opt-in fallback): to pull arguments
-   out of a sentence ("remind me in 20 minutes to ..."), to answer a question, to summarise the hits for a file. One small
-   client for the OpenAI-compatible chat API (`internal/llm`: base URL, model, key in Credential Manager), which covers
-   OpenRouter, Groq, DeepSeek, Gemini's compatible endpoint, and a local llama.cpp or Ollama server with the same code.
-   Changing provider is three config lines. Nothing is sent unless you invoke it, the bar says where it is sending, and
-   file contents go only when you choose "Ask about this file". This is the one place the "nothing leaves the machine"
-   rule has an explicit exception, as `AGENTS.md` already allows.
+**What a decision model is.** Not a chat model. You send a `state` (text, JSON, an image) and typed `questions`: a **choice**
+(pick one option from a labelled set), a **score** (place it on ordered levels) or a **noul** (yes/no as a probability). It
+answers with a probability for every option and a calibrated confidence, in typed JSON, in tens to hundreds of
+milliseconds, for about four hundredths of a dollar per million input tokens (output is free). Several questions about the
+same state run in one request. That is exactly "route a loose phrase to the right action, and know when not to": below a
+confidence threshold the bar does nothing clever.
 
-**Spike before choosing a model** (measure, don't guess): about 60 real phrasings of commands and questions in your own
-words, run through tier 2 and through three or four cheap hosted models and one or two local ones (a 4B model at 4-bit
-fits beside the embedder: 1.16 of 6.14 GB is in use today). Record accuracy, p50 and p95 latency, and cost per thousand
-calls, then choose. Prices and model lineups move, so they are looked up at spike time, not assumed here.
+**Who has one.**
+
+| Model | Where | Reported |
+|---|---|---|
+| Jev (TypeSafe AI, first, September 2026) | hosted: `api.typesafe.ai/v1/systemone`, or OpenRouter `POST /api/alpha/decisions` | $0.042 per M input tokens, 70 to 500 ms; Vercel tests it for classification |
+| Clef-flash (Cloudflare, 9B, October 2026) | Workers AI; weights open (Apache 2.0, Hugging Face `Cloudflare/clef-flash`) | $0.038 per M input, 24k context, median 38.8 ms (p95 122 ms) |
+| Clef (Cloudflare, 27B, with vision) | Workers AI; weights open | $0.24 per M input, 64k context, median 209 ms |
+| Microsoft-Decision-1 | Foundry and OpenRouter; weights not released | $0.042 per M input |
+| OpenAI Decisions API | limited preview, no public contract found | not usable yet |
+| Laya | open, reported about 0.8 GB, median 5.8 ms, "trades off quality" | one source only |
+
+AWS, Upstage and Ollama have agreed on the Jev-style request shape (`/v1/systemone`), and the gateways (OpenRouter,
+LiteLLM, TrueFoundry, Requesty) expose it, so one small client covers all of them: switching provider is a base URL and a key.
+Cloudflare says it does not read, store or train on Workers AI requests.
+
+**What people built with them** (all hobby or vendor demos): voice smart-home control at about 185 ms a command; a Home
+Assistant conversation agent that routes each sentence in one request and hands anything below a confidence threshold to a
+fallback agent; a voice-driven browser where the model picks intent and target in about 300 ms per spoken word; agent skill
+and model routing; ticket triage and guardrails. No command palette found: that niche is open.
+
+**Local.** Clef-flash runs under Ollama (0.35.1 and later) but its builds are about 11 GB, a GGUF reported to fit 8 GB, and an
+open Ollama issue reports `non-finite logit` failures; this laptop has 6.14 GB with 1.16 GB in use, so it does not fit
+today. Laya, if it checks out, is small enough. Until then local means the embedding router.
+
+**Tiers.**
+
+1. **Deterministic** (prefix, fuzzy, quicklink trigger): almost everything, costs nothing.
+2. **Embedding router**, local: each command's title, keywords and a sentence are embedded at startup by the model already
+   loaded; a loose phrase picks the nearest above a threshold. No network, milliseconds, one small engine route to embed text.
+3. **A decision model**, hosted, asynchronous and optional: the bar shows tier 1 and 2 results at once, and when the
+   decision model is confident it adds or reorders one row ("Run: Lock", "Open: Calculator") a moment later. One request
+   can carry several questions at once (which kind of thing is this, is it a command, which one, is it a web question, does
+   it name a file kind), and the answers set the mode chip and filters for you. Used on typed text only, never on file
+   contents unless you choose "Ask about this file", and the bar shows when it is calling out. At these prices a hundred
+   calls a day cost less than a cent, and Cloudflare's free allowance may cover it.
+4. **A chat model**, later and separate (summarise hits, answer questions): a different API from decisions, and a later
+   decision.
+
+The client is `internal/decide`: the System One request shape, a provider list in `config.toml` (base URL, model, key in
+Credential Manager), a timeout of a few hundred milliseconds so a slow network never slows the bar, and a confidence floor.
+
+**Spike before choosing** (measure, don't guess): about 60 phrasings of commands and web or file questions in your own words,
+each with the answer you would want, run through the embedding router, Jev (direct and through OpenRouter), Clef-flash and
+Clef on Workers AI, and Microsoft-Decision-1. Record accuracy at 1, whether confidence separates right from wrong (the
+point of these models), p50 and p95 latency from this machine on this network, and cost per thousand calls. Add a local
+candidate if one fits 6 GB. The output goes in `docs/eval/` and the choice becomes an ADR.
 
 ## Order of work and acceptance
 
@@ -218,7 +254,7 @@ Each phase ships on its own, leaves the bar faster or more useful, and is measur
 | P3 | Commands, window switcher, calculator, user commands | lock, quit, switch window and `= 12*1.18` work; destructive ones confirm |
 | P4 | Tags | `Ctrl+T`, `#work` across kinds |
 | P5 | Clipboard history and Zen history/bookmarks, indexed by meaning | "the link about X" finds it; passwords never recorded |
-| P6 | Embedding router, LLM client, model spike | the spike's numbers are in `docs/eval/` and the choice is an ADR |
+| P6 | Embedding router, decision-model client (`internal/decide`), model spike | the spike's numbers are in `docs/eval/` and the choice is an ADR |
 
 This branch covers P0 to P2, the core of "never touch Windows search again" and "browse from the bar". P3 and P4 follow
 on the same branch if the owner wants; P5 and P6 are each their own spec when reached.
@@ -233,5 +269,6 @@ on the same branch if the owner wants; P5 and P6 are each their own spec when re
   history in the index folder only, never anywhere else.
 - **Ranking across kinds.** The "strong match only" rule may hide a weak but wanted app; the threshold is tuned on the
   owner's real queries, as the file ranking was.
-- **Which hosted model.** Open until the spike. The owner mentioned a cheap provider by a name ("Jev") that is not one
-  recognised here; the config takes any OpenAI-compatible endpoint, so it only needs the base URL and a key.
+- **Which decision model.** Open until the spike: Jev, Clef-flash and Microsoft-Decision-1 are all about four hundredths of a
+  dollar per million input tokens, so quality on your phrasings and the latency from here decide it. All of it is weeks old and
+  vendor-reported.
