@@ -40,6 +40,7 @@ from agi_memory.types import (
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
+_MMAP_BYTES = 1 << 30  # how much of meta.db SQLite may map (a 44,000-chunk index is 160 MB)
 # A path needle found in more chunks or files than this (`txt`, `.js`, `src`) is a common
 # fragment, not a file name: it carries no signal and scoring every match is slow at scale.
 _MAX_PATH_CHUNKS = 1000
@@ -120,6 +121,9 @@ class FlatStore:
     def _init_db(self, model_id: str, dim: int) -> None:
         self._db.execute("PRAGMA journal_mode=WAL")
         self._db.execute("PRAGMA synchronous=FULL")
+        # Reads go through the operating system's file cache instead of one read call per page (a
+        # keyword search joins every match to its chunk row, one page each); see `warm`.
+        self._db.execute(f"PRAGMA mmap_size={_MMAP_BYTES}")
         has_meta = self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'meta'").fetchone()
         stored = (
             dict(self._db.execute("SELECT key, value FROM meta").fetchall()) if has_meta else {}
@@ -502,6 +506,17 @@ class FlatStore:
         if len(rows) > _MAX_PATH_CHUNKS or len({uri for _, uri in rows}) > _MAX_PATH_FILES:
             return []
         return [KeywordHit(id=chunk_id, score=1.0) for chunk_id in sorted(i for i, _ in rows)]
+
+    def warm(self) -> None:
+        """Read every chunk row once, so the first keyword searches do not pay for it.
+
+        A keyword search joins each match to its chunk row, and rows are large (the text), so about
+        one page per match. Cold, `binary search` took 98 ms and then 12 ms on every repeat; after
+        this scan (about 200 ms for 44,000 chunks) the first use takes 7 ms. Measured in
+        docs/eval/2026-10-16-query-latency.md.
+        """
+        with self._lock:
+            self._db.execute("SELECT SUM(LENGTH(locator)) FROM chunks").fetchone()
 
     def close(self) -> None:
         """Release the database and the vector file (both are removable afterwards)."""

@@ -86,3 +86,27 @@ def test_cpu_and_gpu_vectors_agree(embedder, settings):
     cosine = np.sum(embedder.embed_documents(DOCS) * cpu.embed_documents(DOCS), axis=1)
     print(f"min GPU(bf16) vs CPU(fp32) cosine: {cosine.min():.4f}")  # recorded in docs/STATUS.md
     assert cosine.min() > 0.98
+
+
+def test_the_cuda_graph_gives_the_same_query_vector_as_the_normal_path(embedder):
+    if embedder._graphs is None:
+        pytest.skip("no GPU: queries use the normal path")
+    queries = [
+        "a",
+        "resume",
+        "binary search time complexity",
+        "how do I verify the signature of a refresh token on the server",
+    ]
+    for query in queries:
+        fast = embedder.embed_query(query)
+        normal = embedder._encode([query], prompt_name="SearchQuery", batch_size=1)[0]
+        assert fast.dtype == np.float32
+        np.testing.assert_allclose(np.linalg.norm(fast), 1.0, atol=1e-5)
+        assert float(fast @ normal) > 0.9999, query
+
+
+def test_a_query_too_long_for_any_graph_still_gets_a_vector(embedder):
+    query = "word " * 100  # more than 64 tokens
+    assert embedder._graphs is None or embedder._graphs.embed(query) is None
+    vec = embedder.embed_query(query)
+    np.testing.assert_allclose(np.linalg.norm(vec), 1.0, atol=1e-5)

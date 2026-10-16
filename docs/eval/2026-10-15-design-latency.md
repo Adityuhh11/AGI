@@ -34,6 +34,6 @@ query while typing, teal fringes on the ring (dispersion lowered), boxes where P
 
 ## Found about search while here (not fixed)
 
-- Warm search over the full index (56,252 chunks): p50 203 ms, p95 261 ms through HTTP including the query embedding.
+- Warm search over the full index (56,252 chunks): p50 203 ms, p95 261 ms through HTTP including the query embedding. **Wrong:** measured while the live engine was indexing on the same GPU; see `2026-10-16-query-latency.md` (76 ms then, 16 ms now).
 - A gibberish query ("qzxvbnmw") returns ten results flagged confident; the 0.65 cosine threshold was tuned on the 431-chunk
   sample folder. DigUp's per-query "stands out" gate is the candidate fix.

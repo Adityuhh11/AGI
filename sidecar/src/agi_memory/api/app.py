@@ -46,6 +46,7 @@ def _load_engine(
     app: FastAPI, store: FlatStore, settings: Settings, make_embedder: Callable[[], Embedder]
 ) -> None:
     try:
+        store.warm()  # while the model loads: the first searches should not be the slow ones
         embedder = SerializedEmbedder(make_embedder())
         if (embedder.model_id, embedder.dim) != (settings.model_id, settings.dim):
             raise RuntimeError(

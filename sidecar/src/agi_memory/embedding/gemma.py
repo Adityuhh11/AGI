@@ -7,6 +7,7 @@ truncated to `Settings.dim` (Matryoshka) and L2-normalised in float32.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -15,6 +16,9 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 from agi_memory.config import Settings
+from agi_memory.embedding.query_graph import QueryGraphs
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -34,6 +38,17 @@ class GemmaEmbedder:
             config_kwargs={"audio_config": None},
         )
         self._model.max_seq_length = settings.max_seq_length
+        # Queries go through CUDA graphs on the GPU (6.8 ms instead of 54); anything that goes wrong
+        # leaves the normal path, which always works.
+        self._graphs: QueryGraphs | None = None
+        prompt = self._model.prompts.get("SearchQuery")
+        if self._device == "cuda" and prompt:
+            try:
+                self._graphs = QueryGraphs(self._model, self.dim, prompt)
+            except Exception:
+                logger.warning(
+                    "query CUDA graphs unavailable; queries use the normal path", exc_info=True
+                )
 
     @property
     def model_id(self) -> str:
@@ -84,4 +99,15 @@ class GemmaEmbedder:
         )
 
     def embed_query(self, text: str) -> np.ndarray:
+        if self._graphs is not None:
+            try:
+                vec = self._graphs.embed(text)
+            except Exception:
+                logger.warning(
+                    "query CUDA graph failed; using the normal path from now on", exc_info=True
+                )
+                self._graphs = None
+            else:
+                if vec is not None:
+                    return vec
         return self._encode([text], prompt_name="SearchQuery", batch_size=1)[0]
