@@ -70,13 +70,17 @@ func (c *Client) Sources(ctx context.Context) ([]Source, error) {
 	return out, err
 }
 
-// AddSource starts indexing root as source id and returns the job to follow. If another job is
-// running it returns a *BusyError carrying that job's id.
-func (c *Client) AddSource(ctx context.Context, root, id string) (string, error) {
+// AddSource starts indexing root as source id and returns the job to follow. exclude lists folders
+// below root to leave out, as '/'-separated relative paths. If another job is running it returns a
+// *BusyError carrying that job's id.
+func (c *Client) AddSource(ctx context.Context, root, id string, exclude []string) (string, error) {
 	var out struct {
 		JobID string `json:"job_id"`
 	}
-	body := map[string]string{"path": root, "source_id": id}
+	body := map[string]any{"path": root, "source_id": id}
+	if len(exclude) > 0 {
+		body["exclude"] = exclude
+	}
 	if err := c.do(ctx, http.MethodPost, "/sources", body, &out); err != nil {
 		return "", err
 	}

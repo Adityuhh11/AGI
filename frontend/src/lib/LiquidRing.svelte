@@ -1,14 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import {
-    ShaderMount,
-    ShaderFitOptions,
-    defaultObjectSizing,
-    getShaderColorFromString,
-    liquidMetalFragmentShader,
-  } from "@paper-design/shaders";
+  import { ShaderMount, getShaderColorFromString } from "@paper-design/shaders";
 
   import type { Metal } from "./palettes";
+  import { ringShader } from "./ringShader";
 
   interface Props {
     /** The flow speed to settle at; the ring eases there instead of jumping. */
@@ -24,8 +19,10 @@
   // and a ring that lurches with every keystroke looks broken.
   const EASE_MS = 350;
 
-  // The shader fills the whole card; the page's own surface covers all but the outer rim, so what
-  // shows is a ring of flowing metal.
+  // The shader fills the whole card; the page's own plate covers all but the outer rim, so what shows
+  // is a ring of flowing metal.
+
+  const RADIUS = 30; // the card's corner radius in px (--radius in theme.css)
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -36,20 +33,11 @@
     try {
       mount = new ShaderMount(
         host,
-        liquidMetalFragmentShader,
+        ringShader,
         {
           u_colorBack: getShaderColorFromString(metal.back),
           u_colorTint: getShaderColorFromString(metal.tint),
-          u_repetition: 4,
-          u_softness: 0.55,
-          u_shiftRed: 0.08,
-          u_shiftBlue: 0.08,
-          u_distortion: 0.15,
-          u_contour: 0.75,
-          u_angle: 70,
-          u_shape: 0,
-          u_isImage: false,
-          ...sizing(),
+          u_radius: RADIUS,
         },
         undefined,
         0, // stopped until the ring is told it is running
@@ -90,27 +78,13 @@
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   });
-  $effect(() =>
-    mount?.setUniforms({
-      u_colorBack: getShaderColorFromString(metal.back),
-      u_colorTint: getShaderColorFromString(metal.tint),
-    }),
-  );
-
-  function sizing() {
-    const s = { ...defaultObjectSizing, fit: "none" as const };
-    return {
-      u_fit: ShaderFitOptions[s.fit],
-      u_scale: s.scale,
-      u_rotation: s.rotation,
-      u_originX: s.originX,
-      u_originY: s.originY,
-      u_offsetX: s.offsetX,
-      u_offsetY: s.offsetY,
-      u_worldWidth: s.worldWidth,
-      u_worldHeight: s.worldHeight,
-    };
-  }
+  // The colours are read before `mount` is looked at: `mount?.setUniforms(...)` would skip reading them
+  // while there is no mount yet, and an effect that read nothing never runs again.
+  $effect(() => {
+    const back = getShaderColorFromString(metal.back);
+    const tint = getShaderColorFromString(metal.tint);
+    mount?.setUniforms({ u_colorBack: back, u_colorTint: tint });
+  });
 </script>
 
 <div class="ring" bind:this={host} aria-hidden="true"></div>

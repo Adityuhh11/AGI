@@ -1,16 +1,16 @@
-/* Obsidian and chrome: one near-black plate with a cool tilt, one metal. No accent hue; emphasis is
-   weight and brightness. The panel floats over arbitrary content, so the plate stays dark whatever is
-   behind it. */
+/* Pure black: the plate is #000, flat, like an OLED screen or black paint on a sports car; the premium
+   comes from the lit edge and the ring, not from texture or gradient. One metal for the ring. No accent hue; emphasis is weight and brightness. The plate is opaque, so it stays dark
+   whatever is behind the panel. */
 :root {
-  --ground: #0b0c0e;
-  --lift: #1a1c21;
+  --plate: #000;
+  --lift: rgba(255, 255, 255, 0.075);
   --tile: rgba(255, 255, 255, 0.055);
   --line: rgba(255, 255, 255, 0.07);
 
   --text: #eceef2;
-  --text-2: #a9adb8;
-  --text-3: #868b97;
-  --chrome: #dfe4ee;
+  --text-2: #aaacb2;
+  --text-3: #8a8c93;
+  --chrome: #e6e8ec;
   --danger: #e0877f;
 
   /* The window around the card is clear and only 20 px wider on each side, 12 above and 40 below: a

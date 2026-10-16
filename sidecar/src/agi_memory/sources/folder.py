@@ -40,16 +40,19 @@ class ScannedFile:
 class ScanResult:
     files: list[ScannedFile] = field(default_factory=list)
     denied: int = 0  # deny-list hits (a directory counts once)
-    ignored: int = 0  # .gitignore hits (a directory counts once)
+    ignored: int = 0  # .gitignore hits and excluded folders (a directory counts once)
     unsupported: int = 0  # regular files of an unknown type
     too_large: int = 0
     unreadable: list[tuple[str, str]] = field(default_factory=list)  # (uri prefix, message)
 
 
-def scan(root: Path, settings: Settings) -> ScanResult:
-    """List the indexable files under `root`."""
+def scan(root: Path, settings: Settings, exclude: frozenset[str] = frozenset()) -> ScanResult:
+    """List the indexable files under `root`.
+
+    `exclude` holds folders to skip, as lower-case '/'-separated paths below the root with a
+    trailing slash (`"vendor/skills/"`); each counts once in `ignored`."""
     result = ScanResult()
-    _visit(root, "", (), settings, result)
+    _visit(root, "", (), settings, exclude, result)
     return result
 
 
@@ -71,7 +74,12 @@ def _gitignored(uri: str, specs: _Specs) -> bool:
 
 
 def _visit(
-    directory: Path, prefix: str, specs: _Specs, settings: Settings, result: ScanResult
+    directory: Path,
+    prefix: str,
+    specs: _Specs,
+    settings: Settings,
+    exclude: frozenset[str],
+    result: ScanResult,
 ) -> None:
     specs = _with_local_gitignore(directory, prefix, specs)
     try:
@@ -87,10 +95,10 @@ def _visit(
         if entry.is_dir(follow_symlinks=False):
             if is_denied_dir(entry.name):
                 result.denied += 1
-            elif _gitignored(uri + "/", specs):
+            elif (uri + "/").lower() in exclude or _gitignored(uri + "/", specs):
                 result.ignored += 1
             else:
-                _visit(Path(entry.path), uri + "/", specs, settings, result)
+                _visit(Path(entry.path), uri + "/", specs, settings, exclude, result)
         elif entry.is_file(follow_symlinks=False):
             _consider_file(entry, uri, specs, settings, result)
 

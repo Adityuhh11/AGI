@@ -24,7 +24,7 @@ class Route(enum.StrEnum):
 
 
 _DENIED_DIRS = frozenset(
-    {".git", "node_modules", ".venv", "venv", "__pycache__", ".ssh", ".docker"}
+    {".git", "node_modules", ".venv", "venv", "__pycache__", ".ssh", ".docker", "__macosx"}
 )
 _DENIED_FILE_PATTERNS = (
     ".env*",
@@ -55,6 +55,7 @@ _DENIED_FILE_PATTERNS = (
     "*serviceaccount*.json",
     "secrets.*",
     "*.tfvars",
+    "._*",  # macOS resource forks that archives carry along: not real images or text
 )
 
 _CODE = frozenset(

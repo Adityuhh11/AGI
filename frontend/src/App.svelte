@@ -8,7 +8,7 @@
   import type { Results } from "../bindings/agi/internal/search";
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
-  import Icon from "./lib/Icon.svelte";
+  import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
   import { METALS, nextMetal } from "./lib/palettes";
@@ -238,7 +238,7 @@
     <div class="surface">
       <div class="content" bind:this={content}>
         <header class="bar">
-          <span class="glass"><Icon name="search" size={21} /></span>
+          <span class="glass"><SearchGlyph size={22} busy={pending} /></span>
           <input
             bind:this={input}
             bind:value={query}
@@ -323,8 +323,24 @@
     position: absolute;
     inset: var(--ring);
     border-radius: calc(var(--radius) - var(--ring));
-    background: var(--ground);
+    background: var(--plate);
     overflow: hidden;
+    isolation: isolate;
+  }
+  .surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    /* The edge: a lit top rim and a hairline all round, as on a machined card. */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.13),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+  }
+  .content {
+    position: relative;
+    z-index: 1;
   }
   .bar {
     display: flex;

@@ -404,3 +404,59 @@ def test_different_images_never_share_a_vector(indexer, store, root):
     report = indexer.sync("s", root)
     assert report.reused == 0
     assert not (vector_of(store, "r.png") == vector_of(store, "g.png")).all()
+
+
+def test_excluding_a_folder_drops_what_was_indexed_from_it(indexer, store, root):
+    write(root, "keep.txt", "keep this")
+    write(root, "vendor/skills/a.txt", "vendored")
+    write(root, "vendor/skills/deep/b.txt", "vendored too")
+    write(root, "vendor/mine.txt", "my own")
+    assert indexer.sync("s", root).added == 4
+    report = indexer.sync("s", root, exclude=["vendor/skills/"])
+    assert (report.removed, report.ignored, report.added) == (2, 1, 0)
+    assert set(store.file_records("s")) == {"keep.txt", "vendor/mine.txt"}
+
+
+def test_any_failure_in_one_file_skips_that_file_and_not_the_folder(
+    indexer, store, root, monkeypatch
+):
+    write(root, "bad.txt", "this one makes a library blow up")
+    write(root, "fine.txt", "readable")
+    import agi_memory.indexer as module
+
+    real = module.chunk_text_document
+
+    def exploding(source_id, uri, *args, **kwargs):
+        if uri == "bad.txt":
+            raise RuntimeError("a library failed")
+        return real(source_id, uri, *args, **kwargs)
+
+    monkeypatch.setattr(module, "chunk_text_document", exploding)
+    report = indexer.sync("s", root)
+    assert [(e.uri, e.message) for e in report.errors] == [
+        ("bad.txt", "RuntimeError: a library failed")
+    ]
+    assert set(store.file_records("s")) == {"fine.txt"}
+
+
+def test_a_run_of_failures_aborts_the_sync_because_the_files_are_not_the_cause(
+    indexer, root, monkeypatch
+):
+    for number in range(8):
+        write(root, f"f{number}.txt", "x")
+    import agi_memory.indexer as module
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the GPU is gone")
+
+    monkeypatch.setattr(module, "chunk_text_document", broken)
+    with pytest.raises(RuntimeError, match="the GPU is gone"):
+        indexer.sync("s", root)
+
+
+def test_any_number_of_corrupt_files_in_a_row_never_aborts_the_sync(indexer, store, root):
+    for number in range(8):
+        (root / f"a{number}.png").write_bytes(b"not an image")
+    write(root, "z.txt", "fine")
+    report = indexer.sync("s", root)
+    assert (len(report.errors), report.added) == (8, 1)

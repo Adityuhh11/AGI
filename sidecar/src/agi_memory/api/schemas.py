@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agi_memory.jobs import JobState
 from agi_memory.types import ChunkKind
@@ -31,6 +33,19 @@ class HealthOut(BaseModel):
 class AddSource(_Request):
     path: str = Field(min_length=1, max_length=1024)
     source_id: str = Field(pattern=SOURCE_ID_PATTERN)
+    # Folders below `path` to leave out, '/'-separated and relative, e.g. "vendor/skills".
+    exclude: list[Annotated[str, Field(min_length=1, max_length=1024)]] = Field(
+        default_factory=list, max_length=500
+    )
+
+    @field_validator("exclude")
+    @classmethod
+    def _inside_the_root(cls, folders: list[str]) -> list[str]:
+        for folder in folders:
+            parts = folder.replace("\\", "/").split("/")
+            if folder.startswith(("/", "\\")) or ":" in folder or ".." in parts:
+                raise ValueError(f"{folder!r} must be a relative folder inside the source")
+        return folders
 
 
 class SourceAccepted(BaseModel):

@@ -91,6 +91,9 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"empty hotkey", "hotkey = ''\n", "hotkey must not be empty"},
 		{"relative root", "roots = ['docs']\n", "must be an absolute path"},
 		{"duplicate root", "roots = ['C:\\Docs', 'c:\\docs\\']\n", "repeats"},
+		{"relative exclude", "roots = ['C:\\Docs']\nexclude = ['vendor']\n", "must be an absolute path"},
+		{"exclude outside every root", "roots = ['C:\\Docs']\nexclude = ['D:\\Other']\n", "not inside any root"},
+		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -170,5 +173,25 @@ func TestDefaultsWithoutARepositoryHaveNoRootsAndStillValidate(t *testing.T) {
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExcludedUnderGivesPathsBelowTheRootInTheEnginesForm(t *testing.T) {
+	exclude := []string{`C:\Docs\Vendor\Skills`, `c:\docs\other`, `C:\Docs`, `C:\Documents\x`, `D:\Docs\Vendor`}
+	got := ExcludedUnder(`C:\Docs`, exclude)
+	if want := "Vendor/Skills|other"; strings.Join(got, "|") != want {
+		t.Fatalf("ExcludedUnder = %v, want %s", got, want)
+	}
+}
+
+func TestLoadReadsExcludedFolders(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "roots = ['C:\\Docs']\nexclude = ['C:\\Docs\\vendor']\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Exclude) != 1 || got.Exclude[0] != `C:\Docs\vendor` {
+		t.Fatalf("exclude = %v", got.Exclude)
 	}
 }

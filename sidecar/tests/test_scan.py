@@ -121,3 +121,18 @@ def test_missing_root_is_reported_as_unreadable_root(tmp_path, settings):
     result = scan(tmp_path / "nope", settings)
     assert result.files == []
     assert [prefix for prefix, _ in result.unreadable] == [""]
+
+
+def test_excluded_folders_are_skipped_by_exact_path_and_any_case(tmp_path, settings):
+    root = tmp_path / "src"
+    for name in (
+        "keep.txt",
+        "Vendor/Skills/a.txt",
+        "Vendor/Skills/deep/b.txt",
+        "Vendor/Skills-extra/c.txt",
+        "other/Vendor/Skills/d.txt",
+    ):
+        write(root, name)
+    result = scan(root, settings, frozenset({"vendor/skills/"}))
+    assert uris(result) == ["Vendor/Skills-extra/c.txt", "keep.txt", "other/Vendor/Skills/d.txt"]
+    assert result.ignored == 1  # the folder counts once

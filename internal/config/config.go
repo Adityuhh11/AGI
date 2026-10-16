@@ -19,7 +19,10 @@ type Config struct {
 	// Hotkey opens the search bar from anywhere, e.g. "Alt+Shift+Space".
 	Hotkey string `toml:"hotkey"`
 	// Roots are the folders that get indexed; every file under them is searchable.
-	Roots   []string `toml:"roots"`
+	Roots []string `toml:"roots"`
+	// Exclude are folders inside a root to leave out, as absolute paths. What they held is dropped
+	// from the index at the next sync.
+	Exclude []string `toml:"exclude,omitempty"`
 	Sidecar Sidecar  `toml:"sidecar"`
 }
 
@@ -92,6 +95,18 @@ func (c Config) Validate() error {
 			return fmt.Errorf("root %q repeats %q", root, other)
 		}
 		seen[id] = root
+	}
+	for _, folder := range c.Exclude {
+		if !filepath.IsAbs(folder) {
+			return fmt.Errorf("excluded folder %q must be an absolute path", folder)
+		}
+		inside := false
+		for _, root := range c.Roots {
+			inside = inside || len(ExcludedUnder(root, []string{folder})) > 0
+		}
+		if !inside {
+			return fmt.Errorf("excluded folder %q is not inside any root", folder)
+		}
 	}
 	return nil
 }

@@ -58,7 +58,10 @@ func TestEveryRequestCarriesTheTokenAndUsesTheRightRoute(t *testing.T) {
 		{"delete", `{"removed_chunks":4}`,
 			func(c *Client) error { _, err := c.DeleteSource(context.Background(), "root-abc"); return err }, "DELETE", "/sources/root-abc"},
 		{"add", `{"job_id":"job-2"}`,
-			func(c *Client) error { _, err := c.AddSource(context.Background(), `C:\x`, "root-abc"); return err }, "POST", "/sources"},
+			func(c *Client) error {
+				_, err := c.AddSource(context.Background(), `C:\x`, "root-abc", nil)
+				return err
+			}, "POST", "/sources"},
 		{"search", `{"files":[],"confident":false}`,
 			func(c *Client) error {
 				_, err := c.SearchFiles(context.Background(), SearchFilesRequest{Query: "q"})
@@ -137,18 +140,22 @@ func TestSearchSendsOnlyWhatWasAskedAndDecodesFiles(t *testing.T) {
 
 func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	client, e := newClient(t, 202, `{"job_id":"job-7"}`)
-	job, err := client.AddSource(context.Background(), `C:\Users\me\Docs`, "root-1")
+	job, err := client.AddSource(context.Background(), `C:\Users\me\Docs`, "root-1", []string{"vendor/skills"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if job != "job-7" {
 		t.Fatalf("job id = %q", job)
 	}
-	var sent map[string]string
+	var sent struct {
+		Path     string   `json:"path"`
+		SourceID string   `json:"source_id"`
+		Exclude  []string `json:"exclude"`
+	}
 	if err := json.Unmarshal([]byte(e.sent), &sent); err != nil {
 		t.Fatal(err)
 	}
-	if sent["path"] != `C:\Users\me\Docs` || sent["source_id"] != "root-1" {
+	if sent.Path != `C:\Users\me\Docs` || sent.SourceID != "root-1" || len(sent.Exclude) != 1 || sent.Exclude[0] != "vendor/skills" {
 		t.Fatalf("body = %s", e.sent)
 	}
 }
