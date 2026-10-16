@@ -143,9 +143,12 @@ optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_
  "confident": true}
 ```
 
-`confident` is `false` when the best hit is probably noise: its cosine is below 0.65 and the query is not part of its
-path. Show "no match" instead of the list; the hits are still returned. On the sample corpus every on-topic query was
-confident and 14 of 15 off-topic ones were not. It is a flag calibrated on one corpus, not a guarantee.
+`confident` is `false` when the best hit is probably noise: its cosine is below the index's own noise ceiling and the query is
+not part of its path. The ceiling is measured by the engine (60 nonsense probe queries, the cosine 9 in 10 of them stayed
+under) at startup and after every index job, so it follows the index: 0.671 on the 431-chunk sample, 0.717 on a 44,000-chunk
+index. An index under 100 chunks uses 0.65. Show "no match" instead of the list; the hits are still returned. On the sample
+corpus every on-topic query was confident and every off-topic one was not; on a 44,000-chunk index 1 in 35 of each kind was
+wrong (`decisions/0003-confidence-from-a-measured-noise-ceiling.md`). It is a flag, not a guarantee.
 
 `uri` is relative to the source root with `/` separators. `locator` is JSON text (`{"lines":[a,b]}`, `{"page":n}`,
 ...). `score` is cosine similarity plus small keyword and file-name boosts (about 0.5 to 1.0 for real matches): use it to

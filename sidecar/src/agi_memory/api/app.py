@@ -26,10 +26,20 @@ from agi_memory.search.searcher import Searcher
 from agi_memory.store import FlatStore
 
 logger = logging.getLogger(__name__)
+# uvicorn's own logger, so the line shows in the process output the launcher keeps
+progress = logging.getLogger("uvicorn.error")
 
 MIN_TOKEN_CHARS = 16
 # Anything else (a web page resolving its own name to 127.0.0.1) is a DNS-rebinding attempt.
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+
+
+def _calibrate(searcher: Searcher) -> None:
+    ceiling = searcher.calibrate()
+    progress.info(
+        "confidence threshold: %s",
+        f"{ceiling:.3f} (measured on this index)" if ceiling else "default (index too small)",
+    )
 
 
 def _load_engine(
@@ -42,10 +52,14 @@ def _load_engine(
                 f"embedder is {embedder.model_id} dim {embedder.dim} but the index is "
                 f"{settings.model_id} dim {settings.dim}"
             )
+        searcher = Searcher(store, embedder)
+        _calibrate(searcher)  # before the engine is announced, so no search sees the default
         app.state.engine = Engine(
             embedder=embedder,
-            searcher=Searcher(store, embedder),
-            jobs=JobManager(Indexer(store, embedder, settings)),
+            searcher=searcher,
+            jobs=JobManager(
+                Indexer(store, embedder, settings), on_done=lambda: _calibrate(searcher)
+            ),
         )
     except Exception as error:  # report through /health instead of killing the process
         logger.exception("loading the embedding model failed")

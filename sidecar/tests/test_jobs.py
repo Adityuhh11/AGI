@@ -116,3 +116,28 @@ def test_only_the_newest_jobs_are_remembered(make_manager, folder):
     assert manager.get("job-1") is None
     assert manager.get("job-2") is None
     assert manager.get("job-3") is not None
+
+
+def test_a_finished_job_tells_the_follow_up_and_a_failing_follow_up_changes_nothing(
+    make_manager, folder
+):
+    manager = make_manager(FakeEmbedder(64))
+    calls = []
+
+    def follow_up():
+        calls.append(1)
+        raise RuntimeError("calibration blew up")
+
+    manager._on_done = follow_up
+    job = manager.submit("repo", folder)
+    assert finished(manager, job.id).state is JobState.DONE
+    assert calls == [1]
+
+
+def test_a_failed_job_does_not_run_the_follow_up(make_manager, folder):
+    manager = make_manager(FailingEmbedder())
+    calls = []
+    manager._on_done = lambda: calls.append(1)
+    job = manager.submit("repo", folder)
+    assert finished(manager, job.id).state is JobState.FAILED
+    assert calls == []

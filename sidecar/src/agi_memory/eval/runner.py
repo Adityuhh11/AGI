@@ -156,7 +156,9 @@ def run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: s
         store = FlatStore(Path(work) / "index", model_id=embedder.model_id, dim=embedder.dim)
         try:
             sync = build_index(store, embedder, settings, Path(args.data))
-            results = evaluate(golden, Searcher(store, embedder))
+            searcher = Searcher(store, embedder)
+            searcher.calibrate()  # as the API does, so the confidence metrics are production's
+            results = evaluate(golden, searcher)
         finally:
             store.close()
     metrics = summarize(results)
