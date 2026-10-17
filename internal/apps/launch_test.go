@@ -81,3 +81,29 @@ func TestPathAndElevationNeedAFile(t *testing.T) {
 		t.Fatalf("Path = %q, %v", got, ok)
 	}
 }
+
+func TestSameAppMatchesByFileWhenThereIsOneAndByNameWhenNot(t *testing.T) {
+	describe := func(exe string) string {
+		if exe == `C:\Program Files\Google\Chrome\Application\chrome.exe` {
+			return "Google Chrome"
+		}
+		return ""
+	}
+	tests := []struct {
+		name, file, exe string
+		want            bool
+	}{
+		{"Zed", "", `C:\Users\me\AppData\Local\Programs\Zed\Zed.exe`, true},
+		{"Zen", "", `C:\Program Files\Zen Browser\zen.exe`, true},
+		{"Google Chrome", "", `C:\Program Files\Google\Chrome\Application\chrome.exe`, true},
+		{"Zen Private Browsing", "", `C:\Program Files\Zen Browser\zen.exe`, false},
+		{"Notepad", "", `C:\Windows\explorer.exe`, false},
+		{"7-Zip File Manager", `C:\Program Files\7-Zip\7zFM.exe`, `c:\program files\7-zip\7zfm.exe`, true},
+		{"7-Zip File Manager", `C:\Program Files\7-Zip\7zFM.exe`, `C:\Program Files\7-Zip\7zG.exe`, false},
+	}
+	for _, tt := range tests {
+		if got := sameApp(tt.name, tt.file, tt.exe, describe); got != tt.want {
+			t.Errorf("sameApp(%q, %q, %q) = %v, want %v", tt.name, tt.file, tt.exe, got, tt.want)
+		}
+	}
+}

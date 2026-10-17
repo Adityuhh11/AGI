@@ -52,15 +52,19 @@ func resolve(id string) target {
 	return target{run: `shell:AppsFolder\` + id}
 }
 
-// Launch starts the app. It checks first that the file behind it still exists (an uninstalled program
-// would otherwise raise a Windows error dialog), then hands it to the shell without waiting: the shell
-// call can block for seconds on a classic program (2.1 s for 7-Zip), and the bar must close at once.
+// Launch brings the app to the front if it is already open, and starts it otherwise. It checks first that
+// the file behind it still exists (an uninstalled program would otherwise raise a Windows error dialog), then
+// hands it to the shell without waiting: the shell call can block for seconds on a classic program (2.1 s for
+// 7-Zip), and the bar must close at once.
 func Launch(app App) error {
 	t := resolve(app.ID)
 	if t.file != "" {
 		if _, err := os.Stat(t.file); err != nil {
 			return fmt.Errorf("%s: %w", app.Name, ErrGone)
 		}
+	}
+	if focusRunning(app, t.file) {
+		return nil
 	}
 	go func() {
 		if err := shellExecute("open", t.run); err != nil {

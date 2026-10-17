@@ -11,7 +11,6 @@ import (
 )
 
 var (
-	user32           = windows.NewLazySystemDLL("user32.dll")
 	procFindWindowW  = user32.NewProc("FindWindowW")
 	procPostMessageW = user32.NewProc("PostMessageW")
 )
@@ -94,4 +93,18 @@ func indexHas(apps []App, id string) (App, bool) {
 		}
 	}
 	return App{}, false
+}
+
+// TestRealFocus brings an app that is already open to the front, so it runs only with AGI_REAL_FOCUS=<name>
+// (the Start Menu name of a running app, such as Zed) and moves the user's windows.
+func TestRealFocus(t *testing.T) {
+	name := os.Getenv("AGI_REAL_FOCUS")
+	if name == "" {
+		t.Skip("set AGI_REAL_FOCUS=<name of a running app> to focus a real window")
+	}
+	start := time.Now()
+	if !focusRunning(App{Name: name}, "") {
+		t.Fatalf("no window of %q was found and focused", name)
+	}
+	t.Logf("%s focused in %v", name, time.Since(start).Round(time.Microsecond))
 }
