@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -15,15 +16,19 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"agi"
+	"agi/internal/apps"
 	"agi/internal/config"
 	"agi/internal/files"
 	"agi/internal/indexing"
+	"agi/internal/palette"
 	"agi/internal/panel"
 	"agi/internal/search"
 	"agi/internal/sidecar"
+	"agi/internal/state"
 	"agi/internal/status"
 	"agi/internal/tray"
 	"agi/internal/watcher"
+	"agi/internal/web"
 )
 
 func main() {
@@ -86,11 +91,18 @@ func run() error {
 		return fmt.Errorf("locate the cache directory: %w", err)
 	}
 	var bar *panel.Panel
+	iconDir := filepath.Join(cacheDir, "AGI", "icons")
+	catalog := apps.NewCatalog(filepath.Join(cacheDir, "AGI", "apps.json"), iconDir)
+	thumbnails := files.Thumbnails(cfg.Roots, filepath.Join(cacheDir, "AGI", "thumbs"))
+	icons := apps.Icons(catalog.Index, iconDir)
 	app := application.New(application.Options{
 		Name: "AGI",
 		Assets: application.AssetOptions{
-			Handler:    application.AssetFileServerFS(assets),
-			Middleware: files.Thumbnails(cfg.Roots, filepath.Join(cacheDir, "AGI", "thumbs")),
+			Handler: application.AssetFileServerFS(assets),
+			// /thumb serves picture thumbnails, /icon the icons of apps; anything else is the page.
+			Middleware: func(next http.Handler) http.Handler {
+				return thumbnails(icons(next))
+			},
 		},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
@@ -127,14 +139,23 @@ func run() error {
 		roots[config.SourceID(root)] = root
 	}
 
+	// What the bar has learned about its user (what was launched, and after typing what) lives beside the
+	// settings.
+	history, err := state.Open(filepath.Join(filepath.Dir(path), "state.json"))
+	if err != nil {
+		return err
+	}
+
 	bar = panel.New(app, cfg.Hotkey)
+	opener := files.New(cfg.Roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
 	icon = tray.New(app, bar.Show, indexer.Rescan)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), roots, engine.Status)),
-		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
+		application.NewService(opener),
+		application.NewService(palette.New(catalog, history, web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks), opener, bar.HideForLaunch)),
 	} {
 		app.RegisterService(service)
 	}
@@ -148,6 +169,10 @@ func run() error {
 			close(engineStopped)
 		}()
 		go indexer.Run(ctx)
+		// The list of installed apps is served from its cache at once and rebuilt in the background,
+		// again whenever a program is installed or removed.
+		go catalog.Run(ctx)
+		go watcher.Watch(ctx, apps.StartMenuFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
 		// A file that appears, moves or goes is in the index a few seconds after the folder goes
 		// quiet (and within 30 s even if it never does).
 		go watcher.Watch(ctx, cfg.Roots, 3*time.Second, 30*time.Second, indexer.Changed)

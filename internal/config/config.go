@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -23,7 +24,23 @@ type Config struct {
 	// Exclude are folders inside a root to leave out, as absolute paths. What they held is dropped
 	// from the index at the next sync.
 	Exclude []string `toml:"exclude,omitempty"`
-	Sidecar Sidecar  `toml:"sidecar"`
+	// Browser is the browser web searches open in: a name Windows knows it by ("zen", "firefox",
+	// "chrome") or the path of its program. Empty means the Windows default browser.
+	Browser string `toml:"browser,omitempty"`
+	// SearchURL is the address of a web search with {q} where the text goes. Without it, Firefox-based
+	// browsers search with the engine set inside them and others use DuckDuckGo.
+	SearchURL string `toml:"search_url,omitempty"`
+	// Quicklinks turn a trigger word and some text into a web address: "gh rust lifetimes".
+	Quicklinks []Quicklink `toml:"quicklink,omitempty"`
+	Sidecar    Sidecar     `toml:"sidecar"`
+}
+
+// Quicklink is a web address with a place for what the user types after its trigger word.
+type Quicklink struct {
+	Trigger string `toml:"trigger"`
+	Title   string `toml:"title"`
+	// URL holds {q}, where the text typed after the trigger goes, escaped.
+	URL string `toml:"url"`
 }
 
 // Sidecar says where the Python memory engine lives.
@@ -96,6 +113,9 @@ func (c Config) Validate() error {
 		}
 		seen[id] = root
 	}
+	if err := c.validateWeb(); err != nil {
+		return err
+	}
 	for _, folder := range c.Exclude {
 		if !filepath.IsAbs(folder) {
 			return fmt.Errorf("excluded folder %q must be an absolute path", folder)
@@ -107,6 +127,42 @@ func (c Config) Validate() error {
 		if !inside {
 			return fmt.Errorf("excluded folder %q is not inside any root", folder)
 		}
+	}
+	return nil
+}
+
+// validateWeb checks the browser settings: a typo in a quicklink should fail loudly, not give a dead row.
+func (c Config) validateWeb() error {
+	if c.SearchURL != "" {
+		if err := checkTemplate(c.SearchURL); err != nil {
+			return fmt.Errorf("search_url: %w", err)
+		}
+	}
+	seen := map[string]bool{}
+	for _, link := range c.Quicklinks {
+		switch {
+		case link.Trigger == "" || strings.ContainsAny(link.Trigger, " \t:"):
+			return fmt.Errorf("quicklink trigger %q must be one word without a colon", link.Trigger)
+		case link.Title == "":
+			return fmt.Errorf("quicklink %q needs a title", link.Trigger)
+		case seen[strings.ToLower(link.Trigger)]:
+			return fmt.Errorf("quicklink trigger %q is used twice", link.Trigger)
+		}
+		seen[strings.ToLower(link.Trigger)] = true
+		if err := checkTemplate(link.URL); err != nil {
+			return fmt.Errorf("quicklink %q: %w", link.Trigger, err)
+		}
+	}
+	return nil
+}
+
+// checkTemplate says what is wrong with a web address template, if anything.
+func checkTemplate(template string) error {
+	if !strings.HasPrefix(template, "https://") && !strings.HasPrefix(template, "http://") {
+		return fmt.Errorf("%q must start with https:// or http://", template)
+	}
+	if strings.Count(template, "{q}") != 1 {
+		return fmt.Errorf("%q must contain {q} once, where the text goes", template)
 	}
 	return nil
 }
