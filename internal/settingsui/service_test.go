@@ -8,6 +8,7 @@ import (
 
 	"agi/internal/config"
 	"agi/internal/enginesetup"
+	"agi/internal/indexing"
 	"agi/internal/settings"
 )
 
@@ -26,7 +27,20 @@ func (f *fakeSetup) Cancel()                  { f.cancels++ }
 func (f *fakeSetup) State() enginesetup.State { return f.state }
 func (f *fakeSetup) Remove() error            { f.removed++; return f.failRemove }
 
+// fakeIndexing plays the indexing manager.
+type fakeIndexing struct {
+	status  indexing.Status
+	folders []indexing.FolderStatus
+	paused  bool
+}
+
+func (f *fakeIndexing) Pause()                           { f.paused = true; f.status.Paused = true }
+func (f *fakeIndexing) Resume()                          { f.paused = false; f.status.Paused = false }
+func (f *fakeIndexing) Status() indexing.Status          { return f.status }
+func (f *fakeIndexing) Folders() []indexing.FolderStatus { return f.folders }
+
 type harness struct {
+	index   *fakeIndexing
 	setup   *fakeSetup
 	svc     *Service
 	store   *settings.Store
@@ -41,10 +55,11 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store, setup: &fakeSetup{}}
+	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}}
 	h.svc = New(Options{
-		Store: store,
-		Setup: h.setup,
+		Store:    store,
+		Setup:    h.setup,
+		Indexing: h.index,
 		Rebind: func(a string) error {
 			h.hotkeys = append(h.hotkeys, a)
 			for _, r := range refuse {
@@ -253,5 +268,41 @@ func TestCancelPassesThroughAndSearchReportsTheInstallAndTheEngine(t *testing.T)
 	}
 	if len(view.Hosts) == 0 || view.DownloadMB < 900 || view.Pace != "balanced" {
 		t.Fatalf("the consent facts are missing: %+v", view)
+	}
+}
+
+func TestFoldersAreDescribedInWordsForEachState(t *testing.T) {
+	h := newHarness(t)
+	h.index.folders = []indexing.FolderStatus{
+		{Root: `C:`, State: indexing.Indexing, FilesDone: 40, FilesTotal: 96},
+		{Root: `C:`, State: indexing.Indexing},
+		{Root: `C:\c`, State: indexing.UpToDate, Files: 12, Chunks: 300},
+		{Root: `C:\d`, State: indexing.Failed, Message: "disk on fire"},
+		{Root: `C:\e`, State: indexing.Waiting},
+	}
+	h.setup.state.Installed = true
+	h.svc.o.Engine = func() (string, string) { return "ready", "" }
+	got := h.svc.Search().Folders
+	want := []string{"Indexing: 40 of 96 files", "Looking at what is in it", "12 files searchable", "Could not be indexed: disk on fire", "Waiting"}
+	for i, text := range want {
+		if got[i].Text != text {
+			t.Errorf("folder %d says %q, want %q", i, got[i].Text, text)
+		}
+	}
+	h.svc.o.Engine = func() (string, string) { return "off", "" }
+	if got := h.svc.Search().Folders[2]; got.State != "waiting" || !strings.Contains(got.Text, "turned on") {
+		t.Errorf("with the engine off a folder says %+v", got)
+	}
+}
+
+func TestPausingAndResumingIndexingGoToTheManagerAndShowInTheView(t *testing.T) {
+	h := newHarness(t)
+	h.svc.PauseIndexing()
+	if !h.index.paused || !h.svc.Search().Paused {
+		t.Fatal("a pause did not reach the manager")
+	}
+	h.svc.ResumeIndexing()
+	if h.index.paused || h.svc.Search().Paused {
+		t.Fatal("a resume did not reach the manager")
 	}
 }

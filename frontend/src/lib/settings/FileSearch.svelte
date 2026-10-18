@@ -11,6 +11,15 @@
   let removingFiles = $state(false);
   const roots = $derived(view.Roots ?? []);
 
+  // The words are the measurements in docs/eval/2026-10-18-pace.md: 17.6 s, 33.4 s and 103.5 s to index the same
+  // folder, with the graphics card busy 65%, 27% and 16% of the time.
+  const SPEEDS = [
+    { id: "fast", name: "Fast", how: "Finishes soonest. The graphics card works hard, and other things may slow down meanwhile." },
+    { id: "balanced", name: "Balanced", how: "Takes about twice as long. The graphics card is busy about a third of the time." },
+    { id: "gentle", name: "Gentle", how: "Takes about six times as long. Your computer stays free and search stays quick." },
+  ];
+  const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
+
   const refresh = async () => {
     search = await Settings.Search();
   };
@@ -107,6 +116,14 @@
     {/if}
 
     {#if search.Installed && !search.Installing}
+      {#if search.Enabled && search.EngineState === "ready" && !search.NeedsUpdate}
+        <p class="help">{search.Paused ? "Indexing is paused. Search still works on what is indexed." : search.IndexText}</p>
+        <div>
+          <button type="button" class="btn" onclick={() => (search?.Paused ? Settings.ResumeIndexing() : Settings.PauseIndexing()).then(refresh)}>
+            {search.Paused ? "Resume indexing" : "Pause indexing"}
+          </button>
+        </div>
+      {/if}
       <div class="files">
         {#if removingFiles}
           <span class="help">Delete the downloaded engine and models? Your index stays.</span>
@@ -120,13 +137,38 @@
   </div>
 {/if}
 
+{#if search?.Installed}
+  <div class="field">
+    <span class="label" id="speed-label">How hard indexing works</span>
+    <div class="speeds" role="radiogroup" aria-labelledby="speed-label">
+      {#each SPEEDS as speed (speed.id)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={search.Pace === speed.id}
+          class="speed"
+          class:on={search.Pace === speed.id}
+          onclick={() => run(() => Settings.SetPace(speed.id))}
+        >
+          <span class="name">{speed.name}</span>
+          <span class="how">{speed.how}</span>
+        </button>
+      {/each}
+    </div>
+    <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
+  </div>
+{/if}
+
 <div class="field">
   <span class="label">Folders to search</span>
   {#if roots.length > 0}
     <ul class="folders">
       {#each roots as root (root)}
         <li>
-          <span class="path mono" title={root}>{root}</span>
+          <span class="where">
+            <span class="path mono" title={root}>{root}</span>
+            {#if folderText[root]}<span class="state">{folderText[root]}</span>{/if}
+          </span>
           {#if confirming === root}
             <span class="confirm">
               <button type="button" class="btn danger" onclick={() => remove(root)}>Remove</button>
@@ -182,6 +224,53 @@
   }
   li + li {
     border-top: 1px solid var(--line);
+  }
+  .where {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .state {
+    color: var(--text-3);
+    font-size: 11.5px;
+  }
+  .speeds {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .speed {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-2);
+    text-align: left;
+    cursor: pointer;
+  }
+  .speed:hover {
+    background: var(--tile);
+  }
+  .speed.on {
+    border-color: rgba(230, 232, 236, 0.45);
+    background: var(--lift);
+    color: var(--text);
+  }
+  .speed:focus-visible {
+    outline: 1px solid var(--chrome);
+    outline-offset: 2px;
+  }
+  .name {
+    font: 620 13px/1.2 var(--sans);
+  }
+  .how {
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--text-3);
   }
   .path {
     min-width: 0;

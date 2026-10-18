@@ -146,6 +146,7 @@ func run() error {
 	)
 	refresh := func() {
 		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status()))
+		icon.SetPaused(indexer.Status().Paused)
 	}
 	layout, err := enginesetup.Locate()
 	if err != nil {
@@ -179,6 +180,7 @@ func run() error {
 	indexer = indexing.New(engine.Client(), cfg.Roots, func() bool { return engine.Status().State == sidecar.StateReady },
 		func(indexing.Status) { refresh() })
 	indexer.SetExclude(cfg.Exclude)
+	indexer.SetPace(cfg.Search.Pace)
 	browser := web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks)
 
 	// What the bar has learned about its user (what was launched, and after typing what) lives beside the
@@ -192,7 +194,14 @@ func run() error {
 	opener := files.New(roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
 	settingsWindow := settingsui.NewWindow(app)
-	icon = tray.New(app, bar.Show, settingsWindow.Open, indexer.Rescan)
+	togglePause := func() {
+		if indexer.Status().Paused {
+			indexer.Resume()
+		} else {
+			indexer.Pause()
+		}
+	}
+	icon = tray.New(app, bar.Show, settingsWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
@@ -200,9 +209,10 @@ func run() error {
 		application.NewService(opener),
 		application.NewService(palette.New(catalog, history, browser, opener, bar.HideForLaunch)),
 		application.NewService(settingsui.New(settingsui.Options{
-			Store:  store,
-			Setup:  setup,
-			Rebind: bar.Rebind,
+			Store:    store,
+			Setup:    setup,
+			Indexing: indexer,
+			Rebind:   bar.Rebind,
 			PickFolder: func() (string, error) {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
@@ -243,6 +253,9 @@ func run() error {
 	// first and only saves the change if that worked.
 	store.Subscribe(func(old, updated config.Config) {
 		browser.Update(updated.Browser, updated.SearchURL, updated.Quicklinks)
+		if old.Search.Pace != updated.Search.Pace {
+			indexer.SetPace(updated.Search.Pace)
+		}
 		if !slices.Equal(old.Roots, updated.Roots) || !slices.Equal(old.Exclude, updated.Exclude) {
 			indexer.SetFolders(updated.Roots, updated.Exclude)
 			watchFolders(updated.Roots)

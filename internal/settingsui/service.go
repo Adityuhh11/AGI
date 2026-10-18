@@ -12,6 +12,7 @@ import (
 
 	"agi/internal/config"
 	"agi/internal/enginesetup"
+	"agi/internal/indexing"
 	"agi/internal/settings"
 )
 
@@ -24,9 +25,19 @@ type Setup interface {
 	Remove() error
 }
 
+// Indexing is the indexing manager as the service uses it; *indexing.Manager satisfies it.
+type Indexing interface {
+	Pause()
+	Resume()
+	Status() indexing.Status
+	Folders() []indexing.FolderStatus
+}
+
 // Options are the parts of the launcher the service needs; main supplies them.
 type Options struct {
 	Store *settings.Store
+	// Indexing reports where each folder is and pauses and resumes indexing.
+	Indexing Indexing
 	// Setup installs, updates and removes the engine. When an install finishes well, whoever built it turns
 	// file search on (main does).
 	Setup Setup
@@ -201,6 +212,17 @@ type SearchView struct {
 	Hosts      []string
 	DownloadMB int
 	Pace       string
+	// IndexState is waiting, indexing, uptodate or failed; IndexText is its sentence; Paused says indexing is stopped.
+	IndexState, IndexText string
+	Paused                bool
+	Folders               []FolderView
+}
+
+// FolderView is a folder with where it is, in words.
+type FolderView struct {
+	Root  string
+	State string // waiting, indexing, uptodate or failed
+	Text  string
 }
 
 // Search returns the File search page; the window asks again every second or two.
@@ -208,7 +230,9 @@ func (s *Service) Search() SearchView {
 	st := s.o.Setup.State()
 	engineState, engineMessage := s.o.Engine()
 	cfg := s.o.Store.Get()
+	index := s.o.Indexing.Status()
 	return SearchView{
+		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(engineState),
 		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
@@ -256,3 +280,35 @@ func (s *Service) RemoveFiles() string {
 	}
 	return reason(s.o.Setup.Remove())
 }
+
+// folders describes each configured folder. While the engine is not running nothing is indexed, and the page
+// says what the folder is waiting for.
+func (s *Service) folders(engineState string) []FolderView {
+	var out []FolderView
+	for _, f := range s.o.Indexing.Folders() {
+		view := FolderView{Root: f.Root, State: string(f.State)}
+		switch {
+		case engineState == "off":
+			view.State, view.Text = "waiting", "Waits for file search to be turned on"
+		case f.State == indexing.Indexing && f.FilesTotal == 0:
+			view.Text = "Looking at what is in it"
+		case f.State == indexing.Indexing:
+			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal)
+		case f.State == indexing.UpToDate:
+			view.Text = fmt.Sprintf("%d files searchable", f.Files)
+		case f.State == indexing.Failed:
+			view.Text = "Could not be indexed: " + f.Message
+		default:
+			view.Text = "Waiting"
+		}
+		out = append(out, view)
+	}
+	return out
+}
+
+// PauseIndexing stops indexing at the next batch. Searching is not affected, and nothing is lost: a file is
+// recorded only once its vectors are stored.
+func (s *Service) PauseIndexing() { s.o.Indexing.Pause() }
+
+// ResumeIndexing lets indexing go on.
+func (s *Service) ResumeIndexing() { s.o.Indexing.Resume() }

@@ -15,15 +15,40 @@ import (
 
 // fakeEngine answers like the real one: each job needs two checks to finish.
 type fakeEngine struct {
-	mu        sync.Mutex
-	sources   map[string]sidecar.Source
-	jobs      map[string]int      // job id -> checks so far
-	submitted []string            // roots, in order
-	excluded  map[string][]string // what each root was told to leave out
-	deleted   []string
-	busyWith  string // while set, AddSource answers 409 for this job once
-	failRoot  string // jobs for this root fail
-	jobRoot   map[string]string
+	mu         sync.Mutex
+	sources    map[string]sidecar.Source
+	jobs       map[string]int      // job id -> checks so far
+	submitted  []string            // roots, in order
+	excluded   map[string][]string // what each root was told to leave out
+	deleted    []string
+	busyWith   string // while set, AddSource answers 409 for this job once
+	failRoot   string // jobs for this root fail
+	jobRoot    map[string]string
+	duties     []float64 // what the engine was told, in order
+	paused     bool
+	pauseCalls int
+}
+
+func (f *fakeEngine) SetDuty(_ context.Context, duty float64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.duties = append(f.duties, duty)
+	return nil
+}
+
+func (f *fakeEngine) Pause(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.paused = true
+	f.pauseCalls++
+	return nil
+}
+
+func (f *fakeEngine) Resume(context.Context) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.paused = false
+	return nil
 }
 
 func newFake(existing ...sidecar.Source) *fakeEngine {
@@ -366,5 +391,75 @@ func TestSetFoldersChangesWhatIsIndexedAndDropsWhatIsNoLongerListed(t *testing.T
 	}
 	if _, added := fake.sources[config.SourceID(`C:\c`)]; !added {
 		t.Error("the folder that was added was not indexed")
+	}
+}
+
+func TestTheSpeedsAreMeasuredDutiesAndAnUnknownOneIsBalanced(t *testing.T) {
+	for pace, want := range map[string]float64{"fast": 1.0, "balanced": 0.5, "gentle": 0.2, "": 0.5, "turbo": 0.5} {
+		if got := Duty(pace); got != want {
+			t.Errorf("Duty(%q) = %v, want %v", pace, got, want)
+		}
+	}
+}
+
+func TestPausingAndResumingTellTheEngineAndReportInTheStatus(t *testing.T) {
+	fake := newFake()
+	var changes int
+	m := New(fake, []string{`C:`}, func() bool { return true }, func(Status) { changes++ })
+	m.Pause()
+	m.Pause() // asking again changes nothing
+	if !m.Status().Paused || !fake.paused || fake.pauseCalls != 1 || changes != 1 {
+		t.Fatalf("paused %v, engine paused %v, %d pause calls, %d changes", m.Status().Paused, fake.paused, fake.pauseCalls, changes)
+	}
+	if got := (Status{State: Indexing, Root: `C:`, FilesTotal: 3, Paused: true}).String(); got != "Indexing paused" {
+		t.Fatalf("status line = %q", got)
+	}
+	m.Resume()
+	if m.Status().Paused || fake.paused {
+		t.Fatal("resuming left it paused")
+	}
+}
+
+func TestAnEngineThatIsNotUpYetIsToldTheSpeedAndThePauseWhenTheSyncStarts(t *testing.T) {
+	fake := newFake()
+	up := false
+	m := New(fake, []string{`C:`}, func() bool { return up }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	m.SetPace("gentle")
+	m.Pause()
+	if len(fake.duties) != 0 || fake.pauseCalls != 0 {
+		t.Fatalf("the engine was told while it was not ready: %v, %d", fake.duties, fake.pauseCalls)
+	}
+	up = true
+	if !m.cycle(context.Background(), nil) {
+		t.Fatalf("cycle failed: %v", m.Status())
+	}
+	if len(fake.duties) == 0 || fake.duties[len(fake.duties)-1] != 0.2 || !fake.paused {
+		t.Fatalf("after the sync started the engine has duties %v, paused %v", fake.duties, fake.paused)
+	}
+}
+
+func TestEachFolderSaysWhereItIs(t *testing.T) {
+	fake := newFake()
+	fake.failRoot = `C:ad`
+	m := New(fake, []string{`C:\good`, `C:ad`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	before := m.Folders()
+	if len(before) != 2 || before[0].State != Waiting || before[1].State != Waiting {
+		t.Fatalf("before the first sync: %+v", before)
+	}
+	m.cycle(context.Background(), nil)
+	got := m.Folders()
+	if got[0].Root != `C:\good` || got[0].State != UpToDate || got[0].Files != 3 || got[0].Chunks != 10 {
+		t.Errorf("the good folder: %+v", got[0])
+	}
+	if got[1].Root != `C:ad` || got[1].State != Failed || got[1].Message == "" {
+		t.Errorf("the failing folder: %+v", got[1])
+	}
+	m.SetFolders([]string{`C:\good`}, nil)
+	if after := m.Folders(); len(after) != 1 || after[0].Root != `C:\good` {
+		t.Errorf("after removing a folder: %+v", after)
 	}
 }

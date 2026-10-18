@@ -11,6 +11,7 @@ from fastapi import Header, HTTPException, Request
 
 from agi_memory.embedding.base import Embedder
 from agi_memory.jobs import JobManager
+from agi_memory.pace import Pacer
 from agi_memory.search.searcher import Searcher
 from agi_memory.store import FlatStore
 
@@ -22,6 +23,7 @@ class Engine:
     embedder: Embedder
     searcher: Searcher
     jobs: JobManager
+    pacer: Pacer
 
 
 def get_engine(request: Request) -> Engine:

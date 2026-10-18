@@ -11,6 +11,10 @@ type Health struct {
 	Version       string  `json:"version"`
 	// Error is why the model failed to load; when set, Ready will never become true.
 	Error *string `json:"error"`
+	// Duty is the share of the time indexing may keep the GPU busy, and Paused says whether it is stopped;
+	// both are nil until the engine is ready.
+	Duty   *float64 `json:"duty"`
+	Paused *bool    `json:"paused"`
 }
 
 // Source is one indexed folder (GET /sources).

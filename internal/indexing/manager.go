@@ -26,6 +26,32 @@ type Engine interface {
 	AddSource(ctx context.Context, root, id string, exclude []string) (string, error)
 	Job(ctx context.Context, id string) (sidecar.Job, error)
 	DeleteSource(ctx context.Context, id string) (int, error)
+	SetDuty(ctx context.Context, duty float64) error
+	Pause(ctx context.Context) error
+	Resume(ctx context.Context) error
+}
+
+// Duty is the share of the time indexing may keep the GPU busy at each speed of the settings. Measured in
+// docs/eval/2026-10-18-pace.md: Balanced takes about twice as long as Fast, Gentle about six times.
+func Duty(pace string) float64 {
+	switch pace {
+	case "fast":
+		return 1.0
+	case "gentle":
+		return 0.2
+	default: // balanced
+		return 0.5
+	}
+}
+
+// FolderStatus is one configured folder as the settings window lists it.
+type FolderStatus struct {
+	Root string
+	// State is Waiting (not started), Indexing (FilesDone of FilesTotal), UpToDate (Files and Chunks) or Failed.
+	State                 State
+	FilesDone, FilesTotal int
+	Files, Chunks         int
+	Message               string
 }
 
 // State is where the manager is.
@@ -53,10 +79,15 @@ type Status struct {
 	Files, Chunks int
 	// Message is why a sync failed.
 	Message string
+	// Paused says that indexing is stopped on request; a job in progress waits at its next batch.
+	Paused bool
 }
 
 // String is the one-line form for the tray.
 func (s Status) String() string {
+	if s.Paused && s.State == Indexing {
+		return "Indexing paused"
+	}
 	switch s.State {
 	case Waiting:
 		return "Waiting for the search engine"
@@ -93,6 +124,9 @@ type Manager struct {
 	roots   []string        // the folders to index
 	exclude []string        // folders inside the roots to leave out
 	dirty   map[string]bool // roots whose folders changed since they were last synced
+	pace    string          // fast, balanced or gentle
+	paused  bool
+	states  map[string]FolderStatus // where each folder is, for the settings window
 }
 
 // New returns a manager for roots. ready says whether the engine can take work; onChange (may be
@@ -105,14 +139,109 @@ func New(engine Engine, roots []string, ready func() bool, onChange func(Status)
 		wake:   make(chan struct{}, 1),
 		dirty:  map[string]bool{},
 		status: Status{State: Waiting},
+		pace:   "balanced", states: map[string]FolderStatus{},
 	}
+}
+
+// SetPace sets how hard indexing works (fast, balanced or gentle) and tells the engine if it is up. An engine
+// that is not up yet, or that restarts, is told at the start of the next sync.
+func (m *Manager) SetPace(pace string) {
+	m.mu.Lock()
+	m.pace = pace
+	m.mu.Unlock()
+	m.tell(func(ctx context.Context) error { return m.engine.SetDuty(ctx, Duty(pace)) })
+}
+
+// Pause stops indexing at the next batch; searching goes on.
+func (m *Manager) Pause() { m.setPaused(true) }
+
+// Resume lets indexing go on.
+func (m *Manager) Resume() { m.setPaused(false) }
+
+func (m *Manager) setPaused(paused bool) {
+	m.mu.Lock()
+	changed := m.paused != paused
+	m.paused = paused
+	m.mu.Unlock()
+	if !changed {
+		return
+	}
+	m.tell(func(ctx context.Context) error {
+		if paused {
+			return m.engine.Pause(ctx)
+		}
+		return m.engine.Resume(ctx)
+	})
+	if m.onChange != nil {
+		m.onChange(m.Status())
+	}
+}
+
+// tell sends a pace request to the engine now, if it is ready; otherwise the next sync does it.
+func (m *Manager) tell(request func(ctx context.Context) error) {
+	if !m.ready() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := request(ctx); err != nil {
+		log.Printf("indexing: telling the engine the pace: %v", err)
+	}
+}
+
+// applyPace makes the engine match what was asked: its speed and whether it is paused.
+func (m *Manager) applyPace(ctx context.Context) {
+	m.mu.Lock()
+	pace, paused := m.pace, m.paused
+	m.mu.Unlock()
+	if err := m.engine.SetDuty(ctx, Duty(pace)); err != nil {
+		log.Printf("indexing: setting the speed: %v", err)
+	}
+	var err error
+	if paused {
+		err = m.engine.Pause(ctx)
+	} else {
+		err = m.engine.Resume(ctx)
+	}
+	if err != nil {
+		log.Printf("indexing: setting the pause: %v", err)
+	}
+}
+
+// Folders lists the configured folders with where each one is.
+func (m *Manager) Folders() []FolderStatus {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]FolderStatus, 0, len(m.roots))
+	for _, root := range m.roots {
+		f, ok := m.states[root]
+		if !ok {
+			f = FolderStatus{Root: root, State: Waiting}
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+func (m *Manager) failed(root string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.states[root].State == Failed
+}
+
+func (m *Manager) setFolder(f FolderStatus) {
+	m.mu.Lock()
+	m.states[f.Root] = f
+	m.mu.Unlock()
 }
 
 // Status returns the current status.
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.status
+	s := m.status
+	s.Paused = m.paused
+	return s
 }
 
 // SetExclude sets the folders to leave out of the roots before Run starts; SetFolders is for a
@@ -239,6 +368,7 @@ func (m *Manager) cycle(ctx context.Context, only map[string]bool) bool {
 		case <-time.After(m.poll):
 		}
 	}
+	m.applyPace(ctx) // an engine that has just started knows nothing of the speed or the pause chosen
 	problems, err := m.syncAll(ctx, only)
 	if ctx.Err() != nil {
 		return true
@@ -296,16 +426,33 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 		if only != nil && !only[root] {
 			continue
 		}
+		m.setFolder(FolderStatus{Root: root, State: Waiting})
+	}
+	for _, root := range roots {
+		if only != nil && !only[root] {
+			continue
+		}
 		if err := m.syncRoot(ctx, root, exclude); err != nil {
 			problems = append(problems, filepath.Base(root)+": "+err.Error())
+			m.setFolder(FolderStatus{Root: root, State: Failed, Message: err.Error()})
 		}
-	}
-	if len(problems) > 0 {
-		return problems, nil
 	}
 	// Totals are read after the last job, so they count what the index holds now.
 	if sources, err = m.engine.Sources(ctx); err != nil {
 		return nil, fmt.Errorf("list indexed folders: %w", err)
+	}
+	for _, root := range roots {
+		if only != nil && !only[root] || m.failed(root) {
+			continue
+		}
+		for _, source := range sources {
+			if source.ID == config.SourceID(root) {
+				m.setFolder(FolderStatus{Root: root, State: UpToDate, Files: source.Files, Chunks: source.Chunks})
+			}
+		}
+	}
+	if len(problems) > 0 {
+		return problems, nil
 	}
 	total := Status{State: UpToDate}
 	for _, source := range sources {
@@ -357,6 +504,7 @@ func (m *Manager) follow(ctx context.Context, root, jobID string) error {
 			}
 			return errors.New("the job failed")
 		}
+		m.setFolder(FolderStatus{Root: root, State: Indexing, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal})
 		m.set(Status{State: Indexing, Root: root, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal})
 		select {
 		case <-ctx.Done():
