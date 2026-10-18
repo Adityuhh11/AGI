@@ -76,7 +76,7 @@
 
   // What the page waits for, in a word or two, shown as the loader in the bar.
   const waiting = $derived.by(() => {
-    if (info && info.Engine !== "ready" && info.Engine !== "failed" && info.Engine !== "") return "Warming up";
+    if (info && !["ready", "failed", "off", ""].includes(info.Engine)) return "Warming up";
     if (info?.IndexState === "indexing") return "Indexing";
     return "";
   });
@@ -94,6 +94,8 @@
       if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
     } else if (results?.State === "warming") {
       out.push({ text: results.Message, problem: false });
+    } else if (results?.State === "off") {
+      if (fileRows.length + local.length === 0) out.push({ text: results.Message, problem: false });
     } else if (results?.State === "unavailable" || results?.State === "error") {
       out.push({ text: results.Message, problem: true });
     } else if (results) {

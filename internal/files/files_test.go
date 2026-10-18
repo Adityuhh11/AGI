@@ -33,7 +33,7 @@ func setup(t *testing.T) (*Service, *fakeShell, string, *int) {
 	root := t.TempDir()
 	shell := &fakeShell{}
 	dismissed := 0
-	return newService([]string{root}, func() { dismissed++ }, shell), shell, root, &dismissed
+	return newService(func() []string { return []string{root} }, func() { dismissed++ }, shell), shell, root, &dismissed
 }
 
 func touch(t *testing.T, path string) string {

@@ -25,18 +25,26 @@ const barHeightDIP = 117
 // offscreen is where the window waits before its first use (relative to the primary work area).
 const offscreen = -32000
 
+// shortcuts is the part of Wails' global shortcut manager the panel uses.
+type shortcuts interface {
+	Register(accelerator string, callback func()) error
+	Unregister(accelerator string) error
+}
+
 // Panel is the search bar window.
 type Panel struct {
-	app    *application.App
-	win    *application.WebviewWindow
-	hotkey string
+	app  *application.App
+	win  *application.WebviewWindow
+	keys shortcuts
 
-	// OnHotkeyError, if set before the app runs, is called when the hotkey turns out to be taken.
+	// OnHotkeyError, if set before the app runs, is called whenever the hotkey's state changes: it turns
+	// out to be taken, or it was moved to another combination.
 	OnHotkeyError func()
 
 	shown atomic.Bool
 
 	mu           sync.Mutex
+	hotkey       string  // the accelerator the panel is asked to listen on
 	previous     uintptr // the window that had the keyboard before the panel opened
 	heightDIP    int
 	hotkeyErrMsg string
@@ -45,7 +53,7 @@ type Panel struct {
 // New creates the (still invisible) window and arranges to bind hotkey once the app runs.
 func New(app *application.App, hotkey string) *Panel {
 	// The window takes the keyboard when it is created; remember who had it to give it back.
-	p := &Panel{app: app, hotkey: hotkey, heightDIP: barHeightDIP, previous: foregroundWindow()}
+	p := &Panel{app: app, keys: app.GlobalShortcut, hotkey: hotkey, heightDIP: barHeightDIP, previous: foregroundWindow()}
 	p.win = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:          "panel",
 		Title:         "AGI",
@@ -99,15 +107,50 @@ func (p *Panel) prepare() {
 	}
 	cloak(hwnd, true)
 	go p.releaseKeyboardAfterCreation(hwnd)
-	if err := p.app.GlobalShortcut.Register(p.hotkey, p.Toggle); err != nil {
+	p.mu.Lock()
+	hotkey := p.hotkey
+	p.mu.Unlock()
+	if err := p.keys.Register(hotkey, p.Toggle); err != nil {
 		p.mu.Lock()
-		p.hotkeyErrMsg = fmt.Sprintf("the hotkey %s cannot be used: %v", p.hotkey, err)
+		p.hotkeyErrMsg = fmt.Sprintf("the hotkey %s cannot be used: %v", hotkey, err)
 		p.mu.Unlock()
 		log.Print("panel: ", p.HotkeyError())
 		if p.OnHotkeyError != nil {
 			p.OnHotkeyError()
 		}
 	}
+}
+
+// Rebind moves the hotkey to accelerator while the app runs. The new combination is registered
+// before the old one is dropped, so one that cannot be used (another program owns it, or it is not a
+// valid combination) leaves the working one in place and the error says why.
+func (p *Panel) Rebind(accelerator string) error {
+	p.mu.Lock()
+	old, oldWorks := p.hotkey, p.hotkeyErrMsg == ""
+	p.mu.Unlock()
+	if accelerator == old && oldWorks {
+		return nil
+	}
+	if accelerator != old {
+		if err := p.keys.Register(accelerator, p.Toggle); err != nil {
+			return fmt.Errorf("the hotkey %s cannot be used: %w", accelerator, err)
+		}
+		if oldWorks {
+			if err := p.keys.Unregister(old); err != nil {
+				log.Printf("panel: the old hotkey %s could not be released: %v", old, err)
+			}
+		}
+	} else if err := p.keys.Register(accelerator, p.Toggle); err != nil { // the same combination, tried again after it was taken
+		return fmt.Errorf("the hotkey %s cannot be used: %w", accelerator, err)
+	}
+	p.mu.Lock()
+	p.hotkey, p.hotkeyErrMsg = accelerator, ""
+	p.mu.Unlock()
+	log.Printf("panel: the hotkey is now %s", accelerator)
+	if p.OnHotkeyError != nil {
+		p.OnHotkeyError()
+	}
+	return nil
 }
 
 func (p *Panel) hwnd() uintptr { return uintptr(p.win.NativeWindow()) }

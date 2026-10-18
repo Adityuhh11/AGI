@@ -316,7 +316,7 @@ func TestExcludedFoldersGoToTheEngineRelativeToTheirOwnRoot(t *testing.T) {
 	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
-	m.Exclude = []string{`C:\a\vendor\skills`, `C:\b\old`}
+	m.SetFolders([]string{`C:\a`, `C:\b`}, []string{`C:\a\vendor\skills`, `C:\b\old`})
 	if !m.cycle(context.Background(), nil) {
 		t.Fatalf("cycle failed: %v", m.Status())
 	}
@@ -341,5 +341,30 @@ func TestTheRetryPauseDoublesWithEachFailureUpToALimit(t *testing.T) {
 		if got := m.retryPause(tt.failures); got != tt.want {
 			t.Errorf("after %d failures the pause is %v, want %v", tt.failures, got, tt.want)
 		}
+	}
+}
+
+func TestSetFoldersChangesWhatIsIndexedAndDropsWhatIsNoLongerListed(t *testing.T) {
+	fake := newFake()
+	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	if !m.cycle(context.Background(), nil) {
+		t.Fatalf("first cycle failed: %v", m.Status())
+	}
+	m.SetFolders([]string{`C:\b`, `C:\c`}, nil)
+	select {
+	case <-m.rescan:
+	default:
+		t.Fatal("changing the folders did not ask for a sync")
+	}
+	if !m.cycle(context.Background(), nil) {
+		t.Fatalf("second cycle failed: %v", m.Status())
+	}
+	if _, kept := fake.sources[config.SourceID(`C:\a`)]; kept {
+		t.Error("the folder that was taken out of the list is still in the index")
+	}
+	if _, added := fake.sources[config.SourceID(`C:\c`)]; !added {
+		t.Error("the folder that was added was not indexed")
 	}
 }

@@ -27,18 +27,19 @@ type opener interface {
 
 // Service is bound to the frontend; its exported methods become TypeScript functions.
 type Service struct {
-	roots   []string
+	roots   func() []string
 	dismiss func()
 	shell   opener
 }
 
-// New returns a service that only touches files under roots. dismiss is called after a file has
-// been handed over, to close the search bar.
-func New(roots []string, dismiss func()) *Service {
+// New returns a service that only touches files under the folders roots returns (asked on every
+// call, so folders added in the settings count at once). dismiss is called after a file has been
+// handed over, to close the search bar.
+func New(roots func() []string, dismiss func()) *Service {
 	return newService(roots, dismiss, windowsShell{})
 }
 
-func newService(roots []string, dismiss func(), shell opener) *Service {
+func newService(roots func() []string, dismiss func(), shell opener) *Service {
 	return &Service{roots: roots, dismiss: dismiss, shell: shell}
 }
 
@@ -75,7 +76,7 @@ func (s *Service) Reveal(path string) error {
 
 // check refuses paths outside the indexed folders and files that are gone.
 func (s *Service) check(path string) error {
-	if !inside(s.roots, path) {
+	if !inside(s.roots(), path) {
 		return errors.New("that file is not inside a folder the launcher searches")
 	}
 	if _, err := os.Stat(path); err != nil {

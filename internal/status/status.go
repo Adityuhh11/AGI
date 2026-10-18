@@ -3,6 +3,7 @@
 package status
 
 import (
+	"agi/internal/config"
 	"agi/internal/indexing"
 	"agi/internal/sidecar"
 )
@@ -11,9 +12,11 @@ import (
 type Info struct {
 	Hotkey string
 	Roots  []string
+	// FileSearch says whether file search is switched on.
+	FileSearch bool
 	// HotkeyError is why the hotkey does not work (another app owns it), or empty.
 	HotkeyError string
-	// Engine is the search engine's state: starting, warming, ready, restarting, failed or stopped.
+	// Engine is the search engine's state: off, starting, warming, ready, restarting, failed or stopped.
 	Engine string
 	// EngineMessage explains a restart or a failure.
 	EngineMessage string
@@ -25,21 +28,22 @@ type Info struct {
 
 // Service is bound to the frontend; its exported methods become TypeScript functions.
 type Service struct {
-	info        Info
+	settings    func() config.Config
 	hotkeyError func() string
 	engine      func() sidecar.Status
 	index       func() indexing.Status
 }
 
-// New returns a service that reports info; hotkeyError is asked for the current hotkey problem
-// every time the UI asks (the hotkey is only bound once the app runs).
-func New(info Info, hotkeyError func() string, engine func() sidecar.Status, index func() indexing.Status) *Service {
-	return &Service{info: info, hotkeyError: hotkeyError, engine: engine, index: index}
+// New returns a service that reports the current settings; hotkeyError is asked for the current
+// hotkey problem every time the UI asks (the hotkey is only bound once the app runs).
+func New(settings func() config.Config, hotkeyError func() string, engine func() sidecar.Status, index func() indexing.Status) *Service {
+	return &Service{settings: settings, hotkeyError: hotkeyError, engine: engine, index: index}
 }
 
 // Info returns the launcher's configuration and health.
 func (s *Service) Info() Info {
-	info := s.info
+	cfg := s.settings()
+	info := Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots, FileSearch: cfg.Search.Enabled}
 	if s.hotkeyError != nil {
 		info.HotkeyError = s.hotkeyError()
 	}

@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -75,12 +76,8 @@ func (s Status) String() string {
 // Manager syncs the roots when the engine is ready and again whenever Rescan is called.
 type Manager struct {
 	engine   Engine
-	roots    []string
 	ready    func() bool
 	onChange func(Status)
-
-	// Exclude are folders inside the roots to leave out of the index; set it before Run.
-	Exclude []string
 
 	poll  time.Duration // between job progress checks and readiness checks
 	retry time.Duration // the pause after a first failed sync; it doubles with each failure in a row
@@ -91,16 +88,18 @@ type Manager struct {
 	rescan chan struct{}
 	wake   chan struct{} // a folder changed on disk (see Changed)
 
-	mu     sync.Mutex
-	status Status
-	dirty  map[string]bool // roots whose folders changed since they were last synced
+	mu      sync.Mutex
+	status  Status
+	roots   []string        // the folders to index
+	exclude []string        // folders inside the roots to leave out
+	dirty   map[string]bool // roots whose folders changed since they were last synced
 }
 
 // New returns a manager for roots. ready says whether the engine can take work; onChange (may be
 // nil) is called, in the manager's goroutine, whenever the status changes.
 func New(engine Engine, roots []string, ready func() bool, onChange func(Status)) *Manager {
 	return &Manager{
-		engine: engine, roots: roots, ready: ready, onChange: onChange,
+		engine: engine, roots: slices.Clone(roots), ready: ready, onChange: onChange,
 		poll: 500 * time.Millisecond, retry: time.Minute, deleted: wasDeleted,
 		rescan: make(chan struct{}, 1),
 		wake:   make(chan struct{}, 1),
@@ -114,6 +113,30 @@ func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.status
+}
+
+// SetExclude sets the folders to leave out of the roots before Run starts; SetFolders is for a
+// manager that is running.
+func (m *Manager) SetExclude(exclude []string) {
+	m.mu.Lock()
+	m.exclude = slices.Clone(exclude)
+	m.mu.Unlock()
+}
+
+// SetFolders replaces the folders to index and the folders to leave out of them, and asks for a sync.
+// A folder that is no longer listed is dropped from the index by that sync.
+func (m *Manager) SetFolders(roots, exclude []string) {
+	m.mu.Lock()
+	m.roots, m.exclude = slices.Clone(roots), slices.Clone(exclude)
+	m.mu.Unlock()
+	m.Rescan()
+}
+
+// folders returns the current folders to index and to leave out.
+func (m *Manager) folders() (roots, exclude []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.roots), slices.Clone(m.exclude)
 }
 
 // Rescan asks for another sync as soon as the current one is over. Asking twice is the same as once.
@@ -247,8 +270,9 @@ func wasDeleted(root string) bool {
 // others; its problem is returned.
 func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems []string, err error) {
 	var roots []string
-	ids := make(map[string]bool, len(m.roots))
-	for _, root := range m.roots {
+	configured, exclude := m.folders()
+	ids := make(map[string]bool, len(configured))
+	for _, root := range configured {
 		if m.deleted(root) {
 			log.Printf("indexing: %s no longer exists, so its index entries are dropped", root)
 			continue
@@ -272,7 +296,7 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 		if only != nil && !only[root] {
 			continue
 		}
-		if err := m.syncRoot(ctx, root); err != nil {
+		if err := m.syncRoot(ctx, root, exclude); err != nil {
 			problems = append(problems, filepath.Base(root)+": "+err.Error())
 		}
 	}
@@ -294,10 +318,10 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 	return nil, nil
 }
 
-func (m *Manager) syncRoot(ctx context.Context, root string) error {
+func (m *Manager) syncRoot(ctx context.Context, root string, exclude []string) error {
 	id := config.SourceID(root)
 	for {
-		jobID, err := m.engine.AddSource(ctx, root, id, config.ExcludedUnder(root, m.Exclude))
+		jobID, err := m.engine.AddSource(ctx, root, id, config.ExcludedUnder(root, exclude))
 		var busy *sidecar.BusyError
 		if err == nil {
 			return m.follow(ctx, root, jobID)

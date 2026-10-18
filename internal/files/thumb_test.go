@@ -52,7 +52,7 @@ func TestThumbnails(t *testing.T) {
 	writePNG(t, secret, 10, 10)
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusTeapot) })
-	handler := Thumbnails([]string{root}, cache)(next)
+	handler := Thumbnails(func() []string { return []string{root} }, cache)(next)
 
 	tests := []struct {
 		name          string

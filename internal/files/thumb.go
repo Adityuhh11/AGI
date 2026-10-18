@@ -32,10 +32,10 @@ const (
 )
 
 // Thumbnails returns middleware for the asset server that answers GET /thumb?path=... with a small
-// JPEG of the image at path, and passes every other request on. Only images inside roots are
-// served, so the page cannot use it to read other files. Thumbnails are cached in cacheDir, keyed by
+// JPEG of the image at path, and passes every other request on. Only images inside the folders roots
+// returns are served, so the page cannot use it to read other files. Thumbnails are cached in cacheDir, keyed by
 // path, size and modification time.
-func Thumbnails(roots []string, cacheDir string) func(http.Handler) http.Handler {
+func Thumbnails(roots func() []string, cacheDir string) func(http.Handler) http.Handler {
 	t := &thumbs{roots: roots, dir: cacheDir, slots: make(chan struct{}, concurrentThumbs)}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,14 +49,14 @@ func Thumbnails(roots []string, cacheDir string) func(http.Handler) http.Handler
 }
 
 type thumbs struct {
-	roots []string
+	roots func() []string
 	dir   string
 	slots chan struct{}
 }
 
 func (t *thumbs) serve(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
-	if !inside(t.roots, path) {
+	if !inside(t.roots(), path) {
 		http.Error(w, "not inside a folder the launcher searches", http.StatusForbidden)
 		return
 	}
