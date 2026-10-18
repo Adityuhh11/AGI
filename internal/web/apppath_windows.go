@@ -37,3 +37,18 @@ func shellOpen(address string) error {
 	}
 	return windows.ShellExecute(0, verb, target, nil, nil, windows.SW_SHOWNORMAL)
 }
+
+// knownBrowsers are the browsers worth offering by name in the settings; the names are the ones
+// Windows registers them under (`msedge` is `msedge.exe` under App Paths).
+var knownBrowsers = []string{"chrome", "msedge", "firefox", "zen", "brave", "vivaldi", "opera", "librewolf", "waterfox", "floorp"}
+
+// Installed returns the known browsers that are installed on this machine.
+func Installed() []string {
+	var found []string
+	for _, name := range knownBrowsers {
+		if _, err := appPath(name); err == nil {
+			found = append(found, name)
+		}
+	}
+	return found
+}

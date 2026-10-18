@@ -7,6 +7,7 @@
   import type { Item as Entry, TagInfo } from "../bindings/agi/internal/palette";
   import { Service as Panel } from "../bindings/agi/internal/panel";
   import { Service as Search } from "../bindings/agi/internal/search";
+  import { Service as SettingsWindow } from "../bindings/agi/internal/settingsui";
   import type { Results } from "../bindings/agi/internal/search";
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
@@ -340,6 +341,12 @@
 
   function onKeydown(event: KeyboardEvent) {
     if (target || picker) return; // a panel has the keyboard
+    if (event.ctrlKey && event.key === ",") {
+      event.preventDefault();
+      SettingsWindow.Open();
+      Panel.Hide();
+      return;
+    }
     switch (event.key) {
       case "Escape": {
         event.preventDefault();

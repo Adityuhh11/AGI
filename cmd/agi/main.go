@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"agi/internal/panel"
 	"agi/internal/search"
 	"agi/internal/settings"
+	"agi/internal/settingsui"
 	"agi/internal/sidecar"
 	"agi/internal/state"
 	"agi/internal/status"
@@ -34,6 +36,9 @@ import (
 	"agi/internal/watcher"
 	"agi/internal/web"
 )
+
+// version is the build's version, set by scripts/release.ps1 with -ldflags "-X main.version=...".
+var version = "dev"
 
 func main() {
 	closeLog := setUpLog()
@@ -165,13 +170,28 @@ func run() error {
 	bar = panel.New(app, cfg.Hotkey)
 	opener := files.New(roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
-	icon = tray.New(app, bar.Show, indexer.Rescan)
+	settingsWindow := settingsui.NewWindow(app)
+	icon = tray.New(app, bar.Show, settingsWindow.Open, indexer.Rescan)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
 		application.NewService(palette.New(catalog, history, browser, opener, bar.HideForLaunch)),
+		application.NewService(settingsui.New(settingsui.Options{
+			Store:  store,
+			Rebind: bar.Rebind,
+			PickFolder: func() (string, error) {
+				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
+					SetTitle("Choose a folder to search").PromptForSingleSelection()
+			},
+			Browsers:   web.Installed,
+			OpenFolder: func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Open:       settingsWindow.Open,
+			Engine:     func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:     filepath.Join(cacheDir, "AGI", "logs"),
+			Version:    version,
+		})),
 	} {
 		app.RegisterService(service)
 	}

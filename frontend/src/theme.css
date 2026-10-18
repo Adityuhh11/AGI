@@ -60,6 +60,14 @@ html[data-active="false"] *::after {
   animation-play-state: paused !important;
 }
 
+/* The settings window is an ordinary opaque window, not the transparent search bar. */
+html[data-surface="settings"],
+html[data-surface="settings"] body {
+  background: var(--plate);
+  overflow: auto;
+  user-select: text;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -67,4 +75,12 @@ html[data-active="false"] *::after {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* The settings window is an ordinary opaque window, not the transparent search bar. */
+html[data-surface="settings"],
+html[data-surface="settings"] body {
+  background: var(--plate);
+  overflow: auto;
+  user-select: text;
 }
