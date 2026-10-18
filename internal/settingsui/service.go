@@ -11,12 +11,25 @@ import (
 	"strings"
 
 	"agi/internal/config"
+	"agi/internal/enginesetup"
 	"agi/internal/settings"
 )
+
+// Setup is the installer of file search as the service uses it; *enginesetup.Manager satisfies it.
+type Setup interface {
+	Installed() bool
+	Start() error
+	Cancel()
+	State() enginesetup.State
+	Remove() error
+}
 
 // Options are the parts of the launcher the service needs; main supplies them.
 type Options struct {
 	Store *settings.Store
+	// Setup installs, updates and removes the engine. When an install finishes well, whoever built it turns
+	// file search on (main does).
+	Setup Setup
 	// Rebind moves the global hotkey; it fails if the combination cannot be used.
 	Rebind func(accelerator string) error
 	// PickFolder shows the native folder picker and returns the folder, or "" if it was cancelled.
@@ -168,4 +181,78 @@ func reason(err error) string {
 		return ""
 	}
 	return strings.TrimPrefix(err.Error(), "settings: ")
+}
+
+// SearchView is the File search page: what is installed, how an install is going, and how the engine is.
+type SearchView struct {
+	Enabled     bool
+	Installed   bool
+	Installing  bool
+	NeedsUpdate bool
+	// Step, Steps and StepName say where an install is; Done and Total are bytes of the download in progress.
+	Step, Steps int
+	StepName    string
+	Done, Total int64
+	Message     string // the last line uv printed
+	Error       string // why the last install failed
+	// EngineState is off, starting, warming, ready, restarting, failed or stopped.
+	EngineState, EngineMessage string
+	// Hosts and DownloadMB are what the page tells a person before they agree to the download.
+	Hosts      []string
+	DownloadMB int
+	Pace       string
+}
+
+// Search returns the File search page; the window asks again every second or two.
+func (s *Service) Search() SearchView {
+	st := s.o.Setup.State()
+	engineState, engineMessage := s.o.Engine()
+	cfg := s.o.Store.Get()
+	return SearchView{
+		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
+		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
+		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
+		EngineState: engineState, EngineMessage: engineMessage,
+		Hosts: enginesetup.Hosts, DownloadMB: int(enginesetup.DownloadBytes() >> 20), Pace: cfg.Search.Pace,
+	}
+}
+
+// TurnOn switches file search on. If the engine is not installed yet (or is out of date) the download
+// starts in the background, and file search is switched on when it finishes.
+func (s *Service) TurnOn() string {
+	st := s.o.Setup.State()
+	if st.Installed && !st.NeedsUpdate {
+		return reason(s.o.Store.Update(func(c *config.Config) { c.Search.Enabled = true }))
+	}
+	return s.install()
+}
+
+// Update installs the current engine over an installed one: it is stopped first, because its files are in use.
+func (s *Service) Update() string { return s.install() }
+
+func (s *Service) install() string {
+	if st := s.o.Setup.State(); st.Installing {
+		return "file search is already being installed"
+	}
+	if msg := reason(s.o.Store.Update(func(c *config.Config) { c.Search.Enabled = false })); msg != "" {
+		return msg
+	}
+	return reason(s.o.Setup.Start())
+}
+
+// CancelInstall stops a running install. What was downloaded is kept, so the next one starts where it ended.
+func (s *Service) CancelInstall() { s.o.Setup.Cancel() }
+
+// TurnOff stops the engine and leaves its files, so turning file search on again is instant.
+func (s *Service) TurnOff() string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.Enabled = false }))
+}
+
+// RemoveFiles turns file search off and deletes the engine and the models (about a gigabyte). The index it
+// built stays, and works again after the engine is installed again.
+func (s *Service) RemoveFiles() string {
+	if msg := s.TurnOff(); msg != "" {
+		return msg
+	}
+	return reason(s.o.Setup.Remove())
 }

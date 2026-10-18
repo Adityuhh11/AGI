@@ -42,6 +42,7 @@ def expected_for_ids(ids: list[int]) -> list[float]:
 
 class FakeLlama:
     def __init__(self) -> None:
+        self.api_key = API_KEY
         self.requests: list[tuple[str, dict]] = []
         self.client_ports: set[int] = set()
         self.drop_next = 0  # close this many requests without an answer
@@ -57,7 +58,7 @@ class FakeLlama:
             def do_POST(self) -> None:
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 owner.client_ports.add(self.client_address[1])
-                if self.headers.get("Authorization") != "Bearer " + API_KEY:
+                if self.headers.get("Authorization") != "Bearer " + owner.api_key:
                     return self._send(401, {"error": "no"})
                 if owner.drop_next > 0:
                     owner.drop_next -= 1
@@ -111,4 +112,6 @@ class Handle:
         self.restarts = 0
 
     def restart(self) -> None:
+        """A new server has a new key, as the real one does."""
         self.restarts += 1
+        self.api_key = self.fake.api_key = f"key-{self.restarts + 1}"

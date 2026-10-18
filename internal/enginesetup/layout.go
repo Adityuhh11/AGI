@@ -34,6 +34,9 @@ func (l Layout) Python() string { return filepath.Join(l.Root, "venv", "Scripts"
 // LlamaServer is the llama.cpp server the engine starts to embed with.
 func (l Layout) LlamaServer() string { return filepath.Join(l.Root, "llama", "llama-server.exe") }
 
+// UV is the package tool the install uses to build the Python environment.
+func (l Layout) UV() string { return filepath.Join(l.Root, "tools", "uv.exe") }
+
 // Models is the folder with the two model files.
 func (l Layout) Models() string { return filepath.Join(l.Root, "models") }
 

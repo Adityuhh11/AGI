@@ -134,20 +134,34 @@ def test_the_api_key_is_sent_and_a_refusal_is_an_error_not_a_restart(fake, tmp_p
     embedder.embed_query("x")
 
 
-def test_a_server_that_dropped_the_connection_is_started_again_once(fake, tmp_path):
+def test_a_connection_the_server_closed_while_idle_is_reopened_not_treated_as_a_dead_server(
+    fake, tmp_path
+):
     embedder, handle = make(fake, tmp_path)
     embedder.embed_query("warm up")
-    fake.drop_next = 1
+    fake.drop_next = 1  # llama-server closes idle keep-alive connections after a few seconds
+    got = embedder.embed_query("after the pause")
+    assert handle.restarts == 0
+    assert np.allclose(
+        got, unit(expected_for_text("task: search result | query: after the pause")), atol=1e-6
+    )
+
+
+def test_a_server_that_is_gone_is_started_again_and_the_new_key_is_used(fake, tmp_path):
+    embedder, handle = make(fake, tmp_path)
+    embedder.embed_query("warm up")
+    fake.drop_next = 2  # the reconnect fails too: the server is dead
     got = embedder.embed_query("after the crash")
-    assert handle.restarts == 1
+    assert handle.restarts == 1 and handle.api_key != API_KEY
     assert np.allclose(
         got, unit(expected_for_text("task: search result | query: after the crash")), atol=1e-6
     )
+    embedder.embed_query("and again")  # the connection made after the restart keeps working
 
 
 def test_a_server_that_fails_again_after_the_restart_fails_the_call(fake, tmp_path):
     embedder, handle = make(fake, tmp_path)
-    fake.drop_next = 2
+    fake.drop_next = 3
     with pytest.raises(OSError):
         embedder.embed_query("x")
     assert handle.restarts == 1

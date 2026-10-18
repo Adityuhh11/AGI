@@ -7,10 +7,27 @@ import (
 	"testing"
 
 	"agi/internal/config"
+	"agi/internal/enginesetup"
 	"agi/internal/settings"
 )
 
+// fakeSetup plays the installer: it is installed or not, and says what it was asked to do.
+type fakeSetup struct {
+	state      enginesetup.State
+	started    int
+	removed    int
+	cancels    int
+	failRemove error
+}
+
+func (f *fakeSetup) Installed() bool          { return f.state.Installed }
+func (f *fakeSetup) Start() error             { f.started++; f.state.Installing = true; return nil }
+func (f *fakeSetup) Cancel()                  { f.cancels++ }
+func (f *fakeSetup) State() enginesetup.State { return f.state }
+func (f *fakeSetup) Remove() error            { f.removed++; return f.failRemove }
+
 type harness struct {
+	setup   *fakeSetup
 	svc     *Service
 	store   *settings.Store
 	hotkeys []string // every accelerator Rebind was asked for, in order
@@ -24,9 +41,10 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store}
+	h := &harness{store: store, setup: &fakeSetup{}}
 	h.svc = New(Options{
 		Store: store,
+		Setup: h.setup,
 		Rebind: func(a string) error {
 			h.hotkeys = append(h.hotkeys, a)
 			for _, r := range refuse {
@@ -157,5 +175,83 @@ func TestDiagnosticsNameNoFilesOrFolders(t *testing.T) {
 	text := h.svc.Diagnostics()
 	if strings.Contains(text, "Taxes") || !strings.Contains(text, "folders: 1") || !strings.Contains(text, "engine=off") {
 		t.Fatalf("diagnostics:\n%s", text)
+	}
+}
+
+func enable(t *testing.T, h *harness) {
+	t.Helper()
+	if err := h.store.Update(func(c *config.Config) { c.Search.Enabled = true }); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTurningOnWithTheEngineInstalledSwitchesItOnAtOnce(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installed = true
+	if msg := h.svc.TurnOn(); msg != "" {
+		t.Fatal(msg)
+	}
+	if !h.store.Get().Search.Enabled || h.setup.started != 0 {
+		t.Fatalf("enabled %v, installs started %d", h.store.Get().Search.Enabled, h.setup.started)
+	}
+}
+
+func TestTurningOnWithoutTheEngineStartsTheDownloadAndLeavesSearchOffUntilItEnds(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.TurnOn(); msg != "" {
+		t.Fatal(msg)
+	}
+	if h.setup.started != 1 || h.store.Get().Search.Enabled {
+		t.Fatalf("installs started %d, enabled %v", h.setup.started, h.store.Get().Search.Enabled)
+	}
+	if msg := h.svc.TurnOn(); !strings.Contains(msg, "already being installed") || h.setup.started != 1 {
+		t.Fatalf("a second TurnOn during the install: %q, installs started %d", msg, h.setup.started)
+	}
+}
+
+func TestUpdatingStopsTheEngineFirstBecauseItsFilesAreInUse(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state = enginesetup.State{Installed: true, NeedsUpdate: true}
+	enable(t, h)
+	if msg := h.svc.TurnOn(); msg != "" { // an out-of-date engine is updated, not just switched on
+		t.Fatal(msg)
+	}
+	if h.setup.started != 1 || h.store.Get().Search.Enabled {
+		t.Fatalf("installs started %d, enabled %v: the engine must be off while its files are replaced", h.setup.started, h.store.Get().Search.Enabled)
+	}
+}
+
+func TestTurningOffKeepsTheFilesAndRemovingThemTurnsOffFirst(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installed = true
+	enable(t, h)
+	if msg := h.svc.TurnOff(); msg != "" || h.store.Get().Search.Enabled || h.setup.removed != 0 {
+		t.Fatalf("TurnOff: %q, enabled %v, removed %d", msg, h.store.Get().Search.Enabled, h.setup.removed)
+	}
+	enable(t, h)
+	if msg := h.svc.RemoveFiles(); msg != "" || h.store.Get().Search.Enabled || h.setup.removed != 1 {
+		t.Fatalf("RemoveFiles: %q, enabled %v, removed %d", msg, h.store.Get().Search.Enabled, h.setup.removed)
+	}
+	h.setup.failRemove = errors.New("the file is in use")
+	if msg := h.svc.RemoveFiles(); !strings.Contains(msg, "in use") {
+		t.Fatalf("a failed removal was not reported: %q", msg)
+	}
+}
+
+func TestCancelPassesThroughAndSearchReportsTheInstallAndTheEngine(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state = enginesetup.State{
+		Installing: true,
+		Progress:   enginesetup.Progress{Step: 5, Steps: 6, Name: "Downloading the models", Done: 100, Total: 400, Message: "x"},
+		Error:      "an earlier failure",
+	}
+	h.svc.CancelInstall()
+	view := h.svc.Search()
+	if h.setup.cancels != 1 || !view.Installing || view.Step != 5 || view.StepName != "Downloading the models" ||
+		view.Done != 100 || view.Total != 400 || view.Error != "an earlier failure" || view.EngineState != "off" {
+		t.Fatalf("cancels %d, view %+v", h.setup.cancels, view)
+	}
+	if len(view.Hosts) == 0 || view.DownloadMB < 900 || view.Pace != "balanced" {
+		t.Fatalf("the consent facts are missing: %+v", view)
 	}
 }

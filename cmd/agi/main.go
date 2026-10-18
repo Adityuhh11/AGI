@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -150,6 +151,24 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	engineSource, err := fs.Sub(agi.EngineSource, "sidecar")
+	if err != nil {
+		return err
+	}
+	// Turning file search on installs the engine in the background; when that has worked, file search is
+	// switched on, which starts the engine (the store's subscriber below).
+	setup := enginesetup.NewManager(enginesetup.NewInstaller(layout, engineSource), func(err error) {
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				log.Printf("installing file search failed: %v", err)
+			}
+			return
+		}
+		log.Print("file search is installed")
+		if err := store.Update(func(c *config.Config) { c.Search.Enabled = true }); err != nil {
+			log.Printf("switching file search on: %v", err)
+		}
+	})
 	engine, err = sidecar.New(sidecar.Options{
 		Dir: layout.App(), Python: layout.Python(), Env: layout.Env(),
 		Log: log.Writer(), OnChange: func(sidecar.Status) { refresh() },
@@ -182,6 +201,7 @@ func run() error {
 		application.NewService(palette.New(catalog, history, browser, opener, bar.HideForLaunch)),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:  store,
+			Setup:  setup,
 			Rebind: bar.Rebind,
 			PickFolder: func() (string, error) {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).

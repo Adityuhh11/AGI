@@ -74,13 +74,19 @@ class LlamaEmbedder:
         return self._server.device
 
     def _post(self, path: str, body: dict) -> dict:
-        """POST over the open connection; if the server is gone, start it again once and retry."""
+        """POST over the open connection, with two ways to recover.
+
+        llama-server closes an idle keep-alive connection after a few seconds, so a failure on the
+        first try is most likely that: connect again. A second failure means the server is gone:
+        start it again (its url and API key change, so the request is built afresh) and try once
+        more.
+        """
         payload = json.dumps(body).encode()
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + self._server.api_key,
-        }
-        for attempt in (0, 1):
+        for attempt in range(3):
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + self._server.api_key,
+            }
             try:
                 if self._conn is None:
                     parts = urllib.parse.urlsplit(self._server.url)
@@ -91,10 +97,11 @@ class LlamaEmbedder:
                 data = response.read()
             except (OSError, http.client.HTTPException) as error:
                 self._conn = None
-                if attempt:
+                if attempt == 2:
                     raise
-                logger.warning("llama-server did not answer (%s); starting it again", error)
-                self._server.restart()
+                if attempt == 1:
+                    logger.warning("llama-server did not answer (%s); starting it again", error)
+                    self._server.restart()
                 continue
             if response.status != 200:
                 raise RuntimeError(

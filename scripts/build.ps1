@@ -12,6 +12,9 @@ function Run($command, [string[]]$arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$command failed with exit code $LASTEXITCODE" }
 }
 
+# The engine's source is embedded in the executable; compiled Python files must not go with it.
+Get-ChildItem sidecar\src -Recurse -Directory -Filter __pycache__ -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+
 # The binding generator and the Svelte build both need the frontend's packages.
 Push-Location frontend
 Run npm @('install', '--no-audit', '--no-fund')
