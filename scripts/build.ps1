@@ -1,7 +1,8 @@
 # Builds the launcher: bindings, frontend, then bin\agi.exe.
 #   .\scripts\build.ps1            release build (no console window)
 #   .\scripts\build.ps1 -Console   keeps the console window so the log is visible
-param([switch]$Console)
+#   .\scripts\build.ps1 -Version 2026.10.18-abc1234   stamps the version shown in Settings
+param([switch]$Console, [string]$Version = 'dev')
 
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $PSScriptRoot)
@@ -23,5 +24,6 @@ Run npm @('run', 'build', '--silent')
 Pop-Location
 
 $ldflags = if ($Console) { '-w -s' } else { '-w -s -H windowsgui' }
+$ldflags += " -X main.version=$Version"
 Run go @('build', '-tags', 'production', '-trimpath', '-ldflags', $ldflags, '-o', 'bin\agi.exe', './cmd/agi')
 Write-Host "built bin\agi.exe"

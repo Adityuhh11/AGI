@@ -84,6 +84,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	_, statErr := os.Stat(path)
+	firstRun := os.IsNotExist(statErr) // no settings file yet: this is the first start on this machine
 	store, err := settings.Open(path)
 	if err != nil {
 		return err
@@ -235,6 +237,14 @@ func run() error {
 	})
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if firstRun {
+			// The launcher has no window of its own, so a first start would show nothing at all: open the
+			// settings, where the hotkey is.
+			go func() {
+				time.Sleep(time.Second)
+				settingsWindow.Open()
+			}()
+		}
 		if engineWanted(cfg) {
 			engineSwitch.On()
 		} else {

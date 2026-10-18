@@ -55,5 +55,9 @@ func (s *Service) Info() Info {
 		st := s.index()
 		info.IndexState, info.IndexText = string(st.State), st.String()
 	}
+	if info.Engine == string(sidecar.StateOff) {
+		// Nothing is waiting for an engine that is switched off; the page shows no index status.
+		info.IndexState, info.IndexText = "off", ""
+	}
 	return info
 }

@@ -509,7 +509,7 @@
                 <span><kbd>Tab</kbd>mode</span>
                 <span><kbd>Alt+Enter</kbd>web</span>
                 <span><kbd>Esc</kbd>close</span>
-                {#if info && info.IndexState && info.IndexState !== "uptodate"}
+                {#if info && info.IndexText && info.IndexState !== "uptodate"}
                   <span class="index">{info.IndexText}</span>
                 {/if}
               </footer>
