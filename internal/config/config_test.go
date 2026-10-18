@@ -61,8 +61,8 @@ func TestLoadKeepsDefaultsForKeysThatAreNotSet(t *testing.T) {
 	if got.Hotkey != "Ctrl+Alt+K" {
 		t.Fatalf("hotkey = %q, want Ctrl+Alt+K", got.Hotkey)
 	}
-	if want := Default(); got.Sidecar != want.Sidecar {
-		t.Fatalf("sidecar = %+v, want the default %+v", got.Sidecar, want.Sidecar)
+	if want := Default(); got.Search != want.Search {
+		t.Fatalf("search = %+v, want the default %+v", got.Search, want.Search)
 	}
 }
 
@@ -148,38 +148,47 @@ func TestSourceIDsAreStableCaseInsensitiveAndAcceptedByTheEngine(t *testing.T) {
 	}
 }
 
-func TestDefaultsPointAtTheRepositoryWhenItIsFound(t *testing.T) {
-	repo := t.TempDir()
-	writeFile(t, filepath.Join(repo, "sidecar", "pyproject.toml"), "[project]\n")
-	deep := filepath.Join(repo, "bin", "nested")
-	if err := os.MkdirAll(deep, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got := findRepoRoot(t.TempDir(), deep); got != repo {
-		t.Fatalf("findRepoRoot = %q, want %q (the second start folder is inside the repository)", got, repo)
-	}
-	cfg := defaultsFor(repo)
-	if want := filepath.Join(repo, "Sample Data"); len(cfg.Roots) != 1 || cfg.Roots[0] != want {
-		t.Fatalf("roots = %v, want [%s]", cfg.Roots, want)
-	}
-	if want := filepath.Join(repo, "sidecar"); cfg.Sidecar.Dir != want {
-		t.Fatalf("sidecar dir = %q, want %q", cfg.Sidecar.Dir, want)
+func TestAFreshInstallIndexesNothingAndHasFileSearchOff(t *testing.T) {
+	cfg := Default()
+	if len(cfg.Roots) != 0 || cfg.Search.Enabled || cfg.Search.Pace != "balanced" || cfg.Hotkey != DefaultHotkey {
+		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf("the defaults are invalid: %v", err)
+		t.Fatal(err)
 	}
 }
 
-func TestDefaultsWithoutARepositoryHaveNoRootsAndStillValidate(t *testing.T) {
-	if got := findRepoRoot(t.TempDir()); got != "" {
-		t.Fatalf("findRepoRoot found %q in an empty folder", got)
+func TestTheRetiredSidecarTableLoadsAndIsNotWrittenBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = 'C:\\\\dev\\\\AGI\\\\sidecar'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("a file with the retired [sidecar] table must still load: %v", err)
 	}
-	cfg := defaultsFor("")
-	if len(cfg.Roots) != 0 || cfg.Sidecar.Dir != "" || cfg.Hotkey != DefaultHotkey {
-		t.Fatalf("unexpected defaults without a repository: %+v", cfg)
+	if got.Hotkey != "Ctrl+Alt+K" || got.Sidecar != nil {
+		t.Fatalf("got %+v", got)
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := got.Save(path); err != nil {
 		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(saved), "sidecar") {
+		t.Fatalf("the retired table was written back:\n%s", saved)
+	}
+}
+
+func TestLoadReadsTheSearchSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[search]\nenabled = true\npace = 'gentle'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Search.Enabled || got.Search.Pace != "gentle" {
+		t.Fatalf("search = %+v", got.Search)
 	}
 }
 
