@@ -39,6 +39,7 @@ explicit = true
 [tool.ruff]
 line-length = 100
 src = ["src", "tests"]
+extend-exclude = ["spikes"]  # throwaway llama.cpp scripts; deleted in packaging block D
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "D100", "D104"]
