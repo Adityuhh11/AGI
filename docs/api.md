@@ -54,11 +54,11 @@ and `422` (FastAPI's list of validation problems). A foreign `Host` gets a plain
 `200`:
 
 ```json
-{"ready": true, "model": "google/embeddinggemma-2", "device": "cuda", "embedded_items": 1234,
+{"ready": true, "model": "google/embeddinggemma-2", "device": "vulkan", "embedded_items": 1234,
  "version": "0.1.0", "error": null}
 ```
 
-`ready` turns true once the model is loaded. `device` is `null` until then. `error` is `null` unless the model
+`ready` turns true once the model is loaded. `device` is `null` until then, then `vulkan` (or `cuda`) for a GPU, or `cpu`. `error` is `null` unless the model
 failed to load. `embedded_items` is the number of chunks in the index and works even before the model is ready.
 `/health` is the only route that answers while the model is loading.
 

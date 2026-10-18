@@ -48,10 +48,15 @@ cosines from 0.99988 to 0.99996, and before the image fix they gave the same ima
 
 ## Consequences
 
-- The index is tied to its model: the new embedder gets its own `model_id` (for example `google/embeddinggemma-2@gguf-q8_0`), so
-  switching rebuilds the index. The two sets of vectors agree to cosine 0.9999 for text and 0.994 or better for images and
-  pages, so the owner's current index would rank almost the same under the new query vectors; the store still refuses it by
-  design.
+- The `model_id` stays `google/embeddinggemma-2` (amended 2026-10-18, after the swap): the two sets of vectors agree to cosine
+  0.9999 for text and 0.994 or better for images and pages, and the owner's 56k-chunk index, built with torch, gives
+  identical golden-set results with torch query vectors and with llama.cpp query vectors (top1 0.675, recall@10 0.961,
+  MRR 0.787 for both; measured on a copy of the index with a throwaway script). Nobody rebuilds an index because of this change.
+  A later change of model, dimension or quantization that the same measurement does not clear still changes the id.
+- The engine owns the server's life: the server is placed in a Windows job that dies with the engine (the launcher kills the
+  engine without running exit handlers, and an orphaned server holds a gigabyte of RAM and of VRAM), and the supervisor
+  kills the engine's whole process tree (a venv's `python.exe` is a launcher that runs the real interpreter as a child).
+  Both were found by the tests that killed the engine, not by reading code.
 - Cosine rankings are not identical (top-10 overlap 0.973, same top-1 0.989 on the sample set). The golden set cannot show
   the difference because it is saturated; the golden set needs harder queries before another model change is judged by it.
 - Images and PDF pages run at 64 to 68% of torch's speed on Vulkan (CUDA: 86 to 109%). The client's PNG encoding and

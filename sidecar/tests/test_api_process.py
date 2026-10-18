@@ -67,7 +67,7 @@ def test_the_real_process_honours_the_start_ready_stop_contract(tmp_path):
         wait_for(lambda: answering(port), timeout=60)  # the port opens before the model is loaded
         health = wait_for(lambda: (h := answering(port)) and h["ready"] and h, timeout=180)
         assert (health["model"], health["error"]) == (MODEL_ID, None)
-        assert health["device"] in {"cuda", "cpu"}
+        assert health["device"] in {"vulkan", "cuda", "cpu"}
         assert call(port, "GET", "/health", token="wrong")[0] == 401
 
         body = {"path": str(folder), "source_id": "project"}

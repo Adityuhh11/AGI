@@ -1,8 +1,8 @@
 """Embedding models: the `Embedder` contract and its implementations.
 
-`GemmaEmbedder` is deliberately not re-exported here: importing it pulls in torch, which
-tests and tools that only need the contract should not pay for. Import it from
-`agi_memory.embedding.gemma`.
+`LlamaEmbedder` (`agi_memory.embedding.llama`) and `LlamaServer`
+(`agi_memory.embedding.llama_server`) are not re-exported here: tests and tools that only need
+the contract should not pull in the HTTP client and the process code.
 """
 
 from agi_memory.embedding.base import Embedder

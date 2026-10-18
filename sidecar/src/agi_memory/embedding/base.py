@@ -26,7 +26,7 @@ class Embedder(Protocol):
 
     @property
     def device(self) -> str:
-        """Where the model runs: `cuda` or `cpu`."""
+        """Where the model runs: `vulkan`, `cuda` or `cpu`."""
         ...
 
     def embed_documents(

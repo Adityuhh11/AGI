@@ -111,3 +111,25 @@ Torch is imported only in `embedding/gemma.py` and `embedding/query_graph.py`.
 - Several requests in flight at once, which may raise throughput (the server runs four slots).
 - With no `--device`, the Vulkan build picked the NVIDIA card on this laptop (an Intel iGPU is also listed); the
   supervisor should not rely on that and has to choose the discrete device from `--list-devices`.
+
+## After the swap (packaging block D, 2026-10-18)
+
+The production code (`LlamaEmbedder`, `LlamaServer`) replaced the spike code; these were measured through it.
+
+| Check | Result |
+|---|---|
+| Golden eval, GPU (Vulkan, the discrete card chosen by name) | top1 0.896, recall@3 1.000, recall@10 1.000, MRR 0.946, forbidden 0, false alarms 0.000, missed nones 0.000: identical to the torch baseline, so `baseline.json` was re-recorded with `device: vulkan` and differs only there (`2026-10-18-packaging-d3-*.md`) |
+| Golden eval, CPU only (`--cpu`, `--device none -ngl 0`) | the same numbers (`2026-10-18-packaging-d3-cpu.md`): the fallback costs no quality |
+| The owner's torch-built 56k-chunk index (a copy), golden queries against it | torch query vectors and llama.cpp query vectors give identical metrics: top1 0.675, recall@3 0.883, recall@10 0.961, MRR 0.787, forbidden 0, false alarms 0.013, missed nones 0.267 (lower than on the sample folder because 56k chunks hold far more distractors). An index built before the swap stays valid |
+| Engine start to ready, through the launcher's real-engine test | 6.3 s (torch: 10 to 35 s); the whole start, index of `Sample Data`, search and stop test: 24 s |
+| A fresh engine folder built by hand in the installer's layout | `uv sync --frozen --no-dev --python 3.12` 23 s with a warm cache; the engine imports and runs |
+| Python tests | 588 pass; ruff and pyright clean; torch, transformers, sentence-transformers, scipy and scikit-learn are gone from the project (the dev environment is 157 MB instead of 4.5 GB) |
+
+Two failures found by tests that killed the engine, both fixed:
+
+- The supervisor ended only the process it started. A virtual environment's `python.exe` is a launcher that runs the real interpreter
+  as a child, so the engine and its `llama-server` stayed alive on their port. `execProcess.Kill` now ends the whole tree
+  (`taskkill /T /F`); `exec_windows_test.go` checks it with a parent and a child.
+- A `llama-server` outlived an engine that was terminated without running exit handlers (the way the launcher stops it), holding
+  about 1 GB of RAM and of VRAM. The server is now placed in a Windows job that closes with the engine
+  (`test_the_server_dies_when_the_engine_is_killed_without_a_chance_to_clean_up`).
