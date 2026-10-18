@@ -10,7 +10,6 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +32,8 @@ const (
 	StateFailed State = "failed"
 	// StateStopped: the supervisor was stopped.
 	StateStopped State = "stopped"
+	// StateOff: file search is switched off (or not installed); no process runs and none is retried.
+	StateOff State = "off"
 )
 
 // Status is what the UI shows about the engine.
@@ -44,21 +45,25 @@ type Status struct {
 
 // Options configure a Supervisor.
 type Options struct {
-	// Dir is the sidecar folder of the repository (where `uv sync` made .venv).
+	// Dir is the folder the engine runs in (its source).
 	Dir string
 	// Port is the port to serve on; 0 picks a free one.
 	Port int
+	// Env is added to the engine's environment (where its llama.cpp server and models are).
+	Env []string
 	// Log receives everything the engine prints, besides the last lines kept for error messages.
 	Log io.Writer
 	// OnChange is called after every status change, in the supervisor's goroutine.
 	OnChange func(Status)
 
-	// Start, Backoff, Poll, StartupTimeout and Python default to the real thing; tests replace them.
+	// Python is the interpreter of the engine's environment.
+	Python string
+
+	// Start, Backoff, Poll and StartupTimeout default to the real thing; tests replace them.
 	Start          Starter
 	Backoff        func(attempt int) time.Duration
 	Poll           time.Duration
 	StartupTimeout time.Duration
-	Python         string
 }
 
 const (
@@ -69,7 +74,7 @@ const (
 	defaultPoll      = 500 * time.Millisecond
 	defaultStartup   = 3 * time.Minute
 	maxBackoff       = 30 * time.Second
-	missingVenvHint  = "run `uv sync` in the sidecar folder"
+	missingVenvHint  = "turn file search off and on again in Settings to reinstall it"
 	needsReindexHint = "the saved index was built with another model, dimension or format and has to be rebuilt (move or delete the memory folder under %LOCALAPPDATA%\\AGI)"
 )
 
@@ -99,7 +104,7 @@ func New(opts Options) (*Supervisor, error) {
 		opts.StartupTimeout = defaultStartup
 	}
 	if opts.Python == "" {
-		opts.Python = filepath.Join(opts.Dir, ".venv", "Scripts", "python.exe")
+		return nil, errors.New("the engine's python is not set")
 	}
 	if opts.Log == nil {
 		opts.Log = io.Discard
@@ -146,6 +151,9 @@ func (s *Supervisor) set(state State, message string) {
 		s.opts.OnChange(status)
 	}
 }
+
+// Off reports that file search is switched off. It is for the Switch, once Run has returned.
+func (s *Supervisor) Off() { s.set(StateOff, "") }
 
 func (s *Supervisor) countRestart() {
 	s.mu.Lock()
@@ -205,12 +213,10 @@ func (s *Supervisor) spec() Spec {
 	env := append(os.Environ(),
 		"AGI_SIDECAR_TOKEN="+s.token,
 		"AGI_SIDECAR_PORT="+strconv.Itoa(s.port),
-		// The model is cached after the first download; checking the hub at every start would
-		// be a network call for nothing (and the launcher promises nothing leaves the machine).
-		"HF_HUB_OFFLINE=1",
 		"PYTHONUTF8=1",
 		"PYTHONUNBUFFERED=1",
 	)
+	env = append(env, s.opts.Env...)
 	return Spec{Dir: s.opts.Dir, Exe: s.opts.Python, Args: []string{"-m", "agi_memory"}, Env: env}
 }
 

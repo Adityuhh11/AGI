@@ -1,7 +1,7 @@
 //go:build windows && realsidecar
 
 // Run by hand: go test -tags realsidecar -run TestTheRealEngine -v ./internal/sidecar/
-// It starts the real Python engine (about 30 s for the model) against the sample folder.
+// It starts the installed engine (AGI_ENGINE_DIR or %LOCALAPPDATA%\AGI\engine) against the sample folder.
 
 package sidecar
 
@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"agi/internal/enginesetup"
 )
 
 type testLog struct{ t *testing.T }
@@ -22,12 +24,12 @@ func (l testLog) Write(p []byte) (int, error) {
 }
 
 func TestTheRealEngineStartsIndexesSearchesAndStops(t *testing.T) {
-	dir, err := filepath.Abs(filepath.Join("..", "..", "sidecar"))
+	engine, err := enginesetup.Locate()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, ".venv", "Scripts", "python.exe")); err != nil {
-		t.Skip("the sidecar venv is not set up (run `uv sync` in sidecar/)")
+	if !engine.Installed() {
+		t.Skip("file search is not installed (turn it on in Settings, or set AGI_ENGINE_DIR)")
 	}
 	sample, err := filepath.Abs(filepath.Join("..", "..", "Sample Data"))
 	if err != nil {
@@ -38,7 +40,7 @@ func TestTheRealEngineStartsIndexesSearchesAndStops(t *testing.T) {
 	}
 	t.Setenv("AGI_MEMORY_DIR", t.TempDir())
 
-	sup, err := New(Options{Dir: dir, Log: testLog{t}})
+	sup, err := New(Options{Dir: engine.App(), Python: engine.Python(), Env: engine.Env(), Log: testLog{t}})
 	if err != nil {
 		t.Fatal(err)
 	}
