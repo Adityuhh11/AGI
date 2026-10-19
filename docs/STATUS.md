@@ -1,6 +1,6 @@
 # Status
 
-Updated at the end of every phase. Last updated: 2026-10-15.
+Updated at the end of every phase. Last updated: 2026-10-19.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -41,7 +41,7 @@ Updated at the end of every phase. Last updated: 2026-10-15.
 
 ## Next
 
-Packaging is in `dev` (PR #5; the friend ran the M2 zip, `v0.1.0-friend1`, without trouble). `feat/hotkey-and-startup` was the work toward `v0.2.0` (hotkey, start at login, update check, a tidier settings page), then pins, clipboard and snippets. The palette (apps, commands, browsing in Zen, tags, a decision model) is specified in `superpowers/specs/2026-10-17-palette-design.md` and planned, for phases P0 to P2, in `superpowers/plans/2026-10-17-palette-p0-p2.md`, on branch `feat/palette`. Launcher block H still has the acceptance list by hand. Then, in this order of value: the search-quality items found on the real index (search is now 16 ms p50; the vector scan and common-word keyword search are the largest parts), file-name search for types the engine does not read (Office files, videos, archives) and a power and idle policy for big syncs. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). 
+Released: `v0.2.0` (settings window, Alt+Space, start at login, update check, the llama.cpp engine) and `v0.3.0` (pins, clipboard history, snippets, the clipboard hotkey), both from `main` on 2026-10-19; a release is built by `scripts/release.ps1 -Version X.Y.Z` in a clean checkout of `main` and smoke-tested from the unzipped folder. Open: the settings layout tidy, a physical-keyboard check of a clipboard hotkey without Alt, and pasting into browsers, editors, Word and Windows Terminal (`eval/2026-10-19-paste.md`). The palette (apps, commands, browsing in Zen, tags, a decision model) is specified in `superpowers/specs/2026-10-17-palette-design.md` and planned, for phases P0 to P2, in `superpowers/plans/2026-10-17-palette-p0-p2.md`, on branch `feat/palette`. Launcher block H still has the acceptance list by hand. Then, in this order of value: the search-quality items found on the real index (search is now 16 ms p50; the vector scan and common-word keyword search are the largest parts), file-name search for types the engine does not read (Office files, videos, archives) and a power and idle policy for big syncs. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). 
 
 
 ## Known gaps and deviations from the spec
