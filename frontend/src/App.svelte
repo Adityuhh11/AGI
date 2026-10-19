@@ -49,6 +49,7 @@
   let allTags = $state<TagInfo[]>([]);
   let tagsByID = $state<Record<string, string[] | null | undefined>>({}); // the tags of the rows on screen, shown as chips
   let answerText = $state(""); // the text the instant answer searched, with any prefix taken off
+  let answerNote = $state(""); // why the Clipboard mode has nothing to list (it is off, nothing matches), if it has not
   let pins = $state(new Set<string>()); // the ids of everything pinned, to mark the rows
   let pinnedRows = $state<Entry[]>([]); // the pinned things that still exist, in the order pinned: the bar's empty state
   let instant = 0;
@@ -94,6 +95,8 @@
       if (info?.Engine === "failed") out.push({ text: info.EngineMessage, problem: true });
     } else if (effective === "tags") {
       if (entries.length === 0) out.push({ text: "Nothing is tagged like that yet. Select a row and press Ctrl+T.", problem: false });
+    } else if (effective === "clip") {
+      if (answerNote) out.push({ text: answerNote, problem: false });
     } else if (effective === "apps") {
       if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
     } else if (results?.State === "warming") {
@@ -211,6 +214,7 @@
     entries = mode === "all" ? pinnedRows : [];
     selected = 0;
     answerText = "";
+    answerNote = "";
     effective = mode;
   }
 
@@ -223,9 +227,10 @@
     entries = answer.Items ?? [];
     effective = answer.Mode as Mode;
     answerText = answer.Text;
+    answerNote = answer.Note ?? "";
     selected = 0;
     clearTimeout(timer);
-    if (effective === "apps" || effective === "web" || effective === "tags") {
+    if (effective === "apps" || effective === "web" || effective === "tags" || effective === "clip") {
       token++;
       pending = false;
       results = null;
@@ -274,7 +279,7 @@
     if (id === "copy-path") copyPath(item);
     else if (id === "tag") openPicker(item);
     else if (id === "pin") togglePin(item);
-    else run(item, id as "open" | "reveal" | "admin");
+    else run(item, id as Way);
   }
 
   function copyPath(item: Item) {
@@ -324,8 +329,11 @@
     return { id: "new:" + typed.replace(/^#/, "").trim(), title: `Add the tag “${typed.replace(/^#/, "").trim()}”` };
   };
 
-  /** Whether the row can be revealed or run as administrator (files can be revealed; apps say what they can). */
-  function available(item: Item, how: "reveal" | "admin"): boolean {
+  /** What can be done with a row besides opening it: files can be revealed, everything else says what it can. */
+  type Way = "open" | "reveal" | "admin" | "copy" | "delete";
+
+  /** Whether the row can be revealed, run as administrator, copied or deleted. */
+  function available(item: Item, how: Exclude<Way, "open">): boolean {
     if (item.kind !== "entry") return how === "reveal";
     return item.entry.Actions?.includes(how) ?? false;
   }
@@ -340,7 +348,7 @@
     }
   }
 
-  async function run(item: Item | undefined, how: "open" | "reveal" | "admin" = "open") {
+  async function run(item: Item | undefined, how: Way = "open") {
     if (!item) return;
     if (how !== "open" && !available(item, how)) return;
     if (item.kind === "entry" && item.entry.Kind === "tag") {
@@ -355,6 +363,7 @@
       const id = item.entry.ID;
       // An app that is gone has left the list, so the rows are asked for again.
       await attempt(() => Palette.Do(id, how, query), update);
+      if (how === "delete") update(); // what was listed has changed
     } else if (how === "reveal") await attempt(() => Files.Reveal(pathOf(item)));
     else await attempt(() => Files.Open(pathOf(item), openLine(item)));
   }
@@ -376,6 +385,8 @@
     }
     expanded = next;
   }
+
+  const isClip = (item: Item) => item.kind === "entry" && item.entry.Kind === "clip";
 
   function atEndOfText() {
     return input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
@@ -415,7 +426,13 @@
       case "Enter":
         event.preventDefault();
         if (event.altKey) searchTheWeb();
-        else run(current, event.ctrlKey && event.shiftKey ? "admin" : event.ctrlKey ? "reveal" : "open");
+        else run(current, event.ctrlKey && event.shiftKey ? "admin" : event.ctrlKey ? (current && isClip(current) ? "copy" : "reveal") : "open");
+        break;
+      case "Delete":
+        if (event.ctrlKey && current && isClip(current)) {
+          event.preventDefault();
+          run(current, "delete");
+        }
         break;
       case "ArrowRight":
         if (atEndOfText() && current) {
@@ -553,8 +570,9 @@
                 {/each}
               </div>
               <footer class="hints">
-                <span><kbd>Enter</kbd>open</span>
+                <span><kbd>Enter</kbd>{current && isClip(current) ? "paste" : "open"}</span>
                 {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
+                {#if current && available(current, "copy")}<span><kbd>Ctrl+Enter</kbd>copy</span>{/if}
                 <span><kbd>Ctrl+K</kbd>actions</span>
                 {#if current && pinIdOf(current)}<span><kbd>Ctrl+P</kbd>{pins.has(pinIdOf(current) ?? "") ? "unpin" : "pin"}</span>{/if}
                 {#if current && current.kind !== "entry" && current.row.Matches && current.row.Matches.length > 1}

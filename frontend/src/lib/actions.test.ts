@@ -51,3 +51,12 @@ test("a row that can be pinned offers Pin or Unpin last, with its shortcut; one 
   const link = { kind: "entry", entry: { ID: "quicklink:gh:", Kind: "quicklink", Actions: null } };
   assert.deepEqual(actionsOf(link, false, "pin").map((a) => a.id), ["open", "pin"]);
 });
+
+test("a copied text offers Paste first, then Copy and Delete, and cannot be tagged or revealed", () => {
+  const clip = { kind: "entry", entry: { ID: "clip:7", Kind: "clip", Title: "x", Actions: ["copy", "delete"] } };
+  assert.deepEqual(actionsOf(clip, false).map((a) => [a.id, a.title, a.keys]), [
+    ["open", "Paste", "Enter"],
+    ["copy", "Copy", "Ctrl+Enter"],
+    ["delete", "Delete this entry", "Ctrl+Delete"],
+  ]);
+});

@@ -2,13 +2,16 @@ import type { Item } from "./flatten";
 
 /** Something you can do with the selected row, listed in the action panel (Ctrl+K). */
 export type Action = {
-  id: "open" | "reveal" | "copy-path" | "admin" | "tag" | "pin";
+  id: "open" | "reveal" | "copy-path" | "admin" | "tag" | "pin" | "copy" | "delete";
   title: string;
   /** The shortcut that does it without the panel, shown beside it so the panel teaches the keys. */
   keys: string;
 };
 
 const open: Action = { id: "open", title: "Open", keys: "Enter" };
+const paste: Action = { id: "open", title: "Paste", keys: "Enter" };
+const copy: Action = { id: "copy", title: "Copy", keys: "Ctrl+Enter" };
+const forget: Action = { id: "delete", title: "Delete this entry", keys: "Ctrl+Delete" };
 const reveal: Action = { id: "reveal", title: "Show in Explorer", keys: "Ctrl+Enter" };
 const copyPath: Action = { id: "copy-path", title: "Copy path", keys: "Ctrl+Shift+C" };
 const admin: Action = { id: "admin", title: "Run as administrator", keys: "Ctrl+Shift+Enter" };
@@ -23,6 +26,7 @@ const unpin: Action = { id: "pin", title: "Unpin", keys: "Ctrl+P" };
  */
 export function actionsFor(item: Item, taggable: boolean, pinning: "pin" | "unpin" | null = null): Action[] {
   const offered = item.kind === "entry" ? new Set(item.entry.Actions ?? []) : new Set(["reveal", "copy-path"]);
+  if (item.kind === "entry" && item.entry.Kind === "clip") return [paste, ...(offered.has("copy") ? [copy] : []), ...(offered.has("delete") ? [forget] : [])];
   return [
     open,
     ...(offered.has("reveal") ? [reveal] : []),

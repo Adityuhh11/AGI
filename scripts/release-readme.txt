@@ -22,6 +22,9 @@ WHAT TO TRY
     searches the web; Alt+Enter does it from any row. It opens in the browser set in Settings.
   - Quicklinks: Settings > Quicklinks. "gh rust lifetimes" opens that search on GitHub.
   - Ctrl+T on a row tags it. "#work" lists everything tagged work.
+  - Clipboard history (off until you switch it on in Settings > Clipboard): copy as usual, then open
+    the bar and type "clip:" and a few words. Enter pastes it into the program you came from, Ctrl+Enter
+    only copies it. It keeps text only, never what a password manager marks as private, and says where.
   - Ctrl+P pins a row (an app, a file, a quicklink; up to eight). The bar is listing your pins
     the moment it opens, and every time you open it again it starts empty, with the pins.
   - Ctrl+K opens what can be done with the selected row. Ctrl+, opens Settings.
@@ -54,6 +57,7 @@ WHERE THINGS ARE
   Log             %LOCALAPPDATA%\AGI\logs\agi.log
   Search engine   %LOCALAPPDATA%\AGI\engine      (only after you turn file search on)
   Index           %LOCALAPPDATA%\AGI\memory      (what file search has indexed)
+  Clipboard       %LOCALAPPDATA%\AGI\clipboard.json (only if you switched the history on)
   Quit            right-click the icon in the notification area, then Quit
   Remove it all   quit it, delete this folder, then delete the folders above.
   The program has no telemetry. Besides the downloads of file search it only touches the network
