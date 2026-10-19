@@ -13,6 +13,8 @@
   let browser = $state(view.Browser);
   // svelte-ignore state_referenced_locally
   let searchURL = $state(view.SearchURL);
+  // svelte-ignore state_referenced_locally
+  let startup = $state(view.Autostart);
   let browsers = $state<string[]>([]);
   let capturing = $state(false);
   let hint = $state("");
@@ -40,13 +42,23 @@
     browsers = (await Settings.Browsers()) ?? [];
   });
 
+  function flashSaved() {
+    saved = true;
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => (saved = false), 1800);
+  }
+
   async function save(nextHotkey = hotkey) {
     error = await Settings.SaveGeneral(nextHotkey, browser, searchURL);
     if (error !== "") return;
     hotkey = nextHotkey;
-    saved = true;
-    clearTimeout(savedTimer);
-    savedTimer = setTimeout(() => (saved = false), 1800);
+    flashSaved();
+  }
+
+  async function saveStartup() {
+    error = await Settings.SetAutostart(startup);
+    if (error !== "") startup = !startup;
+    else flashSaved();
   }
 
   function startCapture() {
@@ -105,6 +117,11 @@
 </div>
 
 <div class="field">
+  <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
+  <p class="help">The search bar is then ready as soon as Windows is. It starts quietly, with no window.</p>
+</div>
+
+<div class="field">
   <label class="label" for="browser">Browser for web searches and links</label>
   <select id="browser" bind:value={browser} onchange={() => save()}>
     <option value="">Windows default browser</option>
@@ -132,6 +149,17 @@
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
 
 <style>
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font: 560 13px/1.2 var(--sans);
+    cursor: pointer;
+  }
+  .check input {
+    accent-color: var(--text-2);
+  }
   .keyrow {
     display: flex;
     align-items: center;

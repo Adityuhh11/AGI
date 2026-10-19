@@ -21,6 +21,7 @@ import (
 
 	"agi"
 	"agi/internal/apps"
+	"agi/internal/autostart"
 	"agi/internal/config"
 	"agi/internal/enginesetup"
 	"agi/internal/files"
@@ -218,12 +219,14 @@ func run() error {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
 			},
-			Browsers:   web.Installed,
-			OpenFolder: func(path string) error { return exec.Command("explorer.exe", path).Start() },
-			Open:       settingsWindow.Open,
-			Engine:     func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
-			LogDir:     filepath.Join(cacheDir, "AGI", "logs"),
-			Version:    version,
+			Browsers:     web.Installed,
+			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Open:         settingsWindow.Open,
+			Autostart:    autostart.Enabled,
+			SetAutostart: autostart.Set,
+			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
+			Version:      version,
 		})),
 	} {
 		app.RegisterService(service)

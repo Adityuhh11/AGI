@@ -49,6 +49,9 @@ type Options struct {
 	Browsers func() []string
 	// OpenFolder shows a folder in Explorer.
 	OpenFolder func(path string) error
+	// Autostart says whether the launcher starts when the user signs in; SetAutostart changes that.
+	Autostart    func() bool
+	SetAutostart func(on bool) error
 	// Open opens (or brings forward) the settings window.
 	Open func()
 	// Engine reports the file-search engine's state and message, for the diagnostics.
@@ -75,6 +78,7 @@ type View struct {
 	Roots         []string
 	FileSearch    bool
 	Pace          string
+	Autostart     bool
 	ConfigPath    string
 	LogDir        string
 	Version       string
@@ -86,6 +90,7 @@ func (s *Service) View() View {
 	return View{
 		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
+		Autostart:  s.o.Autostart(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
 	}
 }
@@ -114,6 +119,14 @@ func (s *Service) SaveGeneral(hotkey, browser, searchURL string) string {
 			_ = s.o.Rebind(old) // the window shows the refusal; the key that worked keeps working
 		}
 		return reason(err)
+	}
+	return ""
+}
+
+// SetAutostart makes the launcher start (or not) when the user signs in.
+func (s *Service) SetAutostart(on bool) string {
+	if err := s.o.SetAutostart(on); err != nil {
+		return err.Error()
 	}
 	return ""
 }

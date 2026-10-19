@@ -47,6 +47,7 @@ type harness struct {
 	hotkeys []string // every accelerator Rebind was asked for, in order
 	picked  string
 	opened  string
+	startup bool
 }
 
 func newHarness(t *testing.T, refuse ...string) *harness {
@@ -69,12 +70,14 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 			}
 			return nil
 		},
-		PickFolder: func() (string, error) { return h.picked, nil },
-		Browsers:   func() []string { return []string{"chrome"} },
-		OpenFolder: func(p string) error { h.opened = p; return nil },
-		Engine:     func() (string, string) { return "off", "" },
-		LogDir:     `C:\logs`,
-		Version:    "test",
+		PickFolder:   func() (string, error) { return h.picked, nil },
+		Browsers:     func() []string { return []string{"chrome"} },
+		OpenFolder:   func(p string) error { h.opened = p; return nil },
+		Engine:       func() (string, string) { return "off", "" },
+		Autostart:    func() bool { return h.startup },
+		SetAutostart: func(on bool) error { h.startup = on; return nil },
+		LogDir:       `C:\logs`,
+		Version:      "test",
 	})
 	return h
 }
@@ -304,5 +307,15 @@ func TestPausingAndResumingIndexingGoToTheManagerAndShowInTheView(t *testing.T) 
 	h.svc.ResumeIndexing()
 	if h.index.paused || h.svc.Search().Paused {
 		t.Fatal("a resume did not reach the manager")
+	}
+}
+
+func TestAutostartIsShownAndChanged(t *testing.T) {
+	h := newHarness(t)
+	if h.svc.View().Autostart {
+		t.Fatal("autostart shown as on before it was turned on")
+	}
+	if msg := h.svc.SetAutostart(true); msg != "" || !h.svc.View().Autostart {
+		t.Fatalf("turned on: message %q, view %v", msg, h.svc.View().Autostart)
 	}
 }
