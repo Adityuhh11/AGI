@@ -40,6 +40,8 @@ type Config struct {
 	Search       Search `toml:"search"`
 	// Clipboard is the searchable history of what is copied (internal/clipboard).
 	Clipboard Clipboard `toml:"clipboard"`
+	// Snippets are texts kept to be pasted from the bar (internal/snippets).
+	Snippets []Snippet `toml:"snippet,omitempty"`
 	// Sidecar is the retired [sidecar] table (where the engine lived in the repository). Load reads
 	// it so old files still open and then clears it, so it is never written back.
 	Sidecar *retiredSidecar `toml:"sidecar,omitempty"`
@@ -51,6 +53,14 @@ type Quicklink struct {
 	Title   string `toml:"title"`
 	// URL holds {q}, where the text typed after the trigger goes, escaped.
 	URL string `toml:"url"`
+}
+
+// Snippet is a text kept to be pasted from the bar. {date}, {time} and {clipboard} in it are filled in when it is pasted.
+type Snippet struct {
+	Name string `toml:"name"`
+	// Keyword, if set, is one word that shows the snippet in the bar when it is typed exactly.
+	Keyword string `toml:"keyword,omitempty"`
+	Text    string `toml:"text"`
 }
 
 // Clipboard holds the settings of the clipboard history.
@@ -138,6 +148,7 @@ func (c Config) Clone() Config {
 	c.Exclude = slices.Clone(c.Exclude)
 	c.Quicklinks = slices.Clone(c.Quicklinks)
 	c.Clipboard.Ignore = slices.Clone(c.Clipboard.Ignore)
+	c.Snippets = slices.Clone(c.Snippets)
 	return c
 }
 
@@ -158,6 +169,9 @@ func (c Config) Validate() error {
 		seen[id] = root
 	}
 	if err := c.validateWeb(); err != nil {
+		return err
+	}
+	if err := c.validateSnippets(); err != nil {
 		return err
 	}
 	for _, program := range c.Clipboard.Ignore {
@@ -204,6 +218,39 @@ func (c Config) validateWeb() error {
 		if err := checkTemplate(link.URL); err != nil {
 			return fmt.Errorf("quicklink %q: %w", link.Trigger, err)
 		}
+	}
+	return nil
+}
+
+// validateSnippets checks the snippets: a name and a text each, and keywords that are one word, used once, and
+// not a quicklink's trigger (both are typed in the same bar).
+func (c Config) validateSnippets() error {
+	names, keywords := map[string]bool{}, map[string]bool{}
+	for _, link := range c.Quicklinks {
+		keywords[strings.ToLower(link.Trigger)] = true
+	}
+	for _, snippet := range c.Snippets {
+		name := strings.ToLower(strings.TrimSpace(snippet.Name))
+		switch {
+		case name == "":
+			return fmt.Errorf("a snippet needs a name")
+		case names[name]:
+			return fmt.Errorf("snippet name %q is used twice", snippet.Name)
+		case snippet.Text == "":
+			return fmt.Errorf("snippet %q needs a text", snippet.Name)
+		}
+		names[name] = true
+		if snippet.Keyword == "" {
+			continue
+		}
+		word := strings.ToLower(snippet.Keyword)
+		switch {
+		case strings.ContainsAny(snippet.Keyword, " \t:"):
+			return fmt.Errorf("snippet %q: the keyword %q must be one word without a colon", snippet.Name, snippet.Keyword)
+		case keywords[word]:
+			return fmt.Errorf("snippet %q: the keyword %q is already a quicklink trigger or another snippet's keyword", snippet.Name, snippet.Keyword)
+		}
+		keywords[word] = true
 	}
 	return nil
 }
