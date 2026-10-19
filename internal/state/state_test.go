@@ -192,3 +192,54 @@ func TestAnEmptiedTagDisappearsAndTagsAreListedByUse(t *testing.T) {
 		t.Fatalf("tags = %v, want %s (most used first, an emptied tag gone)", got, want)
 	}
 }
+
+func TestPinsKeepTheirOrderToggleOffAndSurviveARestart(t *testing.T) {
+	s, path := open(t)
+	for _, id := range []string{"app:code", "file:C:\a.pdf", "quicklink:gh:"} {
+		if on, err := s.TogglePin(id); err != nil || !on {
+			t.Fatalf("pin %s = %v, %v", id, on, err)
+		}
+	}
+	if on, err := s.TogglePin("file:C:\a.pdf"); err != nil || on {
+		t.Fatalf("pinning a pinned thing = %v, %v; it must unpin", on, err)
+	}
+	again, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(again.Pins(), "|"); got != "app:code|quicklink:gh:" {
+		t.Fatalf("pins = %q, want the order pinned without the one taken off", got)
+	}
+}
+
+func TestOnlyMaxPinsCanBePinnedAndTheRestStay(t *testing.T) {
+	s, _ := open(t)
+	for i := 0; i < MaxPins; i++ {
+		if _, err := s.TogglePin(fmt.Sprintf("app:%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.TogglePin("app:one-too-many"); err == nil {
+		t.Fatal("a ninth pin must be refused")
+	}
+	if got := len(s.Pins()); got != MaxPins {
+		t.Fatalf("%d pins stayed, want %d", got, MaxPins)
+	}
+	if on, err := s.TogglePin("app:3"); err != nil || on {
+		t.Fatalf("unpinning at the limit = %v, %v", on, err)
+	}
+}
+
+func TestAStateFileFromBeforePinsLoadsWithNoPins(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte(`{"version":1,"uses":{"app:x":[1]},"learned":{},"tags":{"work":["app:x"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(old.Pins()) != 0 || len(old.Tagged("work")) != 1 {
+		t.Fatalf("pins %v, tagged %v", old.Pins(), old.Tagged("work"))
+	}
+}
