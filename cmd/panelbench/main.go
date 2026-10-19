@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -28,8 +29,11 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"agi"
+	"agi/internal/apps"
 	"agi/internal/config"
+	"agi/internal/palette"
 	"agi/internal/panel"
+	"agi/internal/state"
 )
 
 const (
@@ -175,7 +179,48 @@ var (
 	usePill = flag.Bool("pill", false, "measure the pill-with-shader stand-in page instead of the plain bar")
 	hold    = flag.Duration("hold", 0, "keep the panel open this long after the first run, to look at it")
 	real    = flag.Bool("real", false, "measure the launcher's real page (frontend/dist) with a probe script added")
+	pins    = flag.Int("pins", 0, "with -real: pin this many made-up apps, so the page opens on its list of pinned things")
 )
+
+// withPins gives the real page what it needs to open on n pinned rows: the palette service over a catalog
+// of n made-up apps (their icons do not exist, so the rows show their glyph, which is cheaper than the
+// real icons the launcher would load) and the panel service the page resizes the window through.
+func withPins(app *application.App, p *panel.Panel, n int) {
+	dir, err := os.MkdirTemp("", "panelbench")
+	if err != nil {
+		log.Fatal(err)
+	}
+	history, err := state.Open(filepath.Join(dir, "state.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	catalog := apps.NewCatalog("", "")
+	list := make([]apps.App, n)
+	for i := range list {
+		list[i] = apps.App{ID: fmt.Sprintf("Bench!App%d", i), Name: fmt.Sprintf("Bench app %d", i)}
+		if _, err := history.TogglePin("app:" + list[i].ID); err != nil {
+			log.Fatal(err)
+		}
+	}
+	catalog.Index.Set(list)
+	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, p.HideForLaunch)))
+	app.RegisterService(application.NewService(panel.NewService(p)))
+}
+
+// benchBrowser and benchFiles are the parts of the launcher the pinned rows never reach.
+type benchBrowser struct{}
+
+func (benchBrowser) Search(string) error { return nil }
+func (benchBrowser) Open(string) error   { return nil }
+func (benchBrowser) Quicklink(string) (config.Quicklink, string, bool) {
+	return config.Quicklink{}, "", false
+}
+func (benchBrowser) Find(string) (config.Quicklink, bool) { return config.Quicklink{}, false }
+
+type benchFiles struct{}
+
+func (benchFiles) Open(string, int) error { return nil }
+func (benchFiles) Reveal(string) error    { return nil }
 
 func main() {
 	flag.Parse()
@@ -228,6 +273,9 @@ func main() {
 
 	app := application.New(application.Options{Name: "panelbench", Assets: application.AssetOptions{Handler: mux}})
 	p := panel.New(app, config.DefaultHotkey)
+	if *real && *pins > 0 {
+		withPins(app, p, *pins)
+	}
 
 	go func() { os.Exit(bench(p, ev, ready)) }()
 	if err := app.Run(); err != nil {

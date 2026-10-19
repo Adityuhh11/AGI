@@ -22,6 +22,8 @@ WHAT TO TRY
     searches the web; Alt+Enter does it from any row. It opens in the browser set in Settings.
   - Quicklinks: Settings > Quicklinks. "gh rust lifetimes" opens that search on GitHub.
   - Ctrl+T on a row tags it. "#work" lists everything tagged work.
+  - Ctrl+P pins a row (an app, a file, a quicklink; up to eight). The bar is listing your pins
+    the moment it opens, and every time you open it again it starts empty, with the pins.
   - Ctrl+K opens what can be done with the selected row. Ctrl+, opens Settings.
 
 FILE SEARCH (optional, off until you turn it on)
