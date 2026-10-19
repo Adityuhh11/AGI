@@ -33,8 +33,10 @@ const (
 	ModeFiles = "files"
 	ModeWeb   = "web"
 	ModeTags  = "tags"
-	// ModeClip lists what was copied. Tab does not reach it (`clip:` and its pinned row do).
+	// ModeClip lists what was copied and ModeSnip the snippets. Tab does not reach them (`clip:`, `snip:` and the
+	// built-in rows do).
 	ModeClip = "clip"
+	ModeSnip = "snip"
 )
 
 const (
@@ -89,7 +91,7 @@ type Browser interface {
 type Item struct {
 	// ID names the thing: the kind, a colon and the kind's own id.
 	ID string
-	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag" or "clip". The page lists quicklinks
+	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag", "clip", "snippet" or "cmd". The page lists quicklinks
 	// first, then apps and files, and the web search last, as the fallback.
 	Kind     string
 	Title    string
@@ -98,6 +100,9 @@ type Item struct {
 	Icon string
 	// Actions are the extra things that can be done with it ("reveal", "admin"); opening is always possible.
 	Actions []string
+	// Fill, if set, is what choosing the row does instead of running it: the bar puts this text in its input (a pinned
+	// quicklink's trigger, the prefix of a mode) and the person goes on typing.
+	Fill string
 }
 
 // Answer is what the bar shows for the text typed.
@@ -118,14 +123,15 @@ type Service struct {
 	browser Browser
 	files   Files
 	clips   Clips
+	snips   Snippets
 	dismiss func()
 	now     func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the
 // keyboard back (the program started owns it now).
-func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, clips Clips, dismiss func()) *Service {
-	return &Service{catalog: catalog, history: history, browser: browser, files: files, clips: clips, dismiss: dismiss, now: time.Now}
+func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, clips Clips, snips Snippets, dismiss func()) *Service {
+	return &Service{catalog: catalog, history: history, browser: browser, files: files, clips: clips, snips: snips, dismiss: dismiss, now: time.Now}
 }
 
 // Query answers raw (what is in the input) in the mode the page is in.
@@ -140,8 +146,15 @@ func (s *Service) Query(raw, mode string) Answer {
 		answer.Items, answer.Note = s.clipItems(text)
 		return answer
 	}
+	if mode == ModeSnip {
+		answer.Items, answer.Note = s.snippetItems(text)
+		return answer
+	}
 	if text == "" || mode == ModeFiles {
 		return answer
+	}
+	if mode == ModeAll {
+		answer.Items = append(answer.Items, s.keywordItems(text)...)
 	}
 	if mode == ModeAll || mode == ModeWeb {
 		if link, rest, ok := s.browser.Quicklink(text); ok {
@@ -153,6 +166,9 @@ func (s *Service) Query(raw, mode string) Answer {
 		for _, m := range pick(matches, mode, text) {
 			answer.Items = append(answer.Items, s.item(m.App))
 		}
+	}
+	if mode == ModeAll {
+		answer.Items = append(answer.Items, commandItems(text)...)
 	}
 	if (mode == ModeAll || mode == ModeWeb) && utf8.RuneCountInString(text) >= webMinLength {
 		answer.Items = append(answer.Items, Item{ID: "web:" + text, Kind: "web", Title: "Search the web for “" + text + "”", Subtitle: "Web"})
@@ -182,6 +198,9 @@ func parse(raw, mode string) (string, string) {
 	if mode == ModeClip {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "clip:"))
 	}
+	if mode == ModeSnip {
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "snip:"))
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "app", "apps":
@@ -190,6 +209,8 @@ func parse(raw, mode string) (string, string) {
 			return ModeWeb, strings.TrimSpace(rest)
 		case "clip", "clipboard":
 			return ModeClip, strings.TrimSpace(rest)
+		case "snip", "snippet", "snippets":
+			return ModeSnip, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -235,6 +256,9 @@ func (s *Service) item(app apps.App) Item {
 func (s *Service) Do(id, action, typed string) error {
 	if raw, ok := strings.CutPrefix(id, "clip:"); ok {
 		return s.doClip(raw, action)
+	}
+	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
+		return s.doSnippet(name, action)
 	}
 	if path, ok := strings.CutPrefix(id, "file:"); ok {
 		switch action {
@@ -353,7 +377,18 @@ func (s *Service) itemFor(id string) (Item, bool) {
 		if !found {
 			return Item{}, false
 		}
-		return Item{ID: "quicklink:" + link.Trigger + ":", Kind: "quicklink", Title: link.Title, Subtitle: "Quicklink"}, true
+		return Item{ID: "quicklink:" + link.Trigger + ":", Kind: "quicklink", Title: link.Title, Subtitle: "Quicklink", Fill: link.Trigger + " "}, true
+	}
+	if c, ok := commandFor(id); ok {
+		return c.item(), true
+	}
+	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
+		for _, snippet := range s.snips.List() {
+			if snippet.Name == name {
+				return snippetItem(snippet), true
+			}
+		}
+		return Item{}, false
 	}
 	if appID, ok := strings.CutPrefix(id, "app:"); ok {
 		app, found := s.catalog.Index.Find(appID)
@@ -426,12 +461,14 @@ func (s *Service) PinIDs() []string { return s.history.Pins() }
 // quicklinks can be pinned; a quicklink is pinned as its trigger, not with whatever was typed after it.
 func (s *Service) TogglePin(id string) (bool, error) {
 	switch {
-	case strings.HasPrefix(id, "app:"), strings.HasPrefix(id, "file:"):
+	case strings.HasPrefix(id, "app:"), strings.HasPrefix(id, "file:"), strings.HasPrefix(id, "snippet:"):
 	case strings.HasPrefix(id, "quicklink:"):
 		trigger, _, _ := strings.Cut(strings.TrimPrefix(id, "quicklink:"), ":")
 		id = "quicklink:" + trigger + ":"
 	default:
-		return false, fmt.Errorf("%q cannot be pinned", id)
+		if _, ok := commandFor(id); !ok {
+			return false, fmt.Errorf("%q cannot be pinned", id)
+		}
 	}
 	return s.history.TogglePin(id)
 }

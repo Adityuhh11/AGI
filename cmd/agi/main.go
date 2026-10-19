@@ -34,6 +34,7 @@ import (
 	"agi/internal/settings"
 	"agi/internal/settingsui"
 	"agi/internal/sidecar"
+	"agi/internal/snippets"
 	"agi/internal/state"
 	"agi/internal/status"
 	"agi/internal/tray"
@@ -198,6 +199,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Pinned from the start, once: the two modes that nothing else in the bar leads to. They can be unpinned.
+	if _, err := history.SeedPins("cmd:clipboard", "cmd:snippets"); err != nil {
+		log.Printf("could not pin the clipboard and the snippets: %v", err)
+	}
 
 	bar = panel.New(app, cfg.Hotkey)
 	opener := files.New(roots, bar.HideForLaunch) // opens files and shows them in Explorer
@@ -217,6 +222,9 @@ func run() error {
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		clipEnabled)
 	bar.OnShow = clips.Poll // a copy a moment before the bar opened is in the list
+	snips := snippets.New(func() []config.Snippet { return store.Get().Snippets },
+		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
+		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
 	var checker *update.Checker
 	checker = update.NewChecker(version, func() {
@@ -236,7 +244,7 @@ func run() error {
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
-		application.NewService(palette.New(catalog, history, browser, opener, clips, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, bar.HideForLaunch)),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,

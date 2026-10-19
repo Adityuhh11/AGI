@@ -55,7 +55,7 @@ func newServiceWithBrowser(t *testing.T, names ...string) (*Service, *int, *fake
 	}
 	dismissed := 0
 	browser := &fakeBrowser{links: []config.Quicklink{gh}}
-	return New(catalog, history, browser, &fakeFiles{}, &fakeClips{}, func() { dismissed++ }), &dismissed, browser
+	return New(catalog, history, browser, &fakeFiles{}, &fakeClips{}, &fakeSnips{}, func() { dismissed++ }), &dismissed, browser
 }
 
 // titles lists the app rows of an answer; other kinds have their own tests.
@@ -214,7 +214,7 @@ func TestAnItemNamesItsIconAndOnlyOffersActionsItCanDo(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "tool.exe")
 	catalog.Index.Set([]apps.App{{ID: file, Name: "Tool"}, {ID: "Pkg!App", Name: "Store Thing"}})
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
-	s := New(catalog, history, &fakeBrowser{}, &fakeFiles{}, &fakeClips{}, func() {})
+	s := New(catalog, history, &fakeBrowser{}, &fakeFiles{}, &fakeClips{}, &fakeSnips{}, func() {})
 	byTitle := map[string]Item{}
 	for _, item := range s.Query("t", ModeApps).Items {
 		byTitle[item.Title] = item
@@ -315,7 +315,7 @@ func TestTaggedFilesOpenThroughTheFilesService(t *testing.T) {
 	catalog := apps.NewCatalog("", "")
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
 	f := &fakeFiles{}
-	s := New(catalog, history, &fakeBrowser{}, f, &fakeClips{}, func() {})
+	s := New(catalog, history, &fakeBrowser{}, f, &fakeClips{}, &fakeSnips{}, func() {})
 	if err := s.Do(`file:C:\docs\a.pdf`, "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != `C:\docs\a.pdf` {
 		t.Fatalf("opened %v, %v", f.opened, err)
 	}

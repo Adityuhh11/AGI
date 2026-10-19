@@ -243,3 +243,52 @@ func TestAStateFileFromBeforePinsLoadsWithNoPins(t *testing.T) {
 		t.Fatalf("pins %v, tagged %v", old.Pins(), old.Tagged("work"))
 	}
 }
+
+func TestTheSeedIsPinnedOnceAndNeverGivenBack(t *testing.T) {
+	s, path := open(t)
+	if seeded, err := s.SeedPins("cmd:clipboard", "cmd:snippets"); err != nil || !seeded {
+		t.Fatalf("first seed = %v, %v", seeded, err)
+	}
+	if seeded, _ := s.SeedPins("cmd:clipboard"); seeded {
+		t.Fatal("seeded twice")
+	}
+	if got := strings.Join(s.Pins(), "|"); got != "cmd:clipboard|cmd:snippets" {
+		t.Fatalf("pins %q", got)
+	}
+	for _, id := range []string{"cmd:clipboard", "cmd:snippets"} {
+		if _, err := s.TogglePin(id); err != nil { // the person unpins both
+			t.Fatal(err)
+		}
+	}
+	again, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seeded, _ := again.SeedPins("cmd:clipboard"); seeded || len(again.Pins()) != 0 {
+		t.Fatalf("after unpinning everything and a restart the seed came back: %v", again.Pins())
+	}
+}
+
+func TestThingsPinnedBeforeTheSeedAreLeftAlone(t *testing.T) {
+	s, _ := open(t)
+	if _, err := s.TogglePin("app:code"); err != nil {
+		t.Fatal(err)
+	}
+	if seeded, _ := s.SeedPins("cmd:clipboard"); seeded || strings.Join(s.Pins(), "|") != "app:code" {
+		t.Fatalf("seeded over the person's own pins: %v", s.Pins())
+	}
+}
+
+func TestAFileThatNeverHadPinsIsSeededEvenAfterOtherThingsWereSaved(t *testing.T) {
+	s, path := open(t)
+	if err := s.Record("app:x", "x", t0); err != nil { // the file now exists, with "pins": null
+		t.Fatal(err)
+	}
+	again, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seeded, err := again.SeedPins("cmd:clipboard"); err != nil || !seeded {
+		t.Fatalf("seed = %v, %v", seeded, err)
+	}
+}

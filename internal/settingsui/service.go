@@ -97,6 +97,7 @@ type View struct {
 	Browser       string
 	SearchURL     string
 	Quicklinks    []config.Quicklink
+	Snippets      []config.Snippet
 	Roots         []string
 	FileSearch    bool
 	Pace          string
@@ -112,7 +113,7 @@ type View struct {
 func (s *Service) View() View {
 	c := s.o.Store.Get()
 	return View{
-		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks,
+		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks, Snippets: c.Snippets,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
 		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, UpdateFound: s.updateFound(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
@@ -197,6 +198,11 @@ func (s *Service) OpenUpdate() string {
 // SaveQuicklinks replaces the quicklinks.
 func (s *Service) SaveQuicklinks(links []config.Quicklink) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Quicklinks = links }))
+}
+
+// SaveSnippets replaces the snippets.
+func (s *Service) SaveSnippets(snippets []config.Snippet) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Snippets = snippets }))
 }
 
 // AddFolder asks for a folder and adds it to the indexed ones. Cancelling the picker changes nothing.

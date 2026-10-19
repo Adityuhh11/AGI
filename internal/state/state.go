@@ -146,6 +146,18 @@ func (s *Store) Pins() []string {
 	return slices.Clone(s.data.Pins)
 }
 
+// SeedPins pins ids if nothing has ever been pinned (the file has no pins yet), and reports whether it did. It
+// is offered once: someone who pinned things and then unpinned them all is not given the seed back.
+func (s *Store) SeedPins(ids ...string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.Pins != nil {
+		return false, nil
+	}
+	s.data.Pins = append([]string{}, ids...)
+	return true, s.save()
+}
+
 // TogglePin pins the thing, or unpins it if it is pinned already, and saves. It reports whether the
 // thing is pinned now. Pinning more than MaxPins things is refused.
 func (s *Store) TogglePin(id string) (bool, error) {

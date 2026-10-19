@@ -420,3 +420,21 @@ func TestClearingTheClipboardForgetsEverything(t *testing.T) {
 		t.Fatalf("message %q, cleared %d, count %d", msg, h.history.cleared, h.svc.Clipboard().Count)
 	}
 }
+
+func TestSavingSnippetsStoresThemAndRefusesWhatTheConfigRefuses(t *testing.T) {
+	h := newHarness(t)
+	good := []config.Snippet{{Name: "Address", Keyword: "addr", Text: "12 Example Street\nSpringfield"}}
+	if msg := h.svc.SaveSnippets(good); msg != "" {
+		t.Fatal(msg)
+	}
+	if got := h.svc.View().Snippets; len(got) != 1 || got[0].Text != good[0].Text {
+		t.Fatalf("the page would show %+v", got)
+	}
+	twice := []config.Snippet{{Name: "A", Text: "x"}, {Name: "a", Text: "y"}}
+	if msg := h.svc.SaveSnippets(twice); !strings.Contains(msg, "used twice") {
+		t.Fatalf("message %q", msg)
+	}
+	if got := h.store.Get().Snippets; len(got) != 1 || got[0].Name != "Address" {
+		t.Fatalf("a refused save changed the snippets: %+v", got)
+	}
+}

@@ -204,7 +204,7 @@ func withPins(app *application.App, p *panel.Panel, n int) {
 		}
 	}
 	catalog.Index.Set(list)
-	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, benchClips{}, p.HideForLaunch)))
+	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, benchClips{}, benchSnippets{}, p.HideForLaunch)))
 	app.RegisterService(application.NewService(panel.NewService(p)))
 }
 
@@ -225,6 +225,11 @@ func (benchClips) Search(string, int) []clipboard.Entry { return nil }
 func (benchClips) Paste(int64) error                    { return nil }
 func (benchClips) Copy(int64) error                     { return nil }
 func (benchClips) Delete(int64) error                   { return nil }
+
+type benchSnippets struct{}
+
+func (benchSnippets) List() []config.Snippet { return nil }
+func (benchSnippets) Paste(string) error     { return nil }
 
 type benchFiles struct{}
 
