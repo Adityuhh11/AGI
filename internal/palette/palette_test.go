@@ -335,3 +335,47 @@ func titlesOf(a Answer) string {
 	}
 	return strings.Join(out, "|")
 }
+
+func TestPinnedRowsAreInTheOrderPinnedAndGoneOnesAreLeftOut(t *testing.T) {
+	s, _ := newService(t, "Visual Studio Code", "Calculator")
+	file := filepath.Join(t.TempDir(), "budget.xlsx")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"file:" + file, "quicklink:gh:", "app:id:Calculator", "app:id:Gone"} {
+		if on, err := s.TogglePin(id); err != nil || !on {
+			t.Fatalf("pin %s = %v, %v", id, on, err)
+		}
+	}
+	var got []string
+	for _, item := range s.Pinned() {
+		got = append(got, item.Kind+":"+item.Title)
+	}
+	if want := "file:budget.xlsx|quicklink:GitHub|app:Calculator"; strings.Join(got, "|") != want {
+		t.Fatalf("pinned rows %v, want %s (the uninstalled app is hidden, not unpinned)", got, want)
+	}
+	if len(s.PinIDs()) != 4 {
+		t.Errorf("a gone app must stay pinned in case it comes back, ids %v", s.PinIDs())
+	}
+	if pinned := s.Pinned(); pinned[1].ID != "quicklink:gh:" {
+		t.Errorf("a pinned quicklink is its trigger with no text, got %q", pinned[1].ID)
+	}
+}
+
+func TestAQuicklinkIsPinnedAsItsTriggerAndOnlyPinnableThingsArePinned(t *testing.T) {
+	s, _ := newService(t)
+	if on, err := s.TogglePin("quicklink:gh:rust lifetimes"); err != nil || !on {
+		t.Fatalf("pin = %v, %v", on, err)
+	}
+	if ids := s.PinIDs(); len(ids) != 1 || ids[0] != "quicklink:gh:" {
+		t.Fatalf("pinned %v, want the trigger alone", ids)
+	}
+	if on, err := s.TogglePin("quicklink:gh:other text"); err != nil || on {
+		t.Fatalf("the same quicklink with other text must unpin it, got %v, %v", on, err)
+	}
+	for _, id := range []string{"web:rust", "tag:work", "nonsense"} {
+		if _, err := s.TogglePin(id); err == nil {
+			t.Errorf("%q cannot be pinned", id)
+		}
+	}
+}

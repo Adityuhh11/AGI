@@ -311,8 +311,17 @@ func (s *Service) taggedItems(ids []string, filter string) []Item {
 	return items[:min(len(items), tagRows)]
 }
 
-// itemFor is the row for a thing that can carry a tag: an app, or a file that still exists.
+// itemFor is the row for a thing that can carry a tag or a pin: an app, a quicklink that is still
+// configured (as its trigger alone, with no text), or a file that still exists.
 func (s *Service) itemFor(id string) (Item, bool) {
+	if rest, ok := strings.CutPrefix(id, "quicklink:"); ok {
+		trigger, _, _ := strings.Cut(rest, ":")
+		link, found := s.browser.Find(trigger)
+		if !found {
+			return Item{}, false
+		}
+		return Item{ID: "quicklink:" + link.Trigger + ":", Kind: "quicklink", Title: link.Title, Subtitle: "Quicklink"}, true
+	}
 	if appID, ok := strings.CutPrefix(id, "app:"); ok {
 		app, found := s.catalog.Index.Find(appID)
 		return s.item(app), found
@@ -362,4 +371,34 @@ func (s *Service) Tag(id, tag string) ([]string, error) {
 		return nil, err
 	}
 	return s.history.TagsOf(id), nil
+}
+
+// Pinned is what the bar lists when nothing is typed: the pinned things in the order they were pinned,
+// without the ones that are gone (an uninstalled app, a deleted file, a removed quicklink), which stay
+// pinned in case they come back.
+func (s *Service) Pinned() []Item {
+	var items []Item
+	for _, id := range s.history.Pins() {
+		if item, ok := s.itemFor(id); ok {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+// PinIDs lists the ids of everything pinned, for the page to mark pinned rows.
+func (s *Service) PinIDs() []string { return s.history.Pins() }
+
+// TogglePin pins a thing, or unpins it if it is pinned, and reports whether it is pinned now. Apps, files and
+// quicklinks can be pinned; a quicklink is pinned as its trigger, not with whatever was typed after it.
+func (s *Service) TogglePin(id string) (bool, error) {
+	switch {
+	case strings.HasPrefix(id, "app:"), strings.HasPrefix(id, "file:"):
+	case strings.HasPrefix(id, "quicklink:"):
+		trigger, _, _ := strings.Cut(strings.TrimPrefix(id, "quicklink:"), ":")
+		id = "quicklink:" + trigger + ":"
+	default:
+		return false, fmt.Errorf("%q cannot be pinned", id)
+	}
+	return s.history.TogglePin(id)
 }
