@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"agi/internal/apps"
+	"agi/internal/clipboard"
 	"agi/internal/config"
 	"agi/internal/rank"
 	"agi/internal/state"
@@ -32,6 +33,8 @@ const (
 	ModeFiles = "files"
 	ModeWeb   = "web"
 	ModeTags  = "tags"
+	// ModeClip lists what was copied. Tab does not reach it (`clip:` and its pinned row do).
+	ModeClip = "clip"
 )
 
 const (
@@ -48,6 +51,10 @@ const (
 	webMinLength = 2
 	// tagRows is how many rows the Tags mode lists.
 	tagRows = 20
+	// clipRows is how many copied texts the Clipboard mode lists.
+	clipRows = 20
+	// clipTitleLength is how many characters of a copied text a row shows.
+	clipTitleLength = 100
 )
 
 // Files is what the bar needs of the files service to open something that was tagged; *files.Service
@@ -55,6 +62,17 @@ const (
 type Files interface {
 	Open(path string, line int) error
 	Reveal(path string) error
+}
+
+// Clips is the clipboard history as the bar uses it; *clipboard.Manager satisfies it.
+type Clips interface {
+	Enabled() bool
+	Search(words string, limit int) []clipboard.Entry
+	// Paste types the entry into the program the bar came from; Copy only puts it on the clipboard. Both close the bar
+	// when they have worked, and say why when they have not.
+	Paste(id int64) error
+	Copy(id int64) error
+	Delete(id int64) error
 }
 
 // Browser is what the bar needs of the web package; *web.Web satisfies it.
@@ -71,7 +89,7 @@ type Browser interface {
 type Item struct {
 	// ID names the thing: the kind, a colon and the kind's own id.
 	ID string
-	// Kind is "app", "quicklink", "web", "file" (a tagged file) or "tag". The page lists quicklinks
+	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag" or "clip". The page lists quicklinks
 	// first, then apps and files, and the web search last, as the fallback.
 	Kind     string
 	Title    string
@@ -89,6 +107,8 @@ type Answer struct {
 	// Text is what is searched for.
 	Text  string
 	Items []Item
+	// Note says why a mode has nothing to list (the clipboard history is off, nothing matches), or is empty.
+	Note string
 }
 
 // Service answers queries and runs the chosen row.
@@ -97,14 +117,15 @@ type Service struct {
 	history *state.Store
 	browser Browser
 	files   Files
+	clips   Clips
 	dismiss func()
 	now     func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the
 // keyboard back (the program started owns it now).
-func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, dismiss func()) *Service {
-	return &Service{catalog: catalog, history: history, browser: browser, files: files, dismiss: dismiss, now: time.Now}
+func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, clips Clips, dismiss func()) *Service {
+	return &Service{catalog: catalog, history: history, browser: browser, files: files, clips: clips, dismiss: dismiss, now: time.Now}
 }
 
 // Query answers raw (what is in the input) in the mode the page is in.
@@ -113,6 +134,10 @@ func (s *Service) Query(raw, mode string) Answer {
 	answer := Answer{Mode: mode, Text: text}
 	if mode == ModeTags {
 		answer.Items = s.tagItems(text)
+		return answer
+	}
+	if mode == ModeClip {
+		answer.Items, answer.Note = s.clipItems(text)
 		return answer
 	}
 	if text == "" || mode == ModeFiles {
@@ -154,12 +179,17 @@ func parse(raw, mode string) (string, string) {
 	if mode == ModeTags {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "#"))
 	}
+	if mode == ModeClip {
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "clip:"))
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "app", "apps":
 			return ModeApps, strings.TrimSpace(rest)
 		case "web":
 			return ModeWeb, strings.TrimSpace(rest)
+		case "clip", "clipboard":
+			return ModeClip, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -203,6 +233,9 @@ func (s *Service) item(app apps.App) Item {
 // Do carries out an action on a row: "open", or one of its Actions. typed is what was in the input, so a
 // launch teaches the bar what you reach for after typing that.
 func (s *Service) Do(id, action, typed string) error {
+	if raw, ok := strings.CutPrefix(id, "clip:"); ok {
+		return s.doClip(raw, action)
+	}
 	if path, ok := strings.CutPrefix(id, "file:"); ok {
 		switch action {
 		case "open":

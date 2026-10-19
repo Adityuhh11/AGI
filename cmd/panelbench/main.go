@@ -30,6 +30,7 @@ import (
 
 	"agi"
 	"agi/internal/apps"
+	"agi/internal/clipboard"
 	"agi/internal/config"
 	"agi/internal/palette"
 	"agi/internal/panel"
@@ -203,7 +204,7 @@ func withPins(app *application.App, p *panel.Panel, n int) {
 		}
 	}
 	catalog.Index.Set(list)
-	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, p.HideForLaunch)))
+	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, benchClips{}, p.HideForLaunch)))
 	app.RegisterService(application.NewService(panel.NewService(p)))
 }
 
@@ -216,6 +217,14 @@ func (benchBrowser) Quicklink(string) (config.Quicklink, string, bool) {
 	return config.Quicklink{}, "", false
 }
 func (benchBrowser) Find(string) (config.Quicklink, bool) { return config.Quicklink{}, false }
+
+type benchClips struct{}
+
+func (benchClips) Enabled() bool                        { return false }
+func (benchClips) Search(string, int) []clipboard.Entry { return nil }
+func (benchClips) Paste(int64) error                    { return nil }
+func (benchClips) Copy(int64) error                     { return nil }
+func (benchClips) Delete(int64) error                   { return nil }
 
 type benchFiles struct{}
 

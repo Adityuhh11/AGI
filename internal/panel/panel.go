@@ -41,6 +41,10 @@ type Panel struct {
 	// out to be taken, or it was moved to another combination.
 	OnHotkeyError func()
 
+	// OnShow, if set before the app runs, is called (on its own goroutine, so opening never waits for it) every
+	// time the panel opens.
+	OnShow func()
+
 	shown atomic.Bool
 
 	mu           sync.Mutex
@@ -181,6 +185,19 @@ func (p *Panel) Show() {
 	moveTopmost(hwnd, place(work, dpi, height))
 	cloak(hwnd, false)
 	p.win.Focus()
+	if p.OnShow != nil {
+		go p.OnShow()
+	}
+}
+
+// Previous is the window that had the keyboard before the panel opened, or 0 if it is gone: where a paste goes.
+func (p *Panel) Previous() uintptr {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if isWindow(p.previous) {
+		return p.previous
+	}
+	return 0
 }
 
 // Hide closes the panel and gives the keyboard back to the app the user came from.
