@@ -89,7 +89,7 @@
         <button type="button" class="btn {installable ? 'quiet' : 'primary'}" onclick={async () => (error = await Settings.OpenUpdate())}>Open the release page</button>
       </div>
       {#if !installable}<p class="help">This release has no download that can be checked, so it cannot be installed from here.</p>{/if}
-      {#if progress?.Stage === "failed"}<p class="error">{progress.Error} Nothing was changed. You can try again, or download it from the release page.</p>{/if}
+      {#if progress?.Stage === "failed"}<p class="error">{progress.Error} You can try again, or download it from the release page.</p>{/if}
     {/if}
   {:else if outcome}
     <p class="help">{outcome}</p>
