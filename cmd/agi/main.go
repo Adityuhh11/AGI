@@ -127,6 +127,7 @@ func run() error {
 				return thumbnails(icons(next))
 			},
 		},
+		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.SwallowKeyMenu},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },

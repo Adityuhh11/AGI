@@ -66,23 +66,25 @@ func New(o Options) *Service { return &Service{o: o} }
 
 // View is everything the window shows.
 type View struct {
-	Hotkey     string
-	Browser    string
-	SearchURL  string
-	Quicklinks []config.Quicklink
-	Roots      []string
-	FileSearch bool
-	Pace       string
-	ConfigPath string
-	LogDir     string
-	Version    string
+	Hotkey string
+	// DefaultHotkey is what the Reset button puts back.
+	DefaultHotkey string
+	Browser       string
+	SearchURL     string
+	Quicklinks    []config.Quicklink
+	Roots         []string
+	FileSearch    bool
+	Pace          string
+	ConfigPath    string
+	LogDir        string
+	Version       string
 }
 
 // View returns the current settings.
 func (s *Service) View() View {
 	c := s.o.Store.Get()
 	return View{
-		Hotkey: c.Hotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks,
+		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
 	}
