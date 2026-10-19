@@ -19,7 +19,7 @@
   import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
   import { actionsFor, type Action } from "./lib/actions";
-  import { filePathOf, flatten, openLine, pathOf, step, tagIdOf, type Item } from "./lib/flatten";
+  import { filePathOf, flatten, openLine, pathOf, pinIdOf, step, tagIdOf, type Item } from "./lib/flatten";
   import { cycle, escapeStep, label, type Mode } from "./lib/modes";
 
   const DEBOUNCE_MS = 120;
@@ -49,6 +49,8 @@
   let allTags = $state<TagInfo[]>([]);
   let tagsByID = $state<Record<string, string[] | null | undefined>>({}); // the tags of the rows on screen, shown as chips
   let answerText = $state(""); // the text the instant answer searched, with any prefix taken off
+  let pins = $state(new Set<string>()); // the ids of everything pinned, to mark the rows
+  let pinnedRows = $state<Entry[]>([]); // the pinned things that still exist, in the order pinned: the bar's empty state
   let instant = 0;
   let input: HTMLInputElement;
   let content: HTMLElement;
@@ -58,7 +60,8 @@
   // Beside apps, files without a confident match are probably noise, so they are not shown at all.
   const local = $derived(entries.filter((e) => e.Kind !== "web")); // answers about your own machine
   const fileRows = $derived(results && (results.Confident || local.length === 0) ? (results.Rows ?? []) : []);
-  const items = $derived<Item[]>(flatten(fileRows, expanded, entries));
+  const showingPins = $derived(query.trim() === "" && mode === "all"); // nothing typed: the bar lists what is pinned
+  const items = $derived<Item[]>(flatten(fileRows, expanded, entries, showingPins));
   const current = $derived<Item | undefined>(items[selected]);
   const firstApp = $derived(items.findIndex((i) => i.kind === "entry" && i.entry.Kind === "app"));
   const firstFile = $derived(items.findIndex((i) => i.kind === "row"));
@@ -147,10 +150,38 @@
     active = false;
     closeActions();
     picker = null;
-    mode = "all"; // the next opening starts from everything
+    mode = "all"; // the next opening starts from everything, with the pinned things listed
     effective = "all";
+    query = "";
+    clearAnswer();
+    loadPins();
     metal = nextMetal(metal);
   }
+
+  // What is pinned, for the empty bar and for the marks on rows. Asked again whenever it may have changed.
+  async function loadPins() {
+    const [ids, rows] = await Promise.all([Palette.PinIDs(), Palette.Pinned()]);
+    pins = new Set(ids ?? []);
+    pinnedRows = rows ?? [];
+    if (showingPins) {
+      entries = pinnedRows;
+      selected = Math.min(selected, Math.max(0, entries.length - 1));
+    }
+  }
+
+  async function togglePin(item: Item | undefined) {
+    const id = item && pinIdOf(item);
+    if (!id) return;
+    await attempt(async () => {
+      await Palette.TogglePin(id);
+      await loadPins();
+    });
+  }
+
+  const pinningOf = (item: Item) => {
+    const id = pinIdOf(item);
+    return id === null ? null : pins.has(id) ? "unpin" : "pin";
+  };
 
   const refreshInfo = () => Status.Info().then((i) => (info = i));
 
@@ -163,19 +194,24 @@
     typingTimer = setTimeout(() => (typing = false), 700);
     clearTimeout(timer);
     if (query.trim() === "") {
-      // Nothing to search for: drop the old answer at once, so the card closes back into the capsule
-      // and no half-answer ("nothing matched") flashes while the next word is typed.
-      token++;
-      instant++;
-      pending = false;
-      results = null;
-      answered = "";
-      entries = [];
-      answerText = "";
-      effective = mode;
+      clearAnswer();
       return;
     }
     update();
+  }
+
+  // Nothing to search for: drop the old answer at once, so the card goes back to what is pinned (or closes
+  // into the capsule) and no half-answer ("nothing matched") flashes while the next word is typed.
+  function clearAnswer() {
+    token++;
+    instant++;
+    pending = false;
+    results = null;
+    answered = "";
+    entries = mode === "all" ? pinnedRows : [];
+    selected = 0;
+    answerText = "";
+    effective = mode;
   }
 
   // Asks Go for the instant answers (apps), which come back in a millisecond, and then lets the files
@@ -203,6 +239,7 @@
     mode = next;
     effective = next;
     if (query.trim() !== "") update();
+    else clearAnswer();
   }
 
   async function runSearch() {
@@ -236,6 +273,7 @@
     if (!item) return;
     if (id === "copy-path") copyPath(item);
     else if (id === "tag") openPicker(item);
+    else if (id === "pin") togglePin(item);
     else run(item, id as "open" | "reveal" | "admin");
   }
 
@@ -308,6 +346,10 @@
     if (item.kind === "entry" && item.entry.Kind === "tag") {
       query = "#" + item.entry.ID.slice("tag:".length) + " ";
       onInput(); // show what carries it
+      input.focus();
+    } else if (item.kind === "entry" && /^quicklink:[^:]*:$/.test(item.entry.ID)) {
+      query = item.entry.ID.split(":")[1] + " "; // a pinned quicklink is a shortcut: the rest is typed
+      onInput();
       input.focus();
     } else if (item.kind === "entry") {
       const id = item.entry.ID;
@@ -401,6 +443,13 @@
           openPicker(current);
         }
         break;
+      case "P":
+      case "p":
+        if (event.ctrlKey && current && pinIdOf(current)) {
+          event.preventDefault();
+          togglePin(current);
+        }
+        break;
       case "K":
       case "k":
         if (event.ctrlKey && current) {
@@ -422,6 +471,7 @@
 
   onMount(() => {
     takeFocus();
+    loadPins();
     // The observer fires after layout, whenever what the card holds changes size (results arriving,
     // fonts loading); the card and the window follow.
     const observer = new ResizeObserver(([entry]) => (contentHeight = entry.borderBoxSize[0].blockSize));
@@ -473,6 +523,7 @@
             {#if items.length > 0}
               <div class="results" class:stale={pending} id="results" role="listbox" aria-label="Results">
                 {#each items as item, index (itemKey(item))}
+                  {#if showingPins && index === 0}<h3 class="section">Pinned</h3>{/if}
                   {#if sections && index === firstApp}<h3 class="section">Apps</h3>{/if}
                   {#if sections && index === firstFile}<h3 class="section">Files</h3>{/if}
                   {#if item.kind === "entry"}
@@ -480,6 +531,7 @@
                       id={optionId(index)}
                       entry={item.entry}
                       tags={tagsOf(item)}
+                      pinned={pins.has(pinIdOf(item) ?? "")}
                       selected={index === selected}
                       onhover={() => (selected = index)}
                       onactivate={() => run(item)}
@@ -489,6 +541,7 @@
                       id={optionId(index)}
                       row={item.row}
                       tags={tagsOf(item)}
+                      pinned={pins.has(pinIdOf(item) ?? "")}
                       match={item.kind === "match" ? item.match : undefined}
                       query={answered}
                       selected={index === selected}
@@ -503,6 +556,7 @@
                 <span><kbd>Enter</kbd>open</span>
                 {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
                 <span><kbd>Ctrl+K</kbd>actions</span>
+                {#if current && pinIdOf(current)}<span><kbd>Ctrl+P</kbd>{pins.has(pinIdOf(current) ?? "") ? "unpin" : "pin"}</span>{/if}
                 {#if current && current.kind !== "entry" && current.row.Matches && current.row.Matches.length > 1}
                   <span><kbd>→</kbd>more</span>
                 {/if}
@@ -518,7 +572,7 @@
         {/if}
       </div>
       {#if target}
-        <ActionPanel actions={actionsFor(target, tagIdOf(target) !== null)} onrun={runAction} onclose={closeActions} />
+        <ActionPanel actions={actionsFor(target, tagIdOf(target) !== null, pinningOf(target))} onrun={runAction} onclose={closeActions} />
       {:else if picker}
         <ActionPanel
           actions={tagLines}

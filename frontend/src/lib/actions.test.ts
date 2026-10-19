@@ -43,3 +43,11 @@ test("the web, a quicklink and a tag row cannot be tagged", () => {
 test("every action names the shortcut that does the same without the panel", () => {
   for (const action of fileActions) assert.ok(action.keys.length > 0, action.id);
 });
+
+test("a row that can be pinned offers Pin or Unpin last, with its shortcut; one that cannot offers neither", () => {
+  assert.deepEqual(actionsOf(file, true, "pin").map((a) => [a.id, a.title, a.keys]).at(-1), ["pin", "Pin", "Ctrl+P"]);
+  assert.deepEqual(actionsOf(file, true, "unpin").map((a) => [a.id, a.title]).at(-1), ["pin", "Unpin"]);
+  assert.deepEqual(actionsOf(file, true).map((a) => a.id), ["open", "reveal", "copy-path", "tag"]);
+  const link = { kind: "entry", entry: { ID: "quicklink:gh:", Kind: "quicklink", Actions: null } };
+  assert.deepEqual(actionsOf(link, false, "pin").map((a) => a.id), ["open", "pin"]);
+});

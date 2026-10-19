@@ -10,8 +10,10 @@
     onactivate: () => void;
     /** The tags this thing carries. */
     tags?: string[];
+    /** Whether it is pinned. */
+    pinned?: boolean;
   }
-  let { entry, id, selected, onhover, onactivate, tags = [] }: Props = $props();
+  let { entry, id, selected, onhover, onactivate, tags = [], pinned = false }: Props = $props();
 
   const glyph = $derived(
     entry.Kind === "app" ? "app" : entry.Kind === "tag" ? "tag" : entry.Kind === "file" ? "file" : "web",
@@ -39,6 +41,7 @@
   <div class="body">
     <span class="name">{entry.Title}</span>
   </div>
+  {#if pinned}<span class="pin" title="Pinned"><Icon name="pin" size={14} /></span>{/if}
   {#if tags.length > 0}
     <span class="tags">{#each tags as tag}<span class="tag">#{tag}</span>{/each}</span>
   {/if}
@@ -96,6 +99,12 @@
     font-size: 14.5px;
     font-weight: 520;
     letter-spacing: -0.005em;
+  }
+  .pin {
+    flex: none;
+    align-self: center;
+    display: grid;
+    color: var(--text-3);
   }
   .tags {
     flex: none;
