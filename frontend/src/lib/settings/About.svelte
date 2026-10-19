@@ -11,6 +11,8 @@
   // svelte-ignore state_referenced_locally
   let found = $state(view.UpdateFound);
   // svelte-ignore state_referenced_locally
+  let installable = $state(view.UpdateInstallable);
+  // svelte-ignore state_referenced_locally
   let daily = $state(view.CheckUpdates);
   let checking = $state(false);
   let outcome = $state("");
@@ -52,6 +54,7 @@
       return;
     }
     found = r.Available ? r.Latest : "";
+    installable = r.Installable;
     outcome = r.Available ? "" : "No release is newer than " + view.Version + ".";
   }
 
@@ -82,9 +85,10 @@
       {#if progress?.Stage === "done" && progress.Error}<p class="error">{progress.Error}</p>{/if}
     {:else}
       <div class="row">
-        <button type="button" class="btn primary" onclick={startUpdate}>Update to {found}</button>
-        <button type="button" class="btn quiet" onclick={async () => (error = await Settings.OpenUpdate())}>Open the release page</button>
+        {#if installable}<button type="button" class="btn primary" onclick={startUpdate}>Update to {found}</button>{/if}
+        <button type="button" class="btn {installable ? 'quiet' : 'primary'}" onclick={async () => (error = await Settings.OpenUpdate())}>Open the release page</button>
       </div>
+      {#if !installable}<p class="help">This release has no download that can be checked, so it cannot be installed from here.</p>{/if}
       {#if progress?.Stage === "failed"}<p class="error">{progress.Error} Nothing was changed. You can try again, or download it from the release page.</p>{/if}
     {/if}
   {:else if outcome}

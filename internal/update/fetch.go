@@ -14,8 +14,9 @@ import (
 	"strings"
 )
 
-// DownloadPrefix is where the zips of this project's releases live. An address from anywhere else is refused.
-const DownloadPrefix = "https://github.com/Adityuhh11/AGI/releases/download/"
+// DownloadPrefix is where the zips of this project's releases live. An address from anywhere else is refused. A
+// variable only so that a test build can point it at a local server (-ldflags "-X agi/internal/update.DownloadPrefix=...").
+var DownloadPrefix = "https://github.com/Adityuhh11/AGI/releases/download/"
 
 // maxZip is the most that is downloaded, and the most that is unpacked from it: the real zip is 5 MB.
 const maxZip = 200 << 20

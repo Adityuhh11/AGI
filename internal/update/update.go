@@ -18,8 +18,9 @@ import (
 	"time"
 )
 
-// latestURL answers with the newest release that is neither a draft nor a pre-release.
-const latestURL = "https://api.github.com/repos/Adityuhh11/AGI/releases/latest"
+// latestURL answers with the newest release that is neither a draft nor a pre-release. A variable only so that a test
+// build can point it at a local server (-ldflags "-X agi/internal/update.latestURL=..."); the release build never does.
+var latestURL = "https://api.github.com/repos/Adityuhh11/AGI/releases/latest"
 
 // Release is a published version: its number (without the "v"), its page, and the zip that can be installed
 // from the program (empty when the release has none that can be verified: the page is all there is then).

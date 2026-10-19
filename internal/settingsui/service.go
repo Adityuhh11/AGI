@@ -126,9 +126,11 @@ type View struct {
 	Autostart     bool
 	CheckUpdates  bool
 	UpdateFound   string // the version of a newer release the last check saw, or ""
-	ConfigPath    string
-	LogDir        string
-	Version       string
+	// UpdateInstallable says that release has a zip that can be checked, so the page can offer to install it.
+	UpdateInstallable bool
+	ConfigPath        string
+	LogDir            string
+	Version           string
 }
 
 // View returns the current settings.
@@ -137,7 +139,7 @@ func (s *Service) View() View {
 	return View{
 		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks, Snippets: c.Snippets,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
-		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, UpdateFound: s.updateFound(),
+		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, UpdateFound: s.updateFound(), UpdateInstallable: s.updateInstallable(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
 	}
 }
@@ -183,6 +185,11 @@ func (s *Service) updateFound() string {
 	return rel.Version
 }
 
+func (s *Service) updateInstallable() bool {
+	rel, ok := s.o.Updates.Found()
+	return ok && rel.Asset.URL != ""
+}
+
 // SetCheckUpdates turns the daily update check on or off.
 func (s *Service) SetCheckUpdates(on bool) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.CheckUpdates = on }))
@@ -193,7 +200,9 @@ func (s *Service) SetCheckUpdates(on bool) string {
 type UpdateView struct {
 	Latest    string
 	Available bool
-	Error     string
+	// Installable says the newer release has a zip that can be checked, so it can be installed from the page.
+	Installable bool
+	Error       string
 }
 
 // CheckUpdate asks GitHub for the newest release now.
@@ -204,7 +213,7 @@ func (s *Service) CheckUpdate() UpdateView {
 	if err != nil {
 		return UpdateView{Error: err.Error()}
 	}
-	return UpdateView{Latest: rel.Version, Available: newer}
+	return UpdateView{Latest: rel.Version, Available: newer, Installable: newer && rel.Asset.URL != ""}
 }
 
 // UpdateProgress is where the install is, for the page: the stage ("idle", "downloading", "installing", "done" or "failed"),

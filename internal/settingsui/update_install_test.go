@@ -130,3 +130,27 @@ func TestProgressAndCancelGoThroughToTheInstaller(t *testing.T) {
 		t.Fatalf("cancelled %d times", h.installer.cancels)
 	}
 }
+
+func TestThePageIsOnlyToldItCanInstallWhenTheReleaseHasAZipThatCanBeChecked(t *testing.T) {
+	h := newHarness(t)
+	h.updates.rel, h.updates.newer = releaseWithZip, true
+	if got := h.svc.CheckUpdate(); !got.Available || !got.Installable {
+		t.Fatalf("a release with a zip: %+v", got)
+	}
+	if v := h.svc.View(); v.UpdateFound != "0.4.0" || !v.UpdateInstallable {
+		t.Fatalf("the page on opening: found %q, installable %v", v.UpdateFound, v.UpdateInstallable)
+	}
+	noZip := releaseWithZip
+	noZip.Asset = update.Asset{}
+	h.updates.rel = noZip
+	if got := h.svc.CheckUpdate(); !got.Available || got.Installable {
+		t.Fatalf("a release without a checkable zip: %+v (it is available, but the page must not offer to install it)", got)
+	}
+	if v := h.svc.View(); v.UpdateFound != "0.4.0" || v.UpdateInstallable {
+		t.Fatalf("the page on opening: found %q, installable %v", v.UpdateFound, v.UpdateInstallable)
+	}
+	h.updates.newer = false
+	if got := h.svc.CheckUpdate(); got.Installable {
+		t.Fatalf("an old release is not installable: %+v", got)
+	}
+}
