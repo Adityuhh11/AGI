@@ -104,6 +104,19 @@ func (c *Client) DeleteSource(ctx context.Context, id string) (int, error) {
 	return out.RemovedChunks, err
 }
 
+// SetDuty sets the share of the time indexing may keep the GPU busy (0.05 to 1).
+func (c *Client) SetDuty(ctx context.Context, duty float64) error {
+	return c.do(ctx, http.MethodPut, "/pace", map[string]any{"duty": duty}, nil)
+}
+
+// Pause stops indexing at the next batch; Resume lets it go on. Searching is not affected.
+func (c *Client) Pause(ctx context.Context) error { return c.do(ctx, http.MethodPost, "/pause", nil, nil) }
+
+// Resume lets a paused index job go on.
+func (c *Client) Resume(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/resume", nil, nil)
+}
+
 // SearchFiles runs a file-level search.
 func (c *Client) SearchFiles(ctx context.Context, req SearchFilesRequest) (SearchFilesResponse, error) {
 	var out SearchFilesResponse
@@ -139,6 +152,9 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	}
 	if resp.StatusCode >= 300 {
 		return errorFor(resp.StatusCode, data)
+	}
+	if out == nil {
+		return nil
 	}
 	if err := json.Unmarshal(data, out); err != nil {
 		return fmt.Errorf("decode %s %s: %w", method, path, err)

@@ -20,9 +20,11 @@ class Settings:
     """Everything tunable about the engine. Defaults are the values measured in ADR 0001."""
 
     index_dir: Path
+    llama_server: Path | None = None  # llama-server.exe, from AGI_LLAMA_SERVER
+    model_dir: Path | None = None  # the folder with the two GGUF files (AGI_MODEL_DIR)
     model_id: str = MODEL_ID
     dim: int = EMBEDDING_DIM
-    max_seq_length: int = 512  # 8192 x batch overflows 6 GB VRAM; real chunks are small
+    max_seq_length: int = 512  # tokens; real chunks are small, and the server rejects longer inputs
     text_batch_size: int = 8
     image_batch_size: int = 4
     max_text_file_bytes: int = 5 * 1024 * 1024
@@ -43,10 +45,19 @@ class Settings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
-        """Index location: `AGI_MEMORY_DIR` if set, else `%LOCALAPPDATA%\\AGI\\memory`."""
+        """The llama.cpp server and the models come from `AGI_LLAMA_SERVER` and `AGI_MODEL_DIR`
+        (the launcher sets both). The index is in `AGI_MEMORY_DIR` if set, else in the AGI/memory
+        folder under `%LOCALAPPDATA%`."""
         env = os.environ if environ is None else environ
+        server, models = env.get("AGI_LLAMA_SERVER"), env.get("AGI_MODEL_DIR")
+        llama_server = Path(server) if server else None
+        model_dir = Path(models) if models else None
         if override := env.get("AGI_MEMORY_DIR"):
-            return cls(index_dir=Path(override))
+            return cls(index_dir=Path(override), llama_server=llama_server, model_dir=model_dir)
         if local := env.get("LOCALAPPDATA"):
-            return cls(index_dir=Path(local) / "AGI" / "memory")
+            return cls(
+                index_dir=Path(local) / "AGI" / "memory",
+                llama_server=llama_server,
+                model_dir=model_dir,
+            )
         raise ConfigError("cannot locate the index: set AGI_MEMORY_DIR (LOCALAPPDATA is unset)")

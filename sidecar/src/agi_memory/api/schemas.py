@@ -7,6 +7,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agi_memory.jobs import JobState
+from agi_memory.pace import MIN_DUTY
 from agi_memory.types import ChunkKind
 
 # Also validated for the path parameter of DELETE /sources/{source_id}.
@@ -28,6 +29,18 @@ class HealthOut(BaseModel):
     embedded_items: int
     version: str
     error: str | None
+    # How hard indexing works and whether it is paused; null until the engine is ready.
+    duty: float | None = None
+    paused: bool | None = None
+
+
+class PaceOut(BaseModel):
+    duty: float
+    paused: bool
+
+
+class SetPace(_Request):
+    duty: float = Field(ge=MIN_DUTY, le=1.0)
 
 
 class AddSource(_Request):

@@ -22,6 +22,7 @@ from agi_memory.embedding.base import Embedder
 from agi_memory.embedding.serialized import SerializedEmbedder
 from agi_memory.indexer import Indexer
 from agi_memory.jobs import JobManager
+from agi_memory.pace import PacedEmbedder, Pacer
 from agi_memory.search.searcher import Searcher
 from agi_memory.store import FlatStore
 
@@ -55,11 +56,15 @@ def _load_engine(
             )
         searcher = Searcher(store, embedder)
         _calibrate(searcher)  # before the engine is announced, so no search sees the default
+        pacer = Pacer()
         app.state.engine = Engine(
             embedder=embedder,
             searcher=searcher,
+            pacer=pacer,
+            # Only indexing is paced; searches use the embedder directly and never wait.
             jobs=JobManager(
-                Indexer(store, embedder, settings), on_done=lambda: _calibrate(searcher)
+                Indexer(store, PacedEmbedder(embedder, pacer), settings),
+                on_done=lambda: _calibrate(searcher),
             ),
         )
     except Exception as error:  # report through /health instead of killing the process

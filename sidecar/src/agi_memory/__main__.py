@@ -22,11 +22,32 @@ def _fail(message: str) -> int:
     return 2
 
 
-def _load_gemma(settings: Settings) -> Embedder:
-    # Imported here so a bad configuration fails fast, without importing torch first.
-    from agi_memory.embedding.gemma import GemmaEmbedder
+def _load_embedder(settings: Settings) -> Embedder:
+    # Imported here so a bad configuration fails fast.
+    from agi_memory.embedding.llama import LlamaEmbedder
+    from agi_memory.embedding.llama_server import LlamaServer
 
-    return GemmaEmbedder(settings)
+    assert settings.llama_server is not None and settings.model_dir is not None  # checked in main()
+    server = LlamaServer(settings.llama_server, settings.model_dir)
+    server.start()
+    return LlamaEmbedder(server, settings)
+
+
+def _missing_runtime(settings: Settings) -> str | None:
+    """Why the embedding runtime cannot start, or None if its files are there."""
+    from agi_memory.embedding.llama_server import TEXT_MODEL, VISION_MODEL
+
+    if settings.llama_server is None or settings.model_dir is None:
+        return "AGI_LLAMA_SERVER and AGI_MODEL_DIR must be set (the launcher sets them)"
+    paths = (
+        settings.llama_server,
+        settings.model_dir / TEXT_MODEL,
+        settings.model_dir / VISION_MODEL,
+    )
+    for path in paths:
+        if not path.is_file():
+            return f"{path} is missing; turn file search off and on again in Settings"
+    return None
 
 
 def main() -> int:
@@ -41,9 +62,12 @@ def main() -> int:
     except ConfigError as error:
         return _fail(str(error))
 
+    if problem := _missing_runtime(settings):
+        return _fail(problem)
+
     import uvicorn
 
-    app = create_app(settings, token, lambda: _load_gemma(settings))
+    app = create_app(settings, token, lambda: _load_embedder(settings))
     uvicorn.run(app, host="127.0.0.1", port=int(port_text), log_level="info")
     return 0
 

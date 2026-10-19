@@ -155,7 +155,9 @@ func startHarness(t *testing.T, tune func(*Options), scripts ...script) *harness
 	t.Helper()
 	h := &harness{t: t, engine: &fakeEngine{scripts: scripts}, finished: make(chan struct{})}
 	opts := Options{
-		Dir:            filepath.Join("C:", "repo", "sidecar"),
+		Dir:            filepath.Join("C:", "engine", "app"),
+		Python:         filepath.Join("C:", "engine", "venv", "Scripts", "python.exe"),
+		Env:            []string{"AGI_LLAMA_SERVER=C:/engine/llama/llama-server.exe"},
 		Start:          h.engine.start,
 		Backoff:        func(int) time.Duration { return 2 * time.Millisecond },
 		Poll:           5 * time.Millisecond,
@@ -246,26 +248,26 @@ func TestTheEngineIsStartedWithItsSettingsAndBecomesReady(t *testing.T) {
 	}
 
 	spec := h.engine.specs[0]
-	if want := filepath.Join("C:", "repo", "sidecar", ".venv", "Scripts", "python.exe"); spec.Exe != want {
+	if want := filepath.Join("C:", "engine", "venv", "Scripts", "python.exe"); spec.Exe != want {
 		t.Errorf("program = %q, want the venv's python %q", spec.Exe, want)
 	}
-	if strings.Join(spec.Args, " ") != "-m agi_memory" || spec.Dir != filepath.Join("C:", "repo", "sidecar") {
+	if strings.Join(spec.Args, " ") != "-m agi_memory" || spec.Dir != filepath.Join("C:", "engine", "app") {
 		t.Errorf("args = %v, dir = %q", spec.Args, spec.Dir)
 	}
 	if token := envValue(spec.Env, "AGI_SIDECAR_TOKEN"); len(token) != 64 {
 		t.Errorf("token = %q, want 64 hex characters", token)
 	}
-	if envValue(spec.Env, "AGI_SIDECAR_PORT") == "" || envValue(spec.Env, "HF_HUB_OFFLINE") != "1" {
-		t.Errorf("environment is missing the port or HF_HUB_OFFLINE: %v", spec.Env)
+	if envValue(spec.Env, "AGI_SIDECAR_PORT") == "" || envValue(spec.Env, "AGI_LLAMA_SERVER") == "" {
+		t.Errorf("environment is missing the port or the llama.cpp server: %v", spec.Env)
 	}
 }
 
 func TestEachSupervisorGetsItsOwnTokenAndPort(t *testing.T) {
-	a, err := New(Options{Dir: "x"})
+	a, err := New(Options{Dir: "x", Python: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := New(Options{Dir: "x"})
+	b, err := New(Options{Dir: "x", Python: "x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,11 +345,11 @@ func TestAnIndexThatMustBeRebuiltIsNotRetriedAndSaysSo(t *testing.T) {
 	}
 }
 
-func TestAMissingPythonIsFatalAndPointsAtUvSync(t *testing.T) {
+func TestAMissingPythonIsFatalAndSaysHowToReinstall(t *testing.T) {
 	h := startHarness(t, nil, script{startErr: &fs.PathError{Op: "CreateProcess", Path: "python.exe", Err: fs.ErrNotExist}})
 	h.waitUntilFinished()
 	status := h.sup.Status()
-	if status.State != StateFailed || !strings.Contains(status.Message, "uv sync") {
+	if status.State != StateFailed || !strings.Contains(status.Message, "reinstall") {
 		t.Fatalf("status = %+v", status)
 	}
 	if other := (script{startErr: errors.New("access denied")}); other.startErr == nil {

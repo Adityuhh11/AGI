@@ -61,8 +61,8 @@ func TestLoadKeepsDefaultsForKeysThatAreNotSet(t *testing.T) {
 	if got.Hotkey != "Ctrl+Alt+K" {
 		t.Fatalf("hotkey = %q, want Ctrl+Alt+K", got.Hotkey)
 	}
-	if want := Default(); got.Sidecar != want.Sidecar {
-		t.Fatalf("sidecar = %+v, want the default %+v", got.Sidecar, want.Sidecar)
+	if want := Default(); got.Search != want.Search {
+		t.Fatalf("search = %+v, want the default %+v", got.Search, want.Search)
 	}
 }
 
@@ -93,6 +93,13 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"duplicate root", "roots = ['C:\\Docs', 'c:\\docs\\']\n", "repeats"},
 		{"relative exclude", "roots = ['C:\\Docs']\nexclude = ['vendor']\n", "must be an absolute path"},
 		{"exclude outside every root", "roots = ['C:\\Docs']\nexclude = ['D:\\Other']\n", "not inside any root"},
+		{"search_url without a place for the text", "search_url = 'https://example.com/'\n", "must contain {q}"},
+		{"search_url that is not a web address", "search_url = 'example.com/?q={q}'\n", "must start with https://"},
+		{"quicklink without a trigger", "[[quicklink]]\ntrigger = ''\ntitle = 'x'\nurl = 'https://x/?q={q}'\n", "one word"},
+		{"quicklink with a two-word trigger", "[[quicklink]]\ntrigger = 'a b'\ntitle = 'x'\nurl = 'https://x/?q={q}'\n", "one word"},
+		{"quicklink without a title", "[[quicklink]]\ntrigger = 'gh'\nurl = 'https://x/?q={q}'\n", "needs a title"},
+		{"quicklink twice", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/?q={q}'\n[[quicklink]]\ntrigger = 'GH'\ntitle = 'b'\nurl = 'https://y/?q={q}'\n", "used twice"},
+		{"quicklink with two places for the text", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/{q}/{q}'\n", "once"},
 		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
 	}
 	for _, tt := range tests {
@@ -141,38 +148,47 @@ func TestSourceIDsAreStableCaseInsensitiveAndAcceptedByTheEngine(t *testing.T) {
 	}
 }
 
-func TestDefaultsPointAtTheRepositoryWhenItIsFound(t *testing.T) {
-	repo := t.TempDir()
-	writeFile(t, filepath.Join(repo, "sidecar", "pyproject.toml"), "[project]\n")
-	deep := filepath.Join(repo, "bin", "nested")
-	if err := os.MkdirAll(deep, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got := findRepoRoot(t.TempDir(), deep); got != repo {
-		t.Fatalf("findRepoRoot = %q, want %q (the second start folder is inside the repository)", got, repo)
-	}
-	cfg := defaultsFor(repo)
-	if want := filepath.Join(repo, "Sample Data"); len(cfg.Roots) != 1 || cfg.Roots[0] != want {
-		t.Fatalf("roots = %v, want [%s]", cfg.Roots, want)
-	}
-	if want := filepath.Join(repo, "sidecar"); cfg.Sidecar.Dir != want {
-		t.Fatalf("sidecar dir = %q, want %q", cfg.Sidecar.Dir, want)
+func TestAFreshInstallIndexesNothingAndHasFileSearchOff(t *testing.T) {
+	cfg := Default()
+	if len(cfg.Roots) != 0 || cfg.Search.Enabled || cfg.Search.Pace != "balanced" || cfg.Hotkey != DefaultHotkey {
+		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf("the defaults are invalid: %v", err)
+		t.Fatal(err)
 	}
 }
 
-func TestDefaultsWithoutARepositoryHaveNoRootsAndStillValidate(t *testing.T) {
-	if got := findRepoRoot(t.TempDir()); got != "" {
-		t.Fatalf("findRepoRoot found %q in an empty folder", got)
+func TestTheRetiredSidecarTableLoadsAndIsNotWrittenBack(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = 'C:\\\\dev\\\\AGI\\\\sidecar'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatalf("a file with the retired [sidecar] table must still load: %v", err)
 	}
-	cfg := defaultsFor("")
-	if len(cfg.Roots) != 0 || cfg.Sidecar.Dir != "" || cfg.Hotkey != DefaultHotkey {
-		t.Fatalf("unexpected defaults without a repository: %+v", cfg)
+	if got.Hotkey != "Ctrl+Alt+K" || got.Sidecar != nil {
+		t.Fatalf("got %+v", got)
 	}
-	if err := cfg.Validate(); err != nil {
+	if err := got.Save(path); err != nil {
 		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(saved), "sidecar") {
+		t.Fatalf("the retired table was written back:\n%s", saved)
+	}
+}
+
+func TestLoadReadsTheSearchSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[search]\nenabled = true\npace = 'gentle'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Search.Enabled || got.Search.Pace != "gentle" {
+		t.Fatalf("search = %+v", got.Search)
 	}
 }
 
@@ -193,5 +209,17 @@ func TestLoadReadsExcludedFolders(t *testing.T) {
 	}
 	if len(got.Exclude) != 1 || got.Exclude[0] != `C:\Docs\vendor` {
 		t.Fatalf("exclude = %v", got.Exclude)
+	}
+}
+
+func TestLoadReadsTheBrowserAndQuicklinks(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "browser = 'zen'\nsearch_url = 'https://duckduckgo.com/?q={q}'\n\n[[quicklink]]\ntrigger = 'gh'\ntitle = 'GitHub'\nurl = 'https://github.com/search?q={q}'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Browser != "zen" || got.SearchURL != "https://duckduckgo.com/?q={q}" || len(got.Quicklinks) != 1 || got.Quicklinks[0].Trigger != "gh" {
+		t.Fatalf("got %+v", got)
 	}
 }

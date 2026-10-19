@@ -3,28 +3,45 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"agi"
+	"agi/internal/apps"
+	"agi/internal/autostart"
 	"agi/internal/config"
+	"agi/internal/enginesetup"
 	"agi/internal/files"
 	"agi/internal/indexing"
+	"agi/internal/palette"
 	"agi/internal/panel"
 	"agi/internal/search"
+	"agi/internal/settings"
+	"agi/internal/settingsui"
 	"agi/internal/sidecar"
+	"agi/internal/state"
 	"agi/internal/status"
 	"agi/internal/tray"
+	"agi/internal/update"
 	"agi/internal/watcher"
+	"agi/internal/web"
 )
+
+// version is the build's version, set by scripts/release.ps1 with -ldflags "-X main.version=...".
+var version = "dev"
 
 func main() {
 	closeLog := setUpLog()
@@ -70,10 +87,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cfg, err := config.Load(path)
+	_, statErr := os.Stat(path)
+	firstRun := os.IsNotExist(statErr) // no settings file yet: this is the first start on this machine
+	store, err := settings.Open(path)
 	if err != nil {
 		return err
 	}
+	cfg := store.Get()
 	assets, err := fs.Sub(agi.Frontend, "frontend/dist")
 	if err != nil {
 		return err
@@ -86,12 +106,34 @@ func run() error {
 		return fmt.Errorf("locate the cache directory: %w", err)
 	}
 	var bar *panel.Panel
+	iconDir := filepath.Join(cacheDir, "AGI", "icons")
+	catalog := apps.NewCatalog(filepath.Join(cacheDir, "AGI", "apps.json"), iconDir)
+	// Everything below that needs the indexed folders asks the store when it needs them, so folders
+	// added in the settings count at once.
+	roots := func() []string { return store.Get().Roots }
+	sourceRoots := func() map[string]string {
+		byID := map[string]string{}
+		for _, root := range roots() {
+			byID[config.SourceID(root)] = root
+		}
+		return byID
+	}
+	thumbnails := files.Thumbnails(roots, filepath.Join(cacheDir, "AGI", "thumbs"))
+	icons := apps.Icons(catalog.Index, iconDir)
 	app := application.New(application.Options{
 		Name: "AGI",
 		Assets: application.AssetOptions{
-			Handler:    application.AssetFileServerFS(assets),
-			Middleware: files.Thumbnails(cfg.Roots, filepath.Join(cacheDir, "AGI", "thumbs")),
+			Handler: application.AssetFileServerFS(assets),
+			// /thumb serves picture thumbnails, /icon the icons of apps; anything else is the page.
+			Middleware: func(next http.Handler) http.Handler {
+				return thumbnails(icons(next))
+			},
 		},
+		// The page never sees Alt+Space (Windows takes it as the system-menu key), so the settings'
+		// hotkey field hears about it from here. Emitting from a goroutine keeps the window procedure free.
+		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.KeyMenuFilter(func(accelerator string) {
+			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
+		})},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
@@ -111,53 +153,168 @@ func run() error {
 	)
 	refresh := func() {
 		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status()))
+		icon.SetPaused(indexer.Status().Paused)
 	}
+	layout, err := enginesetup.Locate()
+	if err != nil {
+		return err
+	}
+	engineSource, err := fs.Sub(agi.EngineSource, "sidecar")
+	if err != nil {
+		return err
+	}
+	// Turning file search on installs the engine in the background; when that has worked, file search is
+	// switched on, which starts the engine (the store's subscriber below).
+	setup := enginesetup.NewManager(enginesetup.NewInstaller(layout, engineSource), func(err error) {
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				log.Printf("installing file search failed: %v", err)
+			}
+			return
+		}
+		log.Print("file search is installed")
+		if err := store.Update(func(c *config.Config) { c.Search.Enabled = true }); err != nil {
+			log.Printf("switching file search on: %v", err)
+		}
+	})
 	engine, err = sidecar.New(sidecar.Options{
-		Dir: cfg.Sidecar.Dir, Log: log.Writer(), OnChange: func(sidecar.Status) { refresh() },
+		Dir: layout.App(), Python: layout.Python(), Env: layout.Env(),
+		Log: log.Writer(), OnChange: func(sidecar.Status) { refresh() },
 	})
 	if err != nil {
 		return err
 	}
 	indexer = indexing.New(engine.Client(), cfg.Roots, func() bool { return engine.Status().State == sidecar.StateReady },
 		func(indexing.Status) { refresh() })
-	indexer.Exclude = cfg.Exclude
+	indexer.SetExclude(cfg.Exclude)
+	indexer.SetPace(cfg.Search.Pace)
+	browser := web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks)
 
-	roots := map[string]string{}
-	for _, root := range cfg.Roots {
-		roots[config.SourceID(root)] = root
+	// What the bar has learned about its user (what was launched, and after typing what) lives beside the
+	// settings.
+	history, err := state.Open(filepath.Join(filepath.Dir(path), "state.json"))
+	if err != nil {
+		return err
 	}
 
 	bar = panel.New(app, cfg.Hotkey)
+	opener := files.New(roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
-	icon = tray.New(app, bar.Show, indexer.Rescan)
+	settingsWindow := settingsui.NewWindow(app)
+	var checker *update.Checker
+	checker = update.NewChecker(version, func() {
+		release, _ := checker.Found()
+		icon.SetUpdate(release.Version)
+	})
+	togglePause := func() {
+		if indexer.Status().Paused {
+			indexer.Resume()
+		} else {
+			indexer.Pause()
+		}
+	}
+	icon = tray.New(app, bar.Show, settingsWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
-		application.NewService(status.New(status.Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots}, bar.HotkeyError, engine.Status, indexer.Status)),
-		application.NewService(search.New(engine.Client(), roots, engine.Status)),
-		application.NewService(files.New(cfg.Roots, bar.HideForLaunch)),
+		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
+		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
+		application.NewService(opener),
+		application.NewService(palette.New(catalog, history, browser, opener, bar.HideForLaunch)),
+		application.NewService(settingsui.New(settingsui.Options{
+			Store:    store,
+			Setup:    setup,
+			Indexing: indexer,
+			Rebind:   bar.Rebind,
+			PickFolder: func() (string, error) {
+				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
+					SetTitle("Choose a folder to search").PromptForSingleSelection()
+			},
+			Browsers:     web.Installed,
+			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Updates:      checker,
+			OpenURL:      browser.Open,
+			Open:         settingsWindow.Open,
+			Autostart:    autostart.Enabled,
+			SetAutostart: autostart.Set,
+			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
+			Version:      version,
+		})),
 	} {
 		app.RegisterService(service)
 	}
 
 	// The engine and the indexer report to the tray, which only exists once the app is running.
 	ctx, stop := context.WithCancel(context.Background())
-	engineStopped := make(chan struct{})
-	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		go func() {
-			engine.Run(ctx)
-			close(engineStopped)
-		}()
-		go indexer.Run(ctx)
+	engineSwitch := sidecar.NewSwitch(ctx, engine)
+	engineWanted := func(c config.Config) bool { return c.Search.Enabled && layout.Installed() }
+
+	// The watcher follows the folders: it is started again whenever they change.
+	var watchMu sync.Mutex
+	var stopWatching context.CancelFunc
+	watchFolders := func(folders []string) {
+		watchMu.Lock()
+		defer watchMu.Unlock()
+		if stopWatching != nil {
+			stopWatching()
+		}
+		var watchCtx context.Context
+		watchCtx, stopWatching = context.WithCancel(ctx)
 		// A file that appears, moves or goes is in the index a few seconds after the folder goes
 		// quiet (and within 30 s even if it never does).
-		go watcher.Watch(ctx, cfg.Roots, 3*time.Second, 30*time.Second, indexer.Changed)
+		go watcher.Watch(watchCtx, folders, 3*time.Second, 30*time.Second, indexer.Changed)
+	}
+
+	// What the settings window changes takes effect here. The hotkey is not here: the window rebinds it
+	// first and only saves the change if that worked.
+	store.Subscribe(func(old, updated config.Config) {
+		browser.Update(updated.Browser, updated.SearchURL, updated.Quicklinks)
+		if old.Search.Pace != updated.Search.Pace {
+			indexer.SetPace(updated.Search.Pace)
+		}
+		if !slices.Equal(old.Roots, updated.Roots) || !slices.Equal(old.Exclude, updated.Exclude) {
+			indexer.SetFolders(updated.Roots, updated.Exclude)
+			watchFolders(updated.Roots)
+		}
+		if want := engineWanted(updated); want != engineWanted(old) {
+			if want {
+				engineSwitch.On()
+			} else {
+				engineSwitch.Off()
+			}
+		}
+	})
+
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		if firstRun {
+			// The launcher has no window of its own, so a first start would show nothing at all: open the
+			// settings, where the hotkey is.
+			go func() {
+				time.Sleep(time.Second)
+				settingsWindow.Open()
+			}()
+		}
+		if engineWanted(cfg) {
+			engineSwitch.On()
+		} else {
+			engineSwitch.Off()
+		}
+		go indexer.Run(ctx)
+		go checker.Run(ctx, func() bool { return store.Get().CheckUpdates })
+		// The list of installed apps is served from its cache at once and rebuilt in the background,
+		// again whenever a program is installed or removed.
+		go catalog.Run(ctx)
+		go watcher.Watch(ctx, apps.StartMenuFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
+		watchFolders(cfg.Roots)
 	})
 
 	runErr := app.Run()
 
 	stop()
+	stopped := make(chan struct{})
+	go func() { engineSwitch.Wait(); close(stopped) }()
 	select {
-	case <-engineStopped:
+	case <-stopped:
 	case <-time.After(10 * time.Second):
 		log.Print("the search engine did not stop in time")
 	}
@@ -169,6 +326,8 @@ func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status
 	switch {
 	case hotkeyError != "":
 		return hotkeyError
+	case engine.State == sidecar.StateOff:
+		return "File search is off. Open Settings to turn it on."
 	case engine.State == sidecar.StateFailed:
 		return engine.Message
 	case engine.State != sidecar.StateReady:
