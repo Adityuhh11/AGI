@@ -150,6 +150,7 @@ func (p *Panel) RebindFill(accelerator, text string) error {
 	p.mu.Lock()
 	p.fill, p.fillErrMsg = accelerator, ""
 	p.mu.Unlock()
+	log.Printf("panel: the second hotkey is now %q", accelerator)
 	return nil
 }
 

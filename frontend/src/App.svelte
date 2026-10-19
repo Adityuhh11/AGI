@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { fade } from "svelte/transition";
-  import { Clipboard } from "@wailsio/runtime";
+  import { Clipboard, Events } from "@wailsio/runtime";
   import { Service as Files } from "../bindings/agi/internal/files";
   import { Service as Palette } from "../bindings/agi/internal/palette";
   import type { Item as Entry, TagInfo } from "../bindings/agi/internal/palette";
@@ -144,16 +144,44 @@
   function takeFocus() {
     active = true;
     input.focus();
-    input.select();
+    if (performance.now() - filledAt < FILL_GRACE_MS) input.setSelectionRange(input.value.length, input.value.length);
+    else input.select();
     refreshInfo();
   }
 
-  // The panel lost the keyboard, which is also when it closes: choose the next metal now, unseen.
+  // A hotkey that opens the bar with text typed in ("clip: ") tells the page just before the bar is shown. The
+  // window gets several focus events while it opens, so for a second after the text arrives each of them leaves
+  // it alone, with the cursor after it, instead of selecting it for the next keystroke to replace.
+  const FILL_GRACE_MS = 1000;
+  let filledAt = -Infinity;
+  $effect(() =>
+    Events.On("panel:fill", (e) => {
+      filledAt = performance.now();
+      mode = "all";
+      query = String(e.data ?? "");
+      onInput();
+      input?.focus();
+      input?.setSelectionRange(query.length, query.length);
+    }),
+  );
+
+  // The panel lost the keyboard, which is usually when it closes. But the window being activated sends a blur
+  // of its own while the bar opens, and that must not wipe the text a hotkey typed into it ("clip: "), so
+  // the bar counts as closed only if the keyboard has not come back a moment later.
+  const CLOSE_CHECK_MS = 120;
+  let closeTimer: ReturnType<typeof setTimeout> | undefined;
   function onBlur() {
     active = false;
     closeActions();
     picker = null;
-    mode = "all"; // the next opening starts from everything, with the pinned things listed
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => !document.hasFocus() && closed(), CLOSE_CHECK_MS);
+  }
+
+  // The bar has closed: the next opening starts from everything, with the pinned things listed, and in the
+  // next metal, chosen now, unseen.
+  function closed() {
+    mode = "all";
     effective = "all";
     query = "";
     clearAnswer();

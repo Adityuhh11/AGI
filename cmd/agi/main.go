@@ -328,10 +328,14 @@ func run() error {
 			engineSwitch.Off()
 		}
 		if hotkey := cfg.Clipboard.Hotkey; hotkey != "" {
-			if err := bar.RebindFill(hotkey, "clip: "); err != nil {
-				log.Print(err)
-				bar.SetFillError(err.Error())
-			}
+			// Registering a hotkey asks the main thread, which is the thread running this handler: from a goroutine, like
+			// the panel's own hotkey, or the launcher would wait for itself.
+			go func() {
+				if err := bar.RebindFill(hotkey, "clip: "); err != nil {
+					log.Print(err)
+					bar.SetFillError(err.Error())
+				}
+			}()
 		}
 		go indexer.Run(ctx)
 		go clips.Run(ctx)

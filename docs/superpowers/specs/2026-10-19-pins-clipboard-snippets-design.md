@@ -1,6 +1,6 @@
 # Pins, clipboard history and snippets
 
-Date: 2026-10-19. Status: draft, waiting for the owner's approval. Branch `feat/pins-clipboard`, release target v0.3.0.
+Date: 2026-10-19. Status: approved by the owner on 2026-10-19, and built (P0 to P3) on this branch. Branch `feat/pins-clipboard`, release target v0.3.0.
 Builds on the palette (`2026-10-17-palette-design.md`, where clipboard was P5 and snippets "later") and the packaging
 work (`2026-10-18-packaging-design.md`: settings window, `config.toml` through `internal/settings`).
 

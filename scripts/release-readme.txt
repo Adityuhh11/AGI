@@ -25,6 +25,7 @@ WHAT TO TRY
   - Clipboard history (off until you switch it on in Settings > Clipboard): copy as usual, then open
     the bar and type "clip:" and a few words. Enter pastes it into the program you came from, Ctrl+Enter
     only copies it. It keeps text only, never what a password manager marks as private, and says where.
+    Settings > Clipboard can give it a hotkey of its own that opens the bar already on that list.
   - Snippets (Settings > Snippets): text you paste often, with {date}, {time} and {clipboard} filled in.
     Type "snip:" and pick one, or type its keyword. Clipboard history and Snippets start out pinned.
   - Ctrl+P pins a row (an app, a file, a quicklink; up to eight). The bar is listing your pins
@@ -70,8 +71,8 @@ WHERE THINGS ARE
 
 NOT HERE YET
 
-  Clipboard history, snippets, window management, system commands, searching Office files and
-  videos by their content (they are found by name only).
+  Window management, system commands, searching Office files and videos by their content (they are
+  found by name only), images in the clipboard history.
 
 WHAT I WOULD LIKE TO KNOW
 
