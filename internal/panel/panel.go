@@ -41,6 +41,10 @@ type Panel struct {
 	// out to be taken, or it was moved to another combination.
 	OnHotkeyError func()
 
+	// OnShow, if set before the app runs, is called (on its own goroutine, so opening never waits for it) every
+	// time the panel opens.
+	OnShow func()
+
 	shown atomic.Bool
 
 	mu           sync.Mutex
@@ -48,6 +52,8 @@ type Panel struct {
 	previous     uintptr // the window that had the keyboard before the panel opened
 	heightDIP    int
 	hotkeyErrMsg string
+	fill         string // the second hotkey, which opens the bar with text typed in; "" when there is none
+	fillErrMsg   string
 }
 
 // New creates the (still invisible) window and arranges to bind hotkey once the app runs.
@@ -121,6 +127,53 @@ func (p *Panel) prepare() {
 	}
 }
 
+// RebindFill moves the second hotkey, the one that opens the bar with text already typed in its input (the
+// clipboard's "clip: "), to accelerator; an empty accelerator turns it off. As with Rebind, the new combination is
+// registered before the old one is dropped, so one that cannot be used leaves the working one in place.
+func (p *Panel) RebindFill(accelerator, text string) error {
+	p.mu.Lock()
+	old := p.fill
+	p.mu.Unlock()
+	if accelerator == old {
+		return nil
+	}
+	if accelerator != "" {
+		if err := p.keys.Register(accelerator, func() { p.openWith(text) }); err != nil {
+			return fmt.Errorf("the hotkey %s cannot be used: %w", accelerator, err)
+		}
+	}
+	if old != "" {
+		if err := p.keys.Unregister(old); err != nil {
+			log.Printf("panel: the old hotkey %s could not be released: %v", old, err)
+		}
+	}
+	p.mu.Lock()
+	p.fill, p.fillErrMsg = accelerator, ""
+	p.mu.Unlock()
+	log.Printf("panel: the second hotkey is now %q", accelerator)
+	return nil
+}
+
+// FillError says why the second hotkey could not be bound when the launcher started, or is empty when it works or is off.
+func (p *Panel) FillError() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.fillErrMsg
+}
+
+// SetFillError remembers why the second hotkey could not be bound at start, for the settings to show.
+func (p *Panel) SetFillError(msg string) {
+	p.mu.Lock()
+	p.fillErrMsg = msg
+	p.mu.Unlock()
+}
+
+// openWith opens the bar with text in its input: the page is told first, so the text is there when the bar is seen.
+func (p *Panel) openWith(text string) {
+	go p.app.Event.Emit("panel:fill", text)
+	p.Show()
+}
+
 // Rebind moves the hotkey to accelerator while the app runs. The new combination is registered
 // before the old one is dropped, so one that cannot be used (another program owns it, or it is not a
 // valid combination) leaves the working one in place and the error says why.
@@ -181,6 +234,19 @@ func (p *Panel) Show() {
 	moveTopmost(hwnd, place(work, dpi, height))
 	cloak(hwnd, false)
 	p.win.Focus()
+	if p.OnShow != nil {
+		go p.OnShow()
+	}
+}
+
+// Previous is the window that had the keyboard before the panel opened, or 0 if it is gone: where a paste goes.
+func (p *Panel) Previous() uintptr {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if isWindow(p.previous) {
+		return p.previous
+	}
+	return 0
 }
 
 // Hide closes the panel and gives the keyboard back to the app the user came from.

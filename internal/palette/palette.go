@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"agi/internal/apps"
+	"agi/internal/clipboard"
 	"agi/internal/config"
 	"agi/internal/rank"
 	"agi/internal/state"
@@ -32,6 +33,10 @@ const (
 	ModeFiles = "files"
 	ModeWeb   = "web"
 	ModeTags  = "tags"
+	// ModeClip lists what was copied and ModeSnip the snippets. Tab does not reach them (`clip:`, `snip:` and the
+	// built-in rows do).
+	ModeClip = "clip"
+	ModeSnip = "snip"
 )
 
 const (
@@ -48,6 +53,10 @@ const (
 	webMinLength = 2
 	// tagRows is how many rows the Tags mode lists.
 	tagRows = 20
+	// clipRows is how many copied texts the Clipboard mode lists.
+	clipRows = 20
+	// clipTitleLength is how many characters of a copied text a row shows.
+	clipTitleLength = 100
 )
 
 // Files is what the bar needs of the files service to open something that was tagged; *files.Service
@@ -55,6 +64,17 @@ const (
 type Files interface {
 	Open(path string, line int) error
 	Reveal(path string) error
+}
+
+// Clips is the clipboard history as the bar uses it; *clipboard.Manager satisfies it.
+type Clips interface {
+	Enabled() bool
+	Search(words string, limit int) []clipboard.Entry
+	// Paste types the entry into the program the bar came from; Copy only puts it on the clipboard. Both close the bar
+	// when they have worked, and say why when they have not.
+	Paste(id int64) error
+	Copy(id int64) error
+	Delete(id int64) error
 }
 
 // Browser is what the bar needs of the web package; *web.Web satisfies it.
@@ -71,7 +91,7 @@ type Browser interface {
 type Item struct {
 	// ID names the thing: the kind, a colon and the kind's own id.
 	ID string
-	// Kind is "app", "quicklink", "web", "file" (a tagged file) or "tag". The page lists quicklinks
+	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag", "clip", "snippet" or "cmd". The page lists quicklinks
 	// first, then apps and files, and the web search last, as the fallback.
 	Kind     string
 	Title    string
@@ -80,6 +100,9 @@ type Item struct {
 	Icon string
 	// Actions are the extra things that can be done with it ("reveal", "admin"); opening is always possible.
 	Actions []string
+	// Fill, if set, is what choosing the row does instead of running it: the bar puts this text in its input (a pinned
+	// quicklink's trigger, the prefix of a mode) and the person goes on typing.
+	Fill string
 }
 
 // Answer is what the bar shows for the text typed.
@@ -89,6 +112,8 @@ type Answer struct {
 	// Text is what is searched for.
 	Text  string
 	Items []Item
+	// Note says why a mode has nothing to list (the clipboard history is off, nothing matches), or is empty.
+	Note string
 }
 
 // Service answers queries and runs the chosen row.
@@ -97,14 +122,16 @@ type Service struct {
 	history *state.Store
 	browser Browser
 	files   Files
+	clips   Clips
+	snips   Snippets
 	dismiss func()
 	now     func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the
 // keyboard back (the program started owns it now).
-func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, dismiss func()) *Service {
-	return &Service{catalog: catalog, history: history, browser: browser, files: files, dismiss: dismiss, now: time.Now}
+func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, clips Clips, snips Snippets, dismiss func()) *Service {
+	return &Service{catalog: catalog, history: history, browser: browser, files: files, clips: clips, snips: snips, dismiss: dismiss, now: time.Now}
 }
 
 // Query answers raw (what is in the input) in the mode the page is in.
@@ -115,8 +142,19 @@ func (s *Service) Query(raw, mode string) Answer {
 		answer.Items = s.tagItems(text)
 		return answer
 	}
+	if mode == ModeClip {
+		answer.Items, answer.Note = s.clipItems(text)
+		return answer
+	}
+	if mode == ModeSnip {
+		answer.Items, answer.Note = s.snippetItems(text)
+		return answer
+	}
 	if text == "" || mode == ModeFiles {
 		return answer
+	}
+	if mode == ModeAll {
+		answer.Items = append(answer.Items, s.keywordItems(text)...)
 	}
 	if mode == ModeAll || mode == ModeWeb {
 		if link, rest, ok := s.browser.Quicklink(text); ok {
@@ -128,6 +166,9 @@ func (s *Service) Query(raw, mode string) Answer {
 		for _, m := range pick(matches, mode, text) {
 			answer.Items = append(answer.Items, s.item(m.App))
 		}
+	}
+	if mode == ModeAll {
+		answer.Items = append(answer.Items, commandItems(text)...)
 	}
 	if (mode == ModeAll || mode == ModeWeb) && utf8.RuneCountInString(text) >= webMinLength {
 		answer.Items = append(answer.Items, Item{ID: "web:" + text, Kind: "web", Title: "Search the web for “" + text + "”", Subtitle: "Web"})
@@ -154,12 +195,22 @@ func parse(raw, mode string) (string, string) {
 	if mode == ModeTags {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "#"))
 	}
+	if mode == ModeClip {
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "clip:"))
+	}
+	if mode == ModeSnip {
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "snip:"))
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "app", "apps":
 			return ModeApps, strings.TrimSpace(rest)
 		case "web":
 			return ModeWeb, strings.TrimSpace(rest)
+		case "clip", "clipboard":
+			return ModeClip, strings.TrimSpace(rest)
+		case "snip", "snippet", "snippets":
+			return ModeSnip, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -203,6 +254,12 @@ func (s *Service) item(app apps.App) Item {
 // Do carries out an action on a row: "open", or one of its Actions. typed is what was in the input, so a
 // launch teaches the bar what you reach for after typing that.
 func (s *Service) Do(id, action, typed string) error {
+	if raw, ok := strings.CutPrefix(id, "clip:"); ok {
+		return s.doClip(raw, action)
+	}
+	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
+		return s.doSnippet(name, action)
+	}
 	if path, ok := strings.CutPrefix(id, "file:"); ok {
 		switch action {
 		case "open":
@@ -311,8 +368,28 @@ func (s *Service) taggedItems(ids []string, filter string) []Item {
 	return items[:min(len(items), tagRows)]
 }
 
-// itemFor is the row for a thing that can carry a tag: an app, or a file that still exists.
+// itemFor is the row for a thing that can carry a tag or a pin: an app, a quicklink that is still
+// configured (as its trigger alone, with no text), or a file that still exists.
 func (s *Service) itemFor(id string) (Item, bool) {
+	if rest, ok := strings.CutPrefix(id, "quicklink:"); ok {
+		trigger, _, _ := strings.Cut(rest, ":")
+		link, found := s.browser.Find(trigger)
+		if !found {
+			return Item{}, false
+		}
+		return Item{ID: "quicklink:" + link.Trigger + ":", Kind: "quicklink", Title: link.Title, Subtitle: "Quicklink", Fill: link.Trigger + " "}, true
+	}
+	if c, ok := commandFor(id); ok {
+		return c.item(), true
+	}
+	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
+		for _, snippet := range s.snips.List() {
+			if snippet.Name == name {
+				return snippetItem(snippet), true
+			}
+		}
+		return Item{}, false
+	}
 	if appID, ok := strings.CutPrefix(id, "app:"); ok {
 		app, found := s.catalog.Index.Find(appID)
 		return s.item(app), found
@@ -362,4 +439,36 @@ func (s *Service) Tag(id, tag string) ([]string, error) {
 		return nil, err
 	}
 	return s.history.TagsOf(id), nil
+}
+
+// Pinned is what the bar lists when nothing is typed: the pinned things in the order they were pinned,
+// without the ones that are gone (an uninstalled app, a deleted file, a removed quicklink), which stay
+// pinned in case they come back.
+func (s *Service) Pinned() []Item {
+	var items []Item
+	for _, id := range s.history.Pins() {
+		if item, ok := s.itemFor(id); ok {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+// PinIDs lists the ids of everything pinned, for the page to mark pinned rows.
+func (s *Service) PinIDs() []string { return s.history.Pins() }
+
+// TogglePin pins a thing, or unpins it if it is pinned, and reports whether it is pinned now. Apps, files and
+// quicklinks can be pinned; a quicklink is pinned as its trigger, not with whatever was typed after it.
+func (s *Service) TogglePin(id string) (bool, error) {
+	switch {
+	case strings.HasPrefix(id, "app:"), strings.HasPrefix(id, "file:"), strings.HasPrefix(id, "snippet:"):
+	case strings.HasPrefix(id, "quicklink:"):
+		trigger, _, _ := strings.Cut(strings.TrimPrefix(id, "quicklink:"), ":")
+		id = "quicklink:" + trigger + ":"
+	default:
+		if _, ok := commandFor(id); !ok {
+			return false, fmt.Errorf("%q cannot be pinned", id)
+		}
+	}
+	return s.history.TogglePin(id)
 }

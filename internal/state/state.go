@@ -31,6 +31,7 @@ type file struct {
 	Uses    map[string][]int64        `json:"uses"`    // id -> unix milliseconds, oldest first
 	Learned map[string]map[string]int `json:"learned"` // typed text -> id -> times chosen
 	Tags    map[string][]string       `json:"tags"`    // tag -> ids of what carries it, in the order tagged
+	Pins    []string                  `json:"pins"`    // ids shown when the bar opens, in the order pinned
 }
 
 // Store is the state, in memory and on disk. It is safe for concurrent use.
@@ -133,6 +134,44 @@ func (s *Store) save() error {
 		return fmt.Errorf("replace state: %w", err)
 	}
 	return nil
+}
+
+// MaxPins is how many things can be pinned: the bar lists them all when it opens, so the list has to fit.
+const MaxPins = 8
+
+// Pins lists what is pinned, in the order it was pinned.
+func (s *Store) Pins() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.data.Pins)
+}
+
+// SeedPins pins ids if nothing has ever been pinned (the file has no pins yet), and reports whether it did. It
+// is offered once: someone who pinned things and then unpinned them all is not given the seed back.
+func (s *Store) SeedPins(ids ...string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.Pins != nil {
+		return false, nil
+	}
+	s.data.Pins = append([]string{}, ids...)
+	return true, s.save()
+}
+
+// TogglePin pins the thing, or unpins it if it is pinned already, and saves. It reports whether the
+// thing is pinned now. Pinning more than MaxPins things is refused.
+func (s *Store) TogglePin(id string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if i := slices.Index(s.data.Pins, id); i >= 0 {
+		s.data.Pins = slices.Delete(s.data.Pins, i, i+1)
+		return false, s.save()
+	}
+	if len(s.data.Pins) >= MaxPins {
+		return false, fmt.Errorf("%d things are pinned, which is the most; unpin one first", MaxPins)
+	}
+	s.data.Pins = append(s.data.Pins, id)
+	return true, s.save()
 }
 
 // maxTag is the longest tag name.

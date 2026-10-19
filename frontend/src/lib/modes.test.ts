@@ -26,4 +26,17 @@ test("the all mode shows no chip and the others name themselves", () => {
   assert.equal(label.files, "Files");
   assert.equal(label.web, "Web");
   assert.equal(label.tags, "Tags");
+  assert.equal(label.clip, "Clipboard");
+  assert.equal(label.snip, "Snippets");
+});
+
+test("Tab never lands on the clipboard or the snippets: they are reached by their prefixes", () => {
+  const visited = new Set();
+  let mode = "all";
+  for (let step = 0; step < 20; step++) {
+    mode = cycle(mode, 1);
+    visited.add(mode);
+  }
+  assert.deepEqual([...visited].sort(), ["all", "apps", "files", "tags", "web"]);
+  assert.equal(escapeStep("all", "clip: invoice"), "text");
 });

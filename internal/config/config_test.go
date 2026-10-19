@@ -100,6 +100,14 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"quicklink without a title", "[[quicklink]]\ntrigger = 'gh'\nurl = 'https://x/?q={q}'\n", "needs a title"},
 		{"quicklink twice", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/?q={q}'\n[[quicklink]]\ntrigger = 'GH'\ntitle = 'b'\nurl = 'https://y/?q={q}'\n", "used twice"},
 		{"quicklink with two places for the text", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/{q}/{q}'\n", "once"},
+		{"snippet without a name", "[[snippet]]\ntext = 'x'\n", "needs a name"},
+		{"snippet without a text", "[[snippet]]\nname = 'Address'\n", "needs a text"},
+		{"snippet name twice", "[[snippet]]\nname = 'Address'\ntext = 'a'\n[[snippet]]\nname = 'ADDRESS'\ntext = 'b'\n", "used twice"},
+		{"snippet keyword with a space", "[[snippet]]\nname = 'A'\nkeyword = 'two words'\ntext = 'a'\n", "one word"},
+		{"snippet keyword used twice", "[[snippet]]\nname = 'A'\nkeyword = 'ad'\ntext = 'a'\n[[snippet]]\nname = 'B'\nkeyword = 'AD'\ntext = 'b'\n", "already"},
+		{"snippet keyword that is a quicklink trigger", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'GitHub'\nurl = 'https://x/?q={q}'\n[[snippet]]\nname = 'A'\nkeyword = 'GH'\ntext = 'a'\n", "quicklink trigger"},
+		{"clipboard hotkey that is the main hotkey", "hotkey = 'Alt+Shift+Space'\n[clipboard]\nhotkey = 'alt + shift + space'\n", "launcher's own hotkey"},
+		{"clipboard ignore with an empty program name", "[clipboard]\nignore = ['Notepad', ' ']\n", "program name must not be empty"},
 		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
 	}
 	for _, tt := range tests {
@@ -221,5 +229,59 @@ func TestLoadReadsTheBrowserAndQuicklinks(t *testing.T) {
 	}
 	if got.Browser != "zen" || got.SearchURL != "https://duckduckgo.com/?q={q}" || len(got.Quicklinks) != 1 || got.Quicklinks[0].Trigger != "gh" {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestTheClipboardHistoryIsOffByDefaultAndItsSettingsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	fresh, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Clipboard.Enabled || len(fresh.Clipboard.Ignore) != 0 {
+		t.Fatalf("a fresh install records what is copied: %+v", fresh.Clipboard)
+	}
+	fresh.Clipboard = Clipboard{Enabled: true, Ignore: []string{"MyVault.exe", "Notepad"}}
+	if err := fresh.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.Clipboard.Enabled || strings.Join(again.Clipboard.Ignore, "|") != "MyVault.exe|Notepad" {
+		t.Fatalf("after a round trip: %+v", again.Clipboard)
+	}
+	cloned := again.Clone()
+	cloned.Clipboard.Ignore[0] = "changed"
+	if again.Clipboard.Ignore[0] != "MyVault.exe" {
+		t.Fatal("Clone shares the ignore list")
+	}
+}
+
+func TestSnippetsRoundTripWithManyLinesAndNoneByDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	fresh, err := Load(path)
+	if err != nil || len(fresh.Snippets) != 0 {
+		t.Fatalf("a fresh install has snippets: %v, %v", fresh.Snippets, err)
+	}
+	fresh.Snippets = []Snippet{
+		{Name: "Home address", Keyword: "addr", Text: "12 Example Street\nSpringfield\n\t\"quoted\""},
+		{Name: "Signature", Text: "Best,\nA"},
+	}
+	if err := fresh.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(again.Snippets) != 2 || again.Snippets[0] != fresh.Snippets[0] || again.Snippets[1] != fresh.Snippets[1] {
+		t.Fatalf("after a round trip: %+v", again.Snippets)
+	}
+	cloned := again.Clone()
+	cloned.Snippets[0].Name = "changed"
+	if again.Snippets[0].Name != "Home address" {
+		t.Fatal("Clone shares the snippets")
 	}
 }

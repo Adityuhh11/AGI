@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Events } from "@wailsio/runtime";
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { View } from "../../../bindings/agi/internal/settingsui";
-  import { capture } from "../accelerator";
+  import HotkeyField from "./HotkeyField.svelte";
 
   let { view }: { view: View } = $props();
 
@@ -17,8 +16,6 @@
   // svelte-ignore state_referenced_locally
   let startup = $state(view.Autostart);
   let browsers = $state<string[]>([]);
-  let capturing = $state(false);
-  let hint = $state("");
   let error = $state("");
   let saved = $state(false);
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -49,58 +46,25 @@
     savedTimer = setTimeout(() => (saved = false), 1800);
   }
 
-  async function save(nextHotkey = hotkey) {
-    error = await Settings.SaveGeneral(nextHotkey, browser, searchURL);
-    if (error !== "") return;
-    hotkey = nextHotkey;
-    flashSaved();
+  async function save() {
+    error = await Settings.SaveGeneral(hotkey, browser, searchURL);
+    if (error === "") flashSaved();
+  }
+
+  // The hotkey field shows its own refusal ("that hotkey is taken"); the page only learns what was saved.
+  async function saveHotkey(accelerator: string): Promise<string> {
+    const refused = await Settings.SaveGeneral(accelerator, browser, searchURL);
+    if (refused === "") {
+      hotkey = accelerator;
+      flashSaved();
+    }
+    return refused;
   }
 
   async function saveStartup() {
     error = await Settings.SetAutostart(startup);
     if (error !== "") startup = !startup;
     else flashSaved();
-  }
-
-  // The page gets no keydown for Alt+Space (Windows takes it as the system-menu key); Go reports it.
-  $effect(() =>
-    Events.On("hotkey:alt-space", (e) => {
-      if (!capturing) return;
-      capturing = false;
-      hint = "";
-      save(e.data as string);
-    }),
-  );
-
-  function startCapture() {
-    capturing = true;
-    hint = "";
-  }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (!capturing) {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        startCapture();
-      }
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.code === "Escape" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-      capturing = false;
-      hint = "";
-      return;
-    }
-    const got = capture(e);
-    if (got === null) return; // only modifiers so far
-    if ("hint" in got) {
-      hint = got.hint;
-      return;
-    }
-    capturing = false;
-    hint = "";
-    save(got.accelerator);
   }
 </script>
 
@@ -109,21 +73,7 @@
 
 <div class="field">
   <span class="label" id="hotkey-label">Hotkey</span>
-  <div class="keyrow">
-    <button type="button" class="keys" aria-labelledby="hotkey-label" onclick={startCapture} onkeydown={onKeydown} onblur={() => (capturing = false)}>
-      {#if capturing}
-        <span class="prompt">Press the new combination. Esc cancels.</span>
-      {:else}
-        {#each hotkey.split("+") as part (part)}<kbd>{part}</kbd>{/each}
-        <span class="change">Change</span>
-      {/if}
-    </button>
-    {#if hotkey !== view.DefaultHotkey}
-      <button type="button" class="btn quiet" onclick={() => save(view.DefaultHotkey)}>Reset to {view.DefaultHotkey}</button>
-    {/if}
-  </div>
-  {#if hint}<p class="help">{hint}</p>{/if}
-  {#if error && error.includes("hotkey")}<p class="error">{error}</p>{/if}
+  <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
   <p class="help">Opens the search bar from any app. Windows-key combinations cannot be recorded here; put them in config.toml.</p>
 </div>
 
@@ -156,37 +106,5 @@
   <p class="help">Put {QUERY} where the words go. Empty uses the search engine set inside Firefox-based browsers, and DuckDuckGo otherwise.</p>
 </div>
 
-{#if error && !error.includes("hotkey")}<p class="error">{error}</p>{/if}
+{#if error}<p class="error">{error}</p>{/if}
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
-
-<style>
-  .keyrow {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .keys {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 40px;
-    padding: 6px 12px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--tile);
-    color: var(--text-2);
-    font: 450 13px/1 var(--sans);
-    cursor: pointer;
-  }
-  .keys:hover {
-    background: var(--lift);
-  }
-  .change {
-    margin-left: 8px;
-    color: var(--text-3);
-    font-size: 12px;
-  }
-  .prompt {
-    color: var(--text);
-  }
-</style>

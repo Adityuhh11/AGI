@@ -43,3 +43,28 @@ test("the web, a quicklink and a tag row cannot be tagged", () => {
 test("every action names the shortcut that does the same without the panel", () => {
   for (const action of fileActions) assert.ok(action.keys.length > 0, action.id);
 });
+
+test("a row that can be pinned offers Pin or Unpin last, with its shortcut; one that cannot offers neither", () => {
+  assert.deepEqual(actionsOf(file, true, "pin").map((a) => [a.id, a.title, a.keys]).at(-1), ["pin", "Pin", "Ctrl+P"]);
+  assert.deepEqual(actionsOf(file, true, "unpin").map((a) => [a.id, a.title]).at(-1), ["pin", "Unpin"]);
+  assert.deepEqual(actionsOf(file, true).map((a) => a.id), ["open", "reveal", "copy-path", "tag"]);
+  const link = { kind: "entry", entry: { ID: "quicklink:gh:", Kind: "quicklink", Actions: null } };
+  assert.deepEqual(actionsOf(link, false, "pin").map((a) => a.id), ["open", "pin"]);
+});
+
+test("a copied text offers Paste first, then Copy and Delete, and cannot be tagged or revealed", () => {
+  const clip = { kind: "entry", entry: { ID: "clip:7", Kind: "clip", Title: "x", Actions: ["copy", "delete"] } };
+  assert.deepEqual(actionsOf(clip, false).map((a) => [a.id, a.title, a.keys]), [
+    ["open", "Paste", "Enter"],
+    ["copy", "Copy", "Ctrl+Enter"],
+    ["delete", "Delete this entry", "Ctrl+Delete"],
+  ]);
+});
+
+test("a snippet offers Paste and can be pinned; a built-in row opens and can be pinned", () => {
+  const snippet = { kind: "entry", entry: { ID: "snippet:A", Kind: "snippet", Actions: null } };
+  assert.deepEqual(actionsOf(snippet, false, "pin").map((a) => [a.id, a.title]), [["open", "Paste"], ["pin", "Pin"]]);
+  assert.deepEqual(actionsOf(snippet, false, "unpin").map((a) => a.title), ["Paste", "Unpin"]);
+  const command = { kind: "entry", entry: { ID: "cmd:snippets", Kind: "cmd", Actions: null } };
+  assert.deepEqual(actionsOf(command, false, "unpin").map((a) => [a.id, a.title]), [["open", "Open"], ["pin", "Unpin"]]);
+});

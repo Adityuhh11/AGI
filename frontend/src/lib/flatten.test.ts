@@ -1,7 +1,7 @@
 // Run with: node --test src/lib/flatten.test.ts (Node strips the types itself)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { filePathOf, flatten, moreCount, openLine, pathOf, step, tagIdOf } from "./flatten.ts";
+import { filePathOf, flatten, moreCount, openLine, pathOf, pinIdOf, step, tagIdOf } from "./flatten.ts";
 
 const match = (location, line) => ({ Location: location, Snippet: "", Line: line });
 const row = (path, matches, line = 0) => ({
@@ -79,4 +79,34 @@ test("the file behind a row is a file result's path or a tagged file's", () => {
   assert.equal(filePathOf({ kind: "row", row: a }), "a.js");
   assert.equal(filePathOf({ kind: "entry", entry: entry("C:\\f.pdf", "file") }), "C:\\f.pdf");
   assert.equal(filePathOf({ kind: "entry", entry: entry("x") }), null);
+});
+
+test("with keepOrder the entries stay in the order given, quicklinks included", () => {
+  const entries = [entry("b"), entry("gh:", "quicklink"), entry("C:\\a.md", "file"), entry("a")];
+  const ids = (items) => items.map((i) => i.entry.ID);
+  assert.deepEqual(ids(flatten([], new Set(), entries, true)), ["app:b", "quicklink:gh:", "file:C:\\a.md", "app:a"]);
+  assert.equal(ids(flatten([], new Set(), entries))[0], "quicklink:gh:", "without it a quicklink goes first");
+});
+
+test("an app, a file, a file result and a quicklink can be pinned; the web and a tag cannot", () => {
+  const pin = (e) => pinIdOf({ kind: "entry", entry: e });
+  assert.equal(pin(entry("x")), "app:x");
+  assert.equal(pin(entry("C:\\a.md", "file")), "file:C:\\a.md");
+  assert.equal(pinIdOf({ kind: "row", row: a }), "file:a.js");
+  assert.equal(pinIdOf({ kind: "match", row: a, match: match("lines 31-70", 31) }), "file:a.js");
+  assert.equal(pin(entry("rust", "web")), null);
+  assert.equal(pin(entry("work", "tag")), null);
+});
+
+test("a quicklink is pinned as its trigger, with or without text after it", () => {
+  const pin = (id) => pinIdOf({ kind: "entry", entry: { ID: id, Kind: "quicklink" } });
+  assert.equal(pin("quicklink:gh:rust lifetimes"), "quicklink:gh:");
+  assert.equal(pin("quicklink:gh:"), "quicklink:gh:");
+});
+
+test("a snippet and a built-in row are pinned by their own ids; a copied text cannot be pinned", () => {
+  const pin = (e) => pinIdOf({ kind: "entry", entry: e });
+  assert.equal(pin({ ID: "snippet:Home address", Kind: "snippet" }), "snippet:Home address");
+  assert.equal(pin({ ID: "cmd:clipboard", Kind: "cmd" }), "cmd:clipboard");
+  assert.equal(pin({ ID: "clip:7", Kind: "clip" }), null);
 });

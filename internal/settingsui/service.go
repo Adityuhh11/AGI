@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"agi/internal/clipboard"
 	"agi/internal/config"
 	"agi/internal/enginesetup"
 	"agi/internal/indexing"
@@ -34,6 +35,13 @@ type Indexing interface {
 	Resume()
 	Status() indexing.Status
 	Folders() []indexing.FolderStatus
+}
+
+// ClipboardHistory is the clipboard history as the service uses it; *clipboard.Manager satisfies it.
+type ClipboardHistory interface {
+	Len() int
+	Path() string
+	Clear() error
 }
 
 // Updates is the update checker as the service uses it; *update.Checker satisfies it.
@@ -61,6 +69,11 @@ type Options struct {
 	// Autostart says whether the launcher starts when the user signs in; SetAutostart changes that.
 	Autostart    func() bool
 	SetAutostart func(on bool) error
+	// Clipboard is the history of what was copied. RebindClipboard moves its hotkey (empty turns it off) and fails if
+	// the combination cannot be used; ClipboardHotkeyError says why it could not be bound at start, if it could not.
+	Clipboard            ClipboardHistory
+	RebindClipboard      func(accelerator string) error
+	ClipboardHotkeyError func() string
 	// Updates asks whether a newer release exists; OpenURL opens an address in the user's browser.
 	Updates Updates
 	OpenURL func(address string) error
@@ -87,6 +100,7 @@ type View struct {
 	Browser       string
 	SearchURL     string
 	Quicklinks    []config.Quicklink
+	Snippets      []config.Snippet
 	Roots         []string
 	FileSearch    bool
 	Pace          string
@@ -102,7 +116,7 @@ type View struct {
 func (s *Service) View() View {
 	c := s.o.Store.Get()
 	return View{
-		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks,
+		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks, Snippets: c.Snippets,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
 		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, UpdateFound: s.updateFound(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
@@ -187,6 +201,11 @@ func (s *Service) OpenUpdate() string {
 // SaveQuicklinks replaces the quicklinks.
 func (s *Service) SaveQuicklinks(links []config.Quicklink) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Quicklinks = links }))
+}
+
+// SaveSnippets replaces the snippets.
+func (s *Service) SaveSnippets(snippets []config.Snippet) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Snippets = snippets }))
 }
 
 // AddFolder asks for a folder and adds it to the indexed ones. Cancelling the picker changes nothing.
@@ -380,3 +399,58 @@ func (s *Service) PauseIndexing() { s.o.Indexing.Pause() }
 
 // ResumeIndexing lets indexing go on.
 func (s *Service) ResumeIndexing() { s.o.Indexing.Resume() }
+
+// ClipboardView is the Clipboard page: whether the history is on, how much it holds, and the programs it leaves out.
+type ClipboardView struct {
+	Enabled bool
+	Count   int
+	// Ignore are the programs the user added; Defaults are the password managers always left out.
+	Ignore   []string
+	Defaults []string
+	File     string
+	// Hotkey opens the bar listing what was copied ("" means there is none); HotkeyError is why it could not be bound at start.
+	Hotkey, HotkeyError string
+}
+
+// Clipboard returns the Clipboard page.
+func (s *Service) Clipboard() ClipboardView {
+	c := s.o.Store.Get().Clipboard
+	return ClipboardView{
+		Enabled: c.Enabled, Count: s.o.Clipboard.Len(), Ignore: c.Ignore,
+		Defaults: clipboard.DefaultIgnore, File: s.o.Clipboard.Path(),
+		Hotkey: c.Hotkey, HotkeyError: s.o.ClipboardHotkeyError(),
+	}
+}
+
+// SaveClipboard switches the history on or off and sets the programs it leaves out (blank lines are dropped) and
+// its hotkey. A hotkey that cannot be bound is refused and the working one stays.
+func (s *Service) SaveClipboard(enabled bool, ignore []string, hotkey string) string {
+	var programs []string
+	for _, name := range ignore {
+		if name = strings.TrimSpace(name); name != "" {
+			programs = append(programs, name)
+		}
+	}
+	hotkey = strings.TrimSpace(hotkey)
+	old := s.o.Store.Get().Clipboard.Hotkey
+	if hotkey != old {
+		if err := s.o.RebindClipboard(hotkey); err != nil {
+			return err.Error()
+		}
+	}
+	err := s.o.Store.Update(func(c *config.Config) {
+		c.Clipboard = config.Clipboard{Enabled: enabled, Ignore: programs, Hotkey: hotkey}
+	})
+	if err != nil && hotkey != old {
+		_ = s.o.RebindClipboard(old) // the window shows the refusal; the key that worked keeps working
+	}
+	return reason(err)
+}
+
+// ClearClipboard forgets everything the history holds.
+func (s *Service) ClearClipboard() string {
+	if err := s.o.Clipboard.Clear(); err != nil {
+		return err.Error()
+	}
+	return ""
+}
