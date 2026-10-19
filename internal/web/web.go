@@ -13,7 +13,9 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync/atomic"
 
 	"agi/internal/config"
 )
@@ -26,9 +28,7 @@ var firefoxFamily = map[string]bool{"zen": true, "firefox": true, "librewolf": t
 
 // Web opens searches and links.
 type Web struct {
-	browser   string
-	searchURL string
-	links     []config.Quicklink
+	cfg atomic.Pointer[webConfig] // replaced as a whole by Update, so a search never sees half a change
 
 	// find locates a browser by name; start runs a program without waiting; shell opens an address with
 	// the Windows default browser. Tests replace them.
@@ -37,10 +37,23 @@ type Web struct {
 	shell func(address string) error
 }
 
+type webConfig struct {
+	browser   string
+	searchURL string
+	links     []config.Quicklink
+}
+
 // New returns a Web for the configured browser (empty: the Windows default), search template (may be
 // empty) and quicklinks.
 func New(browser, searchURL string, links []config.Quicklink) *Web {
-	return &Web{browser: strings.TrimSpace(browser), searchURL: searchURL, links: links, find: appPath, start: start, shell: shellOpen}
+	w := &Web{find: appPath, start: start, shell: shellOpen}
+	w.Update(browser, searchURL, links)
+	return w
+}
+
+// Update replaces the browser, search template and quicklinks; it is safe to call while searches run.
+func (w *Web) Update(browser, searchURL string, links []config.Quicklink) {
+	w.cfg.Store(&webConfig{browser: strings.TrimSpace(browser), searchURL: searchURL, links: slices.Clone(links)})
 }
 
 // Search opens a web search for text.
@@ -49,14 +62,15 @@ func (w *Web) Search(text string) error {
 	if text == "" {
 		return errors.New("nothing to search for")
 	}
-	if w.browser != "" && w.searchURL == "" && firefoxFamily[browserName(w.browser)] {
-		exe, err := w.executable()
+	c := w.cfg.Load()
+	if c.browser != "" && c.searchURL == "" && firefoxFamily[browserName(c.browser)] {
+		exe, err := w.executable(c.browser)
 		if err != nil {
 			return err
 		}
 		return w.start(exe, "-search", text)
 	}
-	template := w.searchURL
+	template := c.searchURL
 	if template == "" {
 		template = defaultSearch
 	}
@@ -65,10 +79,11 @@ func (w *Web) Search(text string) error {
 
 // Open opens an address in the browser.
 func (w *Web) Open(address string) error {
-	if w.browser == "" {
+	browser := w.cfg.Load().browser
+	if browser == "" {
 		return w.shell(address)
 	}
-	exe, err := w.executable()
+	exe, err := w.executable(browser)
 	if err != nil {
 		return err
 	}
@@ -76,13 +91,13 @@ func (w *Web) Open(address string) error {
 }
 
 // executable is the browser's program: the configured path, or the program Windows registers under the name.
-func (w *Web) executable() (string, error) {
-	if filepath.IsAbs(w.browser) {
-		return w.browser, nil
+func (w *Web) executable(browser string) (string, error) {
+	if filepath.IsAbs(browser) {
+		return browser, nil
 	}
-	exe, err := w.find(browserName(w.browser))
+	exe, err := w.find(browserName(browser))
 	if err != nil {
-		return "", fmt.Errorf("the browser %q is not installed (set browser in the settings to its path)", w.browser)
+		return "", fmt.Errorf("the browser %q is not installed (set browser in the settings to its path)", browser)
 	}
 	return exe, nil
 }
@@ -101,7 +116,7 @@ func (w *Web) Quicklink(typed string) (config.Quicklink, string, bool) {
 	if !found || rest == "" {
 		return config.Quicklink{}, "", false
 	}
-	for _, link := range w.links {
+	for _, link := range w.cfg.Load().links {
 		if strings.EqualFold(link.Trigger, trigger) {
 			return link, rest, true
 		}
@@ -111,7 +126,7 @@ func (w *Web) Quicklink(typed string) (config.Quicklink, string, bool) {
 
 // Find returns the quicklink with this trigger.
 func (w *Web) Find(trigger string) (config.Quicklink, bool) {
-	for _, link := range w.links {
+	for _, link := range w.cfg.Load().links {
 		if strings.EqualFold(link.Trigger, trigger) {
 			return link, true
 		}

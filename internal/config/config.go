@@ -2,7 +2,8 @@
 //
 // A missing file is created with the defaults, a file that sets only some keys keeps the
 // defaults for the rest, and a key that does not exist is an error (a typo in a hotkey or a
-// folder list should not be silently ignored).
+// folder list should not be silently ignored). The one exception is the retired [sidecar]
+// table, which older files still have: it is read, ignored and not written back.
 package config
 
 import (
@@ -10,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -32,7 +34,10 @@ type Config struct {
 	SearchURL string `toml:"search_url,omitempty"`
 	// Quicklinks turn a trigger word and some text into a web address: "gh rust lifetimes".
 	Quicklinks []Quicklink `toml:"quicklink,omitempty"`
-	Sidecar    Sidecar     `toml:"sidecar"`
+	Search     Search      `toml:"search"`
+	// Sidecar is the retired [sidecar] table (where the engine lived in the repository). Load reads
+	// it so old files still open and then clears it, so it is never written back.
+	Sidecar *retiredSidecar `toml:"sidecar,omitempty"`
 }
 
 // Quicklink is a web address with a place for what the user types after its trigger word.
@@ -43,9 +48,18 @@ type Quicklink struct {
 	URL string `toml:"url"`
 }
 
-// Sidecar says where the Python memory engine lives.
-type Sidecar struct {
-	// Dir is the folder `uv run python -m agi_memory` runs in (the repository's sidecar folder).
+// Search holds the settings of file search, the memory engine.
+type Search struct {
+	// Enabled turns file search on: the engine runs and the folders in Roots are indexed.
+	Enabled bool `toml:"enabled"`
+	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
+	Pace string `toml:"pace"`
+}
+
+// Paces are the allowed values of Search.Pace, from the most to the least demanding.
+var Paces = []string{"fast", "balanced", "gentle"}
+
+type retiredSidecar struct {
 	Dir string `toml:"dir"`
 }
 
@@ -76,13 +90,15 @@ func Load(path string) (Config, error) {
 	if err := decoder.Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("parse %s: %w", path, err)
 	}
+	cfg.Sidecar = nil
 	if err := cfg.Validate(); err != nil {
 		return Config{}, fmt.Errorf("check %s: %w", path, err)
 	}
 	return cfg, nil
 }
 
-// Save writes the settings to path, creating the folder if needed.
+// Save writes the settings to path, creating the folder if needed. The file is written beside its
+// final name and renamed over it, so a crash never leaves half a file.
 func (c Config) Save(path string) error {
 	body, err := toml.Marshal(c)
 	if err != nil {
@@ -91,10 +107,23 @@ func (c Config) Save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create config folder: %w", err)
 	}
-	if err := os.WriteFile(path, body, 0o644); err != nil {
+	temp := path + ".tmp"
+	if err := os.WriteFile(temp, body, 0o644); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
+	if err := os.Rename(temp, path); err != nil {
+		_ = os.Remove(temp)
+		return fmt.Errorf("replace config: %w", err)
+	}
 	return nil
+}
+
+// Clone returns a copy that shares no slices with c.
+func (c Config) Clone() Config {
+	c.Roots = slices.Clone(c.Roots)
+	c.Exclude = slices.Clone(c.Exclude)
+	c.Quicklinks = slices.Clone(c.Quicklinks)
+	return c
 }
 
 // Validate reports the first thing wrong with the settings.
@@ -115,6 +144,9 @@ func (c Config) Validate() error {
 	}
 	if err := c.validateWeb(); err != nil {
 		return err
+	}
+	if !slices.Contains(Paces, c.Search.Pace) {
+		return fmt.Errorf("search pace %q must be one of %s", c.Search.Pace, strings.Join(Paces, ", "))
 	}
 	for _, folder := range c.Exclude {
 		if !filepath.IsAbs(folder) {

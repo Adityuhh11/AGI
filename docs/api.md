@@ -16,21 +16,23 @@ uv run python -m agi_memory
 | `AGI_SIDECAR_TOKEN` | Required. At least 16 characters. Generate a fresh random value per launch. |
 | `AGI_SIDECAR_PORT` | Optional, 1-65535, default `7861`. |
 | `AGI_MEMORY_DIR` | Optional. Index location; default `%LOCALAPPDATA%\AGI\memory`. |
+| `AGI_LLAMA_SERVER` | Required. The `llama-server.exe` the engine embeds with (it starts it, and stops it when it ends). |
+| `AGI_MODEL_DIR` | Required. The folder holding the two GGUF files of the model. |
 
 - A corrupt or mismatched index (wrong model or dimension) makes the process exit with a traceback instead of
   answering `/health`: the launcher should treat an early exit as fatal and offer a reindex.
-- The Go launcher does not use `uv run`: it starts `sidecar\.venv\Scripts\python.exe -m agi_memory` directly (so there is
-  no wrapper process to kill and nothing syncs packages at start) and sets `HF_HUB_OFFLINE=1`, `PYTHONUTF8=1` and
-  `PYTHONUNBUFFERED=1`. Offline mode stops the model loader from contacting the Hugging Face hub at every start (it is
-  also faster: about 11 s against 19 s to ready here); the model must already be in the local cache from the first run.
-  Measured start: port open after about 1.6 s, model ready after 11-19 s, and one cold start of about 110 s after a fresh
-  build, so a client must not assume a fixed bound.
+- The Go launcher does not use `uv run`: it starts the interpreter of the installed engine
+  (`%LOCALAPPDATA%\AGI\engineenv\Scripts\python.exe -m agi_memory`) directly, sets `PYTHONUTF8=1` and
+  `PYTHONUNBUFFERED=1` and the two variables above, and kills the whole process tree to stop it (a venv's `python.exe`
+  is a launcher that runs the real interpreter as a child). Measured start: port open after about 1.6 s, model ready
+  after about 6 s, so a client must not assume a fixed bound. The engine is installed from the launcher
+  (`internal/enginesetup`), not by running `uv sync` by hand.
 - Bad configuration exits with status 2 and one line on stderr, before anything heavy is imported (about a second).
-- The port opens within about a second. The embedding model then loads in the background (10-15 s warm).
+- The port opens within about a second. The embedding model then loads in the background (about 5 s warm).
   Poll `GET /health` until `ready` is `true`. If `error` is non-null the model failed to load and `ready` will never
   become true: show the error and restart. The process stays alive in that case.
-- Stop by terminating the process. Attach it to a Windows Job Object so it cannot outlive the Go process. The index
-  survives a hard stop (crash-safety is tested).
+- Stop by terminating the process tree. The launcher is in a Windows Job Object so nothing outlives it, and the engine puts
+  its `llama-server` in a job of its own that closes with it. The index survives a hard stop (crash-safety is tested).
 
 ## Security
 
@@ -54,13 +56,14 @@ and `422` (FastAPI's list of validation problems). A foreign `Host` gets a plain
 `200`:
 
 ```json
-{"ready": true, "model": "google/embeddinggemma-2", "device": "cuda", "embedded_items": 1234,
- "version": "0.1.0", "error": null}
+{"ready": true, "model": "google/embeddinggemma-2", "device": "vulkan", "embedded_items": 1234,
+ "version": "0.1.0", "error": null, "duty": 0.5, "paused": false}
 ```
 
-`ready` turns true once the model is loaded. `device` is `null` until then. `error` is `null` unless the model
+`ready` turns true once the model is loaded. `device` is `null` until then, then `vulkan` (or `cuda`) for a GPU, or `cpu`. `error` is `null` unless the model
 failed to load. `embedded_items` is the number of chunks in the index and works even before the model is ready.
-`/health` is the only route that answers while the model is loading.
+`duty` and `paused` are how hard indexing works and whether it is paused (see the pace routes below); both are `null` until the
+engine is ready. `/health` is the only route that answers while the model is loading.
 
 ### `POST /sources`
 
@@ -119,6 +122,19 @@ the secret deny list refused to open (`.env`, keys, credential JSON, ...). When 
 
 - `404` unknown job (also after a restart, or once more than 50 newer jobs exist).
 - `503` model not ready.
+
+### `GET /pace`, `PUT /pace`, `POST /pause`, `POST /resume`
+
+How hard indexing works, and whether it is stopped. All answer `200` `{"duty": 0.5, "paused": false}`.
+
+- `PUT /pace` takes `{"duty": 0.2}`, a number from 0.05 to 1.0: the share of the time indexing may keep the GPU busy. After each
+  bulk embedding call the indexer waits `busy * (1/duty - 1)` seconds (the launcher's speeds are 1.0, 0.5 and 0.2; measured in
+  `eval/2026-10-18-pace.md`). `422` for a value outside the range or an unknown field.
+- `POST /pause` makes the indexer wait before its next batch (within a second or two); `POST /resume` lets it go on. A paused
+  job stays `running`. Nothing is lost: a file is recorded only after its vectors are stored.
+- Searching is never paced or paused. The defaults after a start are duty `1.0`, not paused; the launcher sets both once the
+  engine is ready, and again after every restart.
+- `503` while the model is loading.
 
 ### `DELETE /sources/{source_id}`
 

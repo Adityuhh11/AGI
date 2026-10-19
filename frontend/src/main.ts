@@ -5,4 +5,10 @@ import "./theme.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 
-mount(App, { target: document.getElementById("app")! });
+const target = document.getElementById("app")!;
+if (location.hash === "#settings") {
+  // Its own chunk: the search bar's page never loads or runs the settings code.
+  import("./Settings.svelte").then(({ default: Settings }) => mount(Settings, { target }));
+} else {
+  mount(App, { target });
+}

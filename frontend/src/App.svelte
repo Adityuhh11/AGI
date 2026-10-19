@@ -7,6 +7,7 @@
   import type { Item as Entry, TagInfo } from "../bindings/agi/internal/palette";
   import { Service as Panel } from "../bindings/agi/internal/panel";
   import { Service as Search } from "../bindings/agi/internal/search";
+  import { Service as SettingsWindow } from "../bindings/agi/internal/settingsui";
   import type { Results } from "../bindings/agi/internal/search";
   import { Service as Status } from "../bindings/agi/internal/status";
   import type { Info } from "../bindings/agi/internal/status";
@@ -76,7 +77,7 @@
 
   // What the page waits for, in a word or two, shown as the loader in the bar.
   const waiting = $derived.by(() => {
-    if (info && info.Engine !== "ready" && info.Engine !== "failed" && info.Engine !== "") return "Warming up";
+    if (info && !["ready", "failed", "off", ""].includes(info.Engine)) return "Warming up";
     if (info?.IndexState === "indexing") return "Indexing";
     return "";
   });
@@ -94,6 +95,8 @@
       if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
     } else if (results?.State === "warming") {
       out.push({ text: results.Message, problem: false });
+    } else if (results?.State === "off") {
+      if (fileRows.length + local.length === 0) out.push({ text: results.Message, problem: false });
     } else if (results?.State === "unavailable" || results?.State === "error") {
       out.push({ text: results.Message, problem: true });
     } else if (results) {
@@ -338,6 +341,12 @@
 
   function onKeydown(event: KeyboardEvent) {
     if (target || picker) return; // a panel has the keyboard
+    if (event.ctrlKey && event.key === ",") {
+      event.preventDefault();
+      SettingsWindow.Open();
+      Panel.Hide();
+      return;
+    }
     switch (event.key) {
       case "Escape": {
         event.preventDefault();
@@ -500,7 +509,7 @@
                 <span><kbd>Tab</kbd>mode</span>
                 <span><kbd>Alt+Enter</kbd>web</span>
                 <span><kbd>Esc</kbd>close</span>
-                {#if info && info.IndexState && info.IndexState !== "uptodate"}
+                {#if info && info.IndexText && info.IndexState !== "uptodate"}
                   <span class="index">{info.IndexText}</span>
                 {/if}
               </footer>

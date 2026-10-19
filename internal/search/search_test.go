@@ -25,7 +25,7 @@ func (f *fakeEngine) SearchFiles(ctx context.Context, req sidecar.SearchFilesReq
 
 // newTest is New for files that exist only in the test: every path counts as present.
 func newTest(engine Engine, roots map[string]string, status func() sidecar.Status) *Service {
-	svc := New(engine, roots, status)
+	svc := New(engine, func() map[string]string { return roots }, status)
 	svc.exists = func(string) bool { return true }
 	return svc
 }
@@ -349,5 +349,17 @@ func TestFileExists(t *testing.T) {
 	}
 	if !fileExists(present) || fileExists(filepath.Join(dir, "gone.txt")) {
 		t.Error("fileExists must be true for a file that is there and false for one that is not")
+	}
+}
+
+func TestAnEngineThatIsSwitchedOffAnswersOffNotWarmingOrBroken(t *testing.T) {
+	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
+		t.Fatal("the engine was asked while file search is off")
+		return sidecar.SearchFilesResponse{}, nil
+	}}
+	off := func() sidecar.Status { return sidecar.Status{State: sidecar.StateOff} }
+	got := newTest(engine, nil, off).Search("jwt", 1)
+	if got.State != StateOff || !strings.Contains(got.Message, "Settings") || len(got.Rows) != 0 {
+		t.Fatalf("got %+v", got)
 	}
 }

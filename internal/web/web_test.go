@@ -133,3 +133,21 @@ func TestQuicklinksNeedTheTriggerAndSomeText(t *testing.T) {
 		t.Error("Find must ignore case")
 	}
 }
+
+func TestUpdateChangesTheBrowserAndTheQuicklinksOfARunningWeb(t *testing.T) {
+	f := &fake{installed: map[string]string{"zen": `C:\zen.exe`, "chrome": `C:\chrome.exe`}}
+	w := newWeb(f, "zen", "", config.Quicklink{Trigger: "gh", Title: "GitHub", URL: "https://github.com/search?q={q}"})
+	if _, _, ok := w.Quicklink("gh rust"); !ok {
+		t.Fatal("the first quicklink is missing")
+	}
+	w.Update("chrome", "", []config.Quicklink{{Trigger: "yt", Title: "YouTube", URL: "https://youtube.com/results?search_query={q}"}})
+	if _, _, ok := w.Quicklink("gh rust"); ok {
+		t.Fatal("the old quicklink survived the update")
+	}
+	if link, _, ok := w.Quicklink("yt cats"); !ok || link.Title != "YouTube" {
+		t.Fatal("the new quicklink is missing")
+	}
+	if err := w.Search("go"); err != nil || f.exe != `C:\chrome.exe` {
+		t.Fatalf("searched with %q (%v), want the new browser", f.exe, err)
+	}
+}

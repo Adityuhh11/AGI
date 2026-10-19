@@ -18,11 +18,13 @@ from agi_memory.api.schemas import (
     FileSearchResponse,
     HealthOut,
     JobOut,
+    PaceOut,
     RemovedOut,
     SearchFilters,
     SearchHitOut,
     SearchRequest,
     SearchResponse,
+    SetPace,
     SourceAccepted,
     SourceOut,
 )
@@ -46,7 +48,32 @@ def health(request: Request) -> HealthOut:
         embedded_items=state.store.count(),
         version=_VERSION,
         error=state.load_error,
+        duty=None if engine is None else engine.pacer.duty,
+        paused=None if engine is None else engine.pacer.paused,
     )
+
+
+@router.get("/pace")
+def get_pace(engine: Annotated[Engine, Depends(get_engine)]) -> PaceOut:
+    return PaceOut(duty=engine.pacer.duty, paused=engine.pacer.paused)
+
+
+@router.put("/pace")
+def set_pace(body: SetPace, engine: Annotated[Engine, Depends(get_engine)]) -> PaceOut:
+    engine.pacer.set_duty(body.duty)
+    return get_pace(engine)
+
+
+@router.post("/pause")
+def pause(engine: Annotated[Engine, Depends(get_engine)]) -> PaceOut:
+    engine.pacer.pause()
+    return get_pace(engine)
+
+
+@router.post("/resume")
+def resume(engine: Annotated[Engine, Depends(get_engine)]) -> PaceOut:
+    engine.pacer.resume()
+    return get_pace(engine)
 
 
 @router.get("/sources", response_model=list[SourceOut])

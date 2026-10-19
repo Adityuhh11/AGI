@@ -36,6 +36,7 @@ const (
 	StateResults     = "results"     // Rows holds the answer (possibly none)
 	StateWarming     = "warming"     // the engine is starting or loading its model
 	StateUnavailable = "unavailable" // the engine cannot run; Message says why
+	StateOff         = "off"         // file search is switched off; there is nothing to wait for
 	StateError       = "error"       // this one search failed; Message says why
 )
 
@@ -85,7 +86,7 @@ type Results struct {
 // Service is bound to the frontend; its exported methods become TypeScript functions.
 type Service struct {
 	engine Engine
-	roots  map[string]string // source id -> folder on disk
+	roots  func() map[string]string // source id -> folder on disk, as configured now
 	status func() sidecar.Status
 	exists func(path string) bool // false for a file deleted since the last sync; tests replace it
 
@@ -94,9 +95,10 @@ type Service struct {
 	cancel context.CancelFunc
 }
 
-// New returns a search service. roots maps each source id to the folder it was indexed from;
-// status reports whether the engine can answer.
-func New(engine Engine, roots map[string]string, status func() sidecar.Status) *Service {
+// New returns a search service. roots maps each source id to the folder it was indexed from (asked
+// on every search, so folders added or removed in the settings count at once); status reports
+// whether the engine can answer.
+func New(engine Engine, roots func() map[string]string, status func() sidecar.Status) *Service {
 	return &Service{engine: engine, roots: roots, status: status, exists: fileExists}
 }
 
@@ -126,6 +128,8 @@ func (s *Service) Search(query string, token int) Results {
 	}
 	switch st := s.status(); st.State {
 	case sidecar.StateReady:
+	case sidecar.StateOff:
+		return Results{Token: token, State: StateOff, Message: "File search is off. Turn it on in Settings."}
 	case sidecar.StateFailed:
 		return Results{Token: token, State: StateUnavailable, Message: st.Message}
 	default:
@@ -171,7 +175,7 @@ func (s *Service) isStale(token int) bool {
 // row places a file found by the engine on disk. A file of a source that is no longer
 // configured has no known folder and is left out.
 func (s *Service) row(file sidecar.File) (Row, bool) {
-	root, ok := s.roots[file.SourceID]
+	root, ok := s.roots()[file.SourceID]
 	if !ok {
 		return Row{}, false
 	}

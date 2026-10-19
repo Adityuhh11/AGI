@@ -1,6 +1,6 @@
 {
   "embedder": "google/embeddinggemma-2",
-  "device": "cuda",
+  "device": "vulkan",
   "n": 92,
   "top1": 0.8961038961038961,
   "recall3": 1.0,

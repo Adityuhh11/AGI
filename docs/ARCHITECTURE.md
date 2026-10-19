@@ -10,7 +10,9 @@ AGI is a local-first, AI-native launcher for Windows. Two processes cooperate:
 - the **Go launcher** (`cmd/agi`, `internal/`): hotkey, tray, indexing manager, UI (Wails v3 + Svelte), calls the sidecar;
 - the **Python sidecar** (`sidecar/`): the *memory engine* that indexes files and answers search queries.
 
-They talk over authenticated localhost HTTP. The GPU hosts only the embedding model; index storage and search run on the CPU.
+They talk over authenticated localhost HTTP. The GPU hosts only the embedding model, which runs in a llama.cpp server the
+engine owns (about 1.1 GB of VRAM); index storage and search run on the CPU. The engine is installed under
+`%LOCALAPPDATA%\AGI\engine\` and is optional: the launcher works without it (see `superpowers/specs/2026-10-18-packaging-design.md`).
 
 ## Memory engine modules (`sidecar/src/agi_memory/`)
 
@@ -20,7 +22,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 |---|---|---|
 | `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | built |
 | `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
-| `embedding/` | `Embedder` contract; `GemmaEmbedder` (real), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model; bulk calls run in small slices and queries go first) | built |
+| `embedding/` | `Embedder` contract; `LlamaEmbedder` (real: EmbeddingGemma 2, Q8_0 GGUF, through a `llama-server` that `LlamaServer` starts on a loopback port behind an API key, on the discrete GPU through Vulkan or on the CPU; ADR 0004), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model; bulk calls run in small slices and queries go first) | built |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
 | `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
@@ -71,9 +73,11 @@ Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sourc
 2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list in `sources/rules.py`).
 3. **SQLite is the source of truth** for what exists in the index; vector rows without a metadata entry are garbage.
 4. **GPU = models only.** Index and search live on the CPU.
-5. **Embedder output** is float32, shape (n, 768), rows unit length to 1e-5. The GPU runs bf16, the CPU float32;
-   measured cosine between them on 4 test sentences is >= 0.99995. Real-model tests are marked `model`
-   (`uv run pytest -m model`); peak VRAM stayed under 1.5 GiB.
+5. **Embedder output** is float32, shape (n, 768), rows unit length to 1e-5. The model is the Q8_0 GGUF of EmbeddingGemma 2;
+   measured against the torch bf16 model it replaced, vectors agree to cosine 0.9999 (text) and 0.994 or better (images and
+   pages), the golden set gives identical results on the GPU and on the CPU, and an index built with torch answers the same
+   under the new query vectors (`eval/2026-10-18-llamacpp-embedder.md`). Real-model tests are marked `model`
+   (`AGI_LLAMA_SERVER` and `AGI_MODEL_DIR` set; `uv run pytest -m model`).
 6. **Sync safety.** Denied files are never opened; links are never followed; a directory that cannot be read never causes its indexed files to be deleted; a missing source root is an error.
 7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m agi_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not.
 8. **The API is local and authenticated.** It binds 127.0.0.1, rejects foreign `Host` headers before anything else, and refuses to start without a token of at least 16 characters; every route including `/health` needs the token.
