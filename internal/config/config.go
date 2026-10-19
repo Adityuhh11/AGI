@@ -38,6 +38,8 @@ type Config struct {
 	// the user turns it on, because it is a request to a server the user did not name.
 	CheckUpdates bool   `toml:"check_updates,omitempty"`
 	Search       Search `toml:"search"`
+	// Clipboard is the searchable history of what is copied (internal/clipboard).
+	Clipboard Clipboard `toml:"clipboard"`
 	// Sidecar is the retired [sidecar] table (where the engine lived in the repository). Load reads
 	// it so old files still open and then clears it, so it is never written back.
 	Sidecar *retiredSidecar `toml:"sidecar,omitempty"`
@@ -49,6 +51,15 @@ type Quicklink struct {
 	Title   string `toml:"title"`
 	// URL holds {q}, where the text typed after the trigger goes, escaped.
 	URL string `toml:"url"`
+}
+
+// Clipboard holds the settings of the clipboard history.
+type Clipboard struct {
+	// Enabled switches the history on. It is off until the user turns it on, because it records what is copied.
+	Enabled bool `toml:"enabled"`
+	// Ignore are programs whose copies are never kept ("Notepad", "MyVault.exe"), beside the password
+	// managers the history already leaves out.
+	Ignore []string `toml:"ignore,omitempty"`
 }
 
 // Search holds the settings of file search, the memory engine.
@@ -126,6 +137,7 @@ func (c Config) Clone() Config {
 	c.Roots = slices.Clone(c.Roots)
 	c.Exclude = slices.Clone(c.Exclude)
 	c.Quicklinks = slices.Clone(c.Quicklinks)
+	c.Clipboard.Ignore = slices.Clone(c.Clipboard.Ignore)
 	return c
 }
 
@@ -147,6 +159,11 @@ func (c Config) Validate() error {
 	}
 	if err := c.validateWeb(); err != nil {
 		return err
+	}
+	for _, program := range c.Clipboard.Ignore {
+		if strings.TrimSpace(program) == "" {
+			return fmt.Errorf("clipboard ignore: a program name must not be empty")
+		}
 	}
 	if !slices.Contains(Paces, c.Search.Pace) {
 		return fmt.Errorf("search pace %q must be one of %s", c.Search.Pace, strings.Join(Paces, ", "))

@@ -100,6 +100,7 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"quicklink without a title", "[[quicklink]]\ntrigger = 'gh'\nurl = 'https://x/?q={q}'\n", "needs a title"},
 		{"quicklink twice", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/?q={q}'\n[[quicklink]]\ntrigger = 'GH'\ntitle = 'b'\nurl = 'https://y/?q={q}'\n", "used twice"},
 		{"quicklink with two places for the text", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'a'\nurl = 'https://x/{q}/{q}'\n", "once"},
+		{"clipboard ignore with an empty program name", "[clipboard]\nignore = ['Notepad', ' ']\n", "program name must not be empty"},
 		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
 	}
 	for _, tt := range tests {
@@ -221,5 +222,32 @@ func TestLoadReadsTheBrowserAndQuicklinks(t *testing.T) {
 	}
 	if got.Browser != "zen" || got.SearchURL != "https://duckduckgo.com/?q={q}" || len(got.Quicklinks) != 1 || got.Quicklinks[0].Trigger != "gh" {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestTheClipboardHistoryIsOffByDefaultAndItsSettingsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	fresh, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Clipboard.Enabled || len(fresh.Clipboard.Ignore) != 0 {
+		t.Fatalf("a fresh install records what is copied: %+v", fresh.Clipboard)
+	}
+	fresh.Clipboard = Clipboard{Enabled: true, Ignore: []string{"MyVault.exe", "Notepad"}}
+	if err := fresh.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !again.Clipboard.Enabled || strings.Join(again.Clipboard.Ignore, "|") != "MyVault.exe|Notepad" {
+		t.Fatalf("after a round trip: %+v", again.Clipboard)
+	}
+	cloned := again.Clone()
+	cloned.Clipboard.Ignore[0] = "changed"
+	if again.Clipboard.Ignore[0] != "MyVault.exe" {
+		t.Fatal("Clone shares the ignore list")
 	}
 }
