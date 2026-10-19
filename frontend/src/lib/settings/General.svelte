@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { Events } from "@wailsio/runtime";
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { View } from "../../../bindings/agi/internal/settingsui";
   import { capture } from "../accelerator";
@@ -60,6 +61,16 @@
     if (error !== "") startup = !startup;
     else flashSaved();
   }
+
+  // The page gets no keydown for Alt+Space (Windows takes it as the system-menu key); Go reports it.
+  $effect(() =>
+    Events.On("hotkey:alt-space", (e) => {
+      if (!capturing) return;
+      capturing = false;
+      hint = "";
+      save(e.data as string);
+    }),
+  );
 
   function startCapture() {
     capturing = true;

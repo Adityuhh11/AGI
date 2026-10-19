@@ -129,7 +129,11 @@ func run() error {
 				return thumbnails(icons(next))
 			},
 		},
-		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.SwallowKeyMenu},
+		// The page never sees Alt+Space (Windows takes it as the system-menu key), so the settings'
+		// hotkey field hears about it from here. Emitting from a goroutine keeps the window procedure free.
+		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.KeyMenuFilter(func(accelerator string) {
+			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
+		})},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
