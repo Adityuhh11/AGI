@@ -5,6 +5,8 @@ package update
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,10 +21,45 @@ import (
 // latestURL answers with the newest release that is neither a draft nor a pre-release.
 const latestURL = "https://api.github.com/repos/Adityuhh11/AGI/releases/latest"
 
-// Release is a published version: its number (without the "v") and its page.
+// Release is a published version: its number (without the "v"), its page, and the zip that can be installed
+// from the program (empty when the release has none that can be verified: the page is all there is then).
 type Release struct {
 	Version string
 	URL     string
+	Asset   Asset
+}
+
+// Asset is the zip of a release: where it is, how big, and the SHA-256 GitHub published for it (64 lower-case hex digits).
+type Asset struct {
+	Name   string
+	URL    string
+	Size   int64
+	SHA256 string
+}
+
+// assetOf picks the Windows zip of a release out of GitHub's list of its files. A zip whose digest is missing,
+// is not SHA-256 or is not 64 hex digits is left out: nothing is installed that cannot be checked.
+func assetOf(version string, files []githubFile) Asset {
+	want := "agi-" + version + "-windows-x64.zip"
+	for _, f := range files {
+		if f.Name != want {
+			continue
+		}
+		sum, ok := strings.CutPrefix(f.Digest, "sha256:")
+		if raw, err := hex.DecodeString(sum); !ok || err != nil || len(raw) != sha256.Size {
+			return Asset{}
+		}
+		return Asset{Name: f.Name, URL: f.URL, Size: f.Size, SHA256: strings.ToLower(sum)}
+	}
+	return Asset{}
+}
+
+// githubFile is a file of a release as GitHub's API lists it.
+type githubFile struct {
+	Name   string `json:"name"`
+	URL    string `json:"browser_download_url"`
+	Size   int64  `json:"size"`
+	Digest string `json:"digest"`
 }
 
 // Checker asks GitHub and remembers what the last check found.
@@ -82,13 +119,15 @@ func (c *Checker) Check(ctx context.Context) (Release, bool, error) {
 		return Release{}, false, fmt.Errorf("GitHub answered %s", resp.Status)
 	}
 	var body struct {
-		Tag string `json:"tag_name"`
-		URL string `json:"html_url"`
+		Tag    string       `json:"tag_name"`
+		URL    string       `json:"html_url"`
+		Assets []githubFile `json:"assets"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&body); err != nil {
 		return Release{}, false, fmt.Errorf("read GitHub's answer: %w", err)
 	}
 	rel := Release{Version: strings.TrimPrefix(body.Tag, "v"), URL: body.URL}
+	rel.Asset = assetOf(rel.Version, body.Assets)
 	newer := Newer(rel.Version, c.current)
 	c.mu.Lock()
 	c.found = nil
