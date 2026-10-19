@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Stage is where an install is.
@@ -74,6 +77,19 @@ func NewInstaller(workDir string) *Installer {
 	return i
 }
 
+// sentence makes an error message, which starts in lower case and has no full stop, into a sentence for the page.
+func sentence(msg string) string {
+	if msg == "" {
+		return msg
+	}
+	r, size := utf8.DecodeRuneInString(msg)
+	msg = string(unicode.ToUpper(r)) + msg[size:]
+	if !strings.HasSuffix(msg, ".") {
+		msg += "."
+	}
+	return msg
+}
+
 // Progress says where the install is.
 func (i *Installer) Progress() Progress {
 	i.mu.Lock()
@@ -128,7 +144,7 @@ func (i *Installer) Install(ctx context.Context, asset Asset, exePath string) (e
 			if errors.Is(err, context.Canceled) {
 				msg = "The update was cancelled."
 			}
-			i.set(Progress{Stage: StageFailed, Error: msg})
+			i.set(Progress{Stage: StageFailed, Error: sentence(msg)})
 		}
 	}()
 	if asset.URL == "" || asset.SHA256 == "" {

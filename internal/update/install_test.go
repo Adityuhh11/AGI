@@ -482,3 +482,23 @@ func TestAnIdleInstallerSaysSo(t *testing.T) {
 		t.Fatalf("progress %+v", p)
 	}
 }
+
+func TestThePageIsGivenASentenceNotAnErrorMessage(t *testing.T) {
+	for in, want := range map[string]string{
+		"the download does not match the checksum":        "The download does not match the checksum.",
+		"cannot write next to agi.exe: access is denied.": "Cannot write next to agi.exe: access is denied.",
+		"The update was cancelled.":                       "The update was cancelled.",
+		"édition":                                         "Édition.",
+		"":                                                "",
+	} {
+		if got := sentence(in); got != want {
+			t.Errorf("sentence(%q) = %q, want %q", in, got, want)
+		}
+	}
+	r := newRig(t, releaseZip(t))
+	r.asset.SHA256 = sumOf([]byte("other"))
+	_ = r.install()
+	if got := r.inst.Progress().Error; !strings.HasPrefix(got, "The download does not match") || !strings.HasSuffix(got, ".") {
+		t.Errorf("the page would show %q", got)
+	}
+}
