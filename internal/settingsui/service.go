@@ -7,9 +7,11 @@ package settingsui
 import (
 	"context"
 	"fmt"
+	"log"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"agi/internal/clipboard"
@@ -42,6 +44,13 @@ type ClipboardHistory interface {
 	Len() int
 	Path() string
 	Clear() error
+}
+
+// Installer is the update installer as the service uses it; *update.Installer satisfies it.
+type Installer interface {
+	Start(asset update.Asset, exePath string, done func(error)) error
+	Cancel()
+	Progress() update.Progress
 }
 
 // Updates is the update checker as the service uses it; *update.Checker satisfies it.
@@ -77,6 +86,11 @@ type Options struct {
 	// Updates asks whether a newer release exists; OpenURL opens an address in the user's browser.
 	Updates Updates
 	OpenURL func(address string) error
+	// Installer puts a newer release in place of the program at ExePath, and Restart then starts the new one and ends
+	// this one (it returns only if it could not).
+	Installer Installer
+	ExePath   string
+	Restart   func() error
 	// Open opens (or brings forward) the settings window.
 	Open func()
 	// Engine reports the file-search engine's state and message, for the diagnostics.
@@ -87,7 +101,12 @@ type Options struct {
 
 // Service is bound to the frontend; its exported methods become TypeScript functions. Methods that
 // change something return the reason it was refused, or "" when it worked.
-type Service struct{ o Options }
+type Service struct {
+	o Options
+
+	mu         sync.Mutex
+	restartErr string // why the launcher could not restart itself after an update, if it could not
+}
 
 // New returns the service.
 func New(o Options) *Service { return &Service{o: o} }
@@ -187,6 +206,57 @@ func (s *Service) CheckUpdate() UpdateView {
 	}
 	return UpdateView{Latest: rel.Version, Available: newer}
 }
+
+// UpdateProgress is where the install is, for the page: the stage ("idle", "downloading", "installing", "done" or "failed"),
+// the bytes of the download, and the reason for a failure (or for a restart that did not happen).
+type UpdateProgress struct {
+	Stage       string
+	Done, Total int64
+	Error       string
+}
+
+// UpdateProgress says where the install of the newer release is.
+func (s *Service) UpdateProgress() UpdateProgress {
+	p := s.o.Installer.Progress()
+	out := UpdateProgress{Stage: string(p.Stage), Done: p.Done, Total: p.Total, Error: p.Error}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if p.Stage == update.StageDone && s.restartErr != "" {
+		out.Error = "The update is installed, but the program could not restart itself (" + s.restartErr + "). Quit it from the tray icon and start it again."
+	}
+	return out
+}
+
+// StartUpdate installs the newer release the last check found, in the background, and restarts the launcher when it is
+// in place. It returns why it could not start, or "".
+func (s *Service) StartUpdate() string {
+	rel, ok := s.o.Updates.Found()
+	if !ok {
+		return "there is no newer release to install"
+	}
+	if rel.Asset.URL == "" {
+		return "this release has no zip that can be checked, so it cannot be installed from here: open the release page"
+	}
+	s.mu.Lock()
+	s.restartErr = ""
+	s.mu.Unlock()
+	return reason(s.o.Installer.Start(rel.Asset, s.o.ExePath, func(err error) {
+		if err != nil {
+			log.Printf("update to %s failed: %v", rel.Version, err)
+			return
+		}
+		log.Printf("update to %s installed; restarting", rel.Version)
+		if err := s.o.Restart(); err != nil {
+			log.Printf("update to %s installed but the restart failed: %v", rel.Version, err)
+			s.mu.Lock()
+			s.restartErr = err.Error()
+			s.mu.Unlock()
+		}
+	}))
+}
+
+// CancelUpdate stops an install that is still downloading.
+func (s *Service) CancelUpdate() { s.o.Installer.Cancel() }
 
 // OpenUpdate opens the page of the newer release the last check found. The address comes from that
 // check, never from the window.

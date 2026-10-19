@@ -69,6 +69,9 @@ func (f *fakeHistory) Path() string { return "C:/cache/clipboard.json" }
 func (f *fakeHistory) Clear() error { f.count = 0; f.cleared++; return nil }
 
 type harness struct {
+	installer       *fakeInstaller
+	restarts        int
+	restartErr      error
 	history         *fakeHistory
 	clipHotkeys     []string // every accelerator RebindClipboard was asked for, in order
 	clipHotkeyError string
@@ -90,7 +93,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, history: &fakeHistory{count: 3}}
+	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
@@ -120,6 +123,9 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 		},
 		ClipboardHotkeyError: func() string { return h.clipHotkeyError },
 		Updates:              h.updates,
+		Installer:            h.installer,
+		ExePath:              "C:/app/agi.exe",
+		Restart:              func() error { h.restarts++; return h.restartErr },
 		OpenURL:              func(a string) error { h.openedURL = a; return nil },
 		Autostart:            func() bool { return h.startup },
 		SetAutostart:         func(on bool) error { h.startup = on; return nil },
