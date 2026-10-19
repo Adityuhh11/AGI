@@ -64,10 +64,11 @@ export function filePathOf(item: Item): string | null {
 
 /**
  * The id a row is pinned by: the same as its tag id for a file or an app, and for a quicklink its trigger
- * alone (`quicklink:gh:`), because a pin is the shortcut, not what was typed after it. The web search and
- * tags cannot be pinned.
+ * alone (`quicklink:gh:`), because a pin is the shortcut, not what was typed after it; a snippet and a built-in
+ * row are pinned by their own ids. The web search, copied texts and tags cannot be pinned.
  */
 export function pinIdOf(item: Item): string | null {
   if (item.kind === "entry" && item.entry.Kind === "quicklink") return "quicklink:" + item.entry.ID.split(":")[1] + ":";
+  if (item.kind === "entry" && (item.entry.Kind === "snippet" || item.entry.Kind === "cmd")) return item.entry.ID;
   return tagIdOf(item);
 }

@@ -103,3 +103,10 @@ test("a quicklink is pinned as its trigger, with or without text after it", () =
   assert.equal(pin("quicklink:gh:rust lifetimes"), "quicklink:gh:");
   assert.equal(pin("quicklink:gh:"), "quicklink:gh:");
 });
+
+test("a snippet and a built-in row are pinned by their own ids; a copied text cannot be pinned", () => {
+  const pin = (e) => pinIdOf({ kind: "entry", entry: e });
+  assert.equal(pin({ ID: "snippet:Home address", Kind: "snippet" }), "snippet:Home address");
+  assert.equal(pin({ ID: "cmd:clipboard", Kind: "cmd" }), "cmd:clipboard");
+  assert.equal(pin({ ID: "clip:7", Kind: "clip" }), null);
+});

@@ -27,6 +27,7 @@ const unpin: Action = { id: "pin", title: "Unpin", keys: "Ctrl+P" };
 export function actionsFor(item: Item, taggable: boolean, pinning: "pin" | "unpin" | null = null): Action[] {
   const offered = item.kind === "entry" ? new Set(item.entry.Actions ?? []) : new Set(["reveal", "copy-path"]);
   if (item.kind === "entry" && item.entry.Kind === "clip") return [paste, ...(offered.has("copy") ? [copy] : []), ...(offered.has("delete") ? [forget] : [])];
+  if (item.kind === "entry" && item.entry.Kind === "snippet") return [paste, ...(pinning === "pin" ? [pin] : pinning === "unpin" ? [unpin] : [])];
   return [
     open,
     ...(offered.has("reveal") ? [reveal] : []),

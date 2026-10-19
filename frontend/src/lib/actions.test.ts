@@ -60,3 +60,11 @@ test("a copied text offers Paste first, then Copy and Delete, and cannot be tagg
     ["delete", "Delete this entry", "Ctrl+Delete"],
   ]);
 });
+
+test("a snippet offers Paste and can be pinned; a built-in row opens and can be pinned", () => {
+  const snippet = { kind: "entry", entry: { ID: "snippet:A", Kind: "snippet", Actions: null } };
+  assert.deepEqual(actionsOf(snippet, false, "pin").map((a) => [a.id, a.title]), [["open", "Paste"], ["pin", "Pin"]]);
+  assert.deepEqual(actionsOf(snippet, false, "unpin").map((a) => a.title), ["Paste", "Unpin"]);
+  const command = { kind: "entry", entry: { ID: "cmd:snippets", Kind: "cmd", Actions: null } };
+  assert.deepEqual(actionsOf(command, false, "unpin").map((a) => [a.id, a.title]), [["open", "Open"], ["pin", "Unpin"]]);
+});

@@ -7,10 +7,12 @@
   import FileSearch from "./lib/settings/FileSearch.svelte";
   import General from "./lib/settings/General.svelte";
   import Quicklinks from "./lib/settings/Quicklinks.svelte";
+  import Snippets from "./lib/settings/Snippets.svelte";
 
   const SECTIONS = [
     { id: "general", label: "General" },
     { id: "quicklinks", label: "Quicklinks" },
+    { id: "snippets", label: "Snippets" },
     { id: "search", label: "File search" },
     { id: "clipboard", label: "Clipboard" },
     { id: "about", label: "About" },
@@ -43,6 +45,8 @@
         <General {view} />
       {:else if section === "quicklinks"}
         <Quicklinks {view} />
+      {:else if section === "snippets"}
+        <Snippets {view} />
       {:else if section === "search"}
         <FileSearch {view} {reload} />
       {:else if section === "clipboard"}

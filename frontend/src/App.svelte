@@ -95,7 +95,7 @@
       if (info?.Engine === "failed") out.push({ text: info.EngineMessage, problem: true });
     } else if (effective === "tags") {
       if (entries.length === 0) out.push({ text: "Nothing is tagged like that yet. Select a row and press Ctrl+T.", problem: false });
-    } else if (effective === "clip") {
+    } else if (effective === "clip" || effective === "snip") {
       if (answerNote) out.push({ text: answerNote, problem: false });
     } else if (effective === "apps") {
       if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
@@ -230,7 +230,7 @@
     answerNote = answer.Note ?? "";
     selected = 0;
     clearTimeout(timer);
-    if (effective === "apps" || effective === "web" || effective === "tags" || effective === "clip") {
+    if (effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip") {
       token++;
       pending = false;
       results = null;
@@ -355,8 +355,8 @@
       query = "#" + item.entry.ID.slice("tag:".length) + " ";
       onInput(); // show what carries it
       input.focus();
-    } else if (item.kind === "entry" && /^quicklink:[^:]*:$/.test(item.entry.ID)) {
-      query = item.entry.ID.split(":")[1] + " "; // a pinned quicklink is a shortcut: the rest is typed
+    } else if (item.kind === "entry" && item.entry.Fill) {
+      query = item.entry.Fill; // a pinned quicklink or a built-in mode: the bar fills its trigger in and the rest is typed
       onInput();
       input.focus();
     } else if (item.kind === "entry") {
@@ -387,6 +387,7 @@
   }
 
   const isClip = (item: Item) => item.kind === "entry" && item.entry.Kind === "clip";
+  const pastes = (item: Item) => item.kind === "entry" && (item.entry.Kind === "clip" || item.entry.Kind === "snippet");
 
   function atEndOfText() {
     return input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
@@ -570,7 +571,7 @@
                 {/each}
               </div>
               <footer class="hints">
-                <span><kbd>Enter</kbd>{current && isClip(current) ? "paste" : "open"}</span>
+                <span><kbd>Enter</kbd>{current && pastes(current) ? "paste" : "open"}</span>
                 {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
                 {#if current && available(current, "copy")}<span><kbd>Ctrl+Enter</kbd>copy</span>{/if}
                 <span><kbd>Ctrl+K</kbd>actions</span>
