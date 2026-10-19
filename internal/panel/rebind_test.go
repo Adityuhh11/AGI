@@ -90,3 +90,59 @@ func TestATakenHotkeyCanBeTriedAgainOrReplaced(t *testing.T) {
 		t.Fatalf("retry did not bind: error %q, registered %v", p.HotkeyError(), keys.registered)
 	}
 }
+
+func TestTheSecondHotkeyIsRegisteredBeforeTheOldOneIsReleasedAndEmptyTurnsItOff(t *testing.T) {
+	keys := newFakeKeys()
+	p := newPanel(keys, "Alt+Shift+Space")
+	if err := p.RebindFill("Ctrl+Shift+V", "clip: "); err != nil {
+		t.Fatal(err)
+	}
+	if !keys.registered["Ctrl+Shift+V"] || !keys.registered["Alt+Shift+Space"] {
+		t.Fatalf("registered %v: the first hotkey must stay beside the second", keys.registered)
+	}
+	if err := p.RebindFill("Ctrl+Alt+V", "clip: "); err != nil {
+		t.Fatal(err)
+	}
+	if keys.registered["Ctrl+Shift+V"] || !keys.registered["Ctrl+Alt+V"] || len(keys.registered) != 2 {
+		t.Fatalf("registered %v, want the main hotkey and only the new second one", keys.registered)
+	}
+	if err := p.RebindFill("", ""); err != nil {
+		t.Fatal(err)
+	}
+	if keys.registered["Ctrl+Alt+V"] || len(keys.registered) != 1 {
+		t.Fatalf("registered %v, want only the main hotkey", keys.registered)
+	}
+	if err := p.RebindFill("", ""); err != nil {
+		t.Fatalf("turning off what is off: %v", err)
+	}
+}
+
+func TestASecondHotkeyThatCannotBeUsedLeavesTheWorkingOneInPlace(t *testing.T) {
+	keys := newFakeKeys("Ctrl+Shift+C")
+	p := newPanel(keys, "Alt+Shift+Space")
+	if err := p.RebindFill("Ctrl+Shift+V", "clip: "); err != nil {
+		t.Fatal(err)
+	}
+	err := p.RebindFill("Ctrl+Shift+C", "clip: ")
+	if err == nil || !strings.Contains(err.Error(), "Ctrl+Shift+C") {
+		t.Fatalf("err = %v, want the combination named", err)
+	}
+	if !keys.registered["Ctrl+Shift+V"] || p.fill != "Ctrl+Shift+V" {
+		t.Fatalf("the working second hotkey was lost: registered %v, fill %q", keys.registered, p.fill)
+	}
+	if err := p.RebindFill("Alt+Shift+Space", "clip: "); err == nil {
+		t.Fatal("the main hotkey cannot also be the second one")
+	}
+}
+
+func TestTheSecondHotkeysStartupFailureIsRememberedUntilItWorks(t *testing.T) {
+	keys := newFakeKeys()
+	p := newPanel(keys, "Alt+Shift+Space")
+	p.SetFillError("the hotkey Ctrl+Shift+V cannot be used: taken")
+	if p.FillError() == "" {
+		t.Fatal("the failure was not remembered")
+	}
+	if err := p.RebindFill("Ctrl+Alt+V", "clip: "); err != nil || p.FillError() != "" {
+		t.Fatalf("after a working rebind: %v, error %q", err, p.FillError())
+	}
+}

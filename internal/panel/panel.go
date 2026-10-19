@@ -52,6 +52,8 @@ type Panel struct {
 	previous     uintptr // the window that had the keyboard before the panel opened
 	heightDIP    int
 	hotkeyErrMsg string
+	fill         string // the second hotkey, which opens the bar with text typed in; "" when there is none
+	fillErrMsg   string
 }
 
 // New creates the (still invisible) window and arranges to bind hotkey once the app runs.
@@ -123,6 +125,52 @@ func (p *Panel) prepare() {
 			p.OnHotkeyError()
 		}
 	}
+}
+
+// RebindFill moves the second hotkey, the one that opens the bar with text already typed in its input (the
+// clipboard's "clip: "), to accelerator; an empty accelerator turns it off. As with Rebind, the new combination is
+// registered before the old one is dropped, so one that cannot be used leaves the working one in place.
+func (p *Panel) RebindFill(accelerator, text string) error {
+	p.mu.Lock()
+	old := p.fill
+	p.mu.Unlock()
+	if accelerator == old {
+		return nil
+	}
+	if accelerator != "" {
+		if err := p.keys.Register(accelerator, func() { p.openWith(text) }); err != nil {
+			return fmt.Errorf("the hotkey %s cannot be used: %w", accelerator, err)
+		}
+	}
+	if old != "" {
+		if err := p.keys.Unregister(old); err != nil {
+			log.Printf("panel: the old hotkey %s could not be released: %v", old, err)
+		}
+	}
+	p.mu.Lock()
+	p.fill, p.fillErrMsg = accelerator, ""
+	p.mu.Unlock()
+	return nil
+}
+
+// FillError says why the second hotkey could not be bound when the launcher started, or is empty when it works or is off.
+func (p *Panel) FillError() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.fillErrMsg
+}
+
+// SetFillError remembers why the second hotkey could not be bound at start, for the settings to show.
+func (p *Panel) SetFillError(msg string) {
+	p.mu.Lock()
+	p.fillErrMsg = msg
+	p.mu.Unlock()
+}
+
+// openWith opens the bar with text in its input: the page is told first, so the text is there when the bar is seen.
+func (p *Panel) openWith(text string) {
+	go p.app.Event.Emit("panel:fill", text)
+	p.Show()
 }
 
 // Rebind moves the hotkey to accelerator while the app runs. The new combination is registered

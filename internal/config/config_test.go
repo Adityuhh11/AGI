@@ -106,6 +106,7 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"snippet keyword with a space", "[[snippet]]\nname = 'A'\nkeyword = 'two words'\ntext = 'a'\n", "one word"},
 		{"snippet keyword used twice", "[[snippet]]\nname = 'A'\nkeyword = 'ad'\ntext = 'a'\n[[snippet]]\nname = 'B'\nkeyword = 'AD'\ntext = 'b'\n", "already"},
 		{"snippet keyword that is a quicklink trigger", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'GitHub'\nurl = 'https://x/?q={q}'\n[[snippet]]\nname = 'A'\nkeyword = 'GH'\ntext = 'a'\n", "quicklink trigger"},
+		{"clipboard hotkey that is the main hotkey", "hotkey = 'Alt+Shift+Space'\n[clipboard]\nhotkey = 'alt + shift + space'\n", "launcher's own hotkey"},
 		{"clipboard ignore with an empty program name", "[clipboard]\nignore = ['Notepad', ' ']\n", "program name must not be empty"},
 		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
 	}

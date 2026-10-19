@@ -70,6 +70,8 @@ type Clipboard struct {
 	// Ignore are programs whose copies are never kept ("Notepad", "MyVault.exe"), beside the password
 	// managers the history already leaves out.
 	Ignore []string `toml:"ignore,omitempty"`
+	// Hotkey, if set, opens the bar already listing what was copied ("Ctrl+Shift+V"). Empty means there is none.
+	Hotkey string `toml:"hotkey,omitempty"`
 }
 
 // Search holds the settings of file search, the memory engine.
@@ -173,6 +175,9 @@ func (c Config) Validate() error {
 	}
 	if err := c.validateSnippets(); err != nil {
 		return err
+	}
+	if c.Clipboard.Hotkey != "" && strings.EqualFold(strings.ReplaceAll(c.Clipboard.Hotkey, " ", ""), strings.ReplaceAll(c.Hotkey, " ", "")) {
+		return fmt.Errorf("the clipboard hotkey %q is the launcher's own hotkey", c.Clipboard.Hotkey)
 	}
 	for _, program := range c.Clipboard.Ignore {
 		if strings.TrimSpace(program) == "" {

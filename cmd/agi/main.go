@@ -254,17 +254,19 @@ func run() error {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
 			},
-			Browsers:     web.Installed,
-			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
-			Clipboard:    clips,
-			Updates:      checker,
-			OpenURL:      browser.Open,
-			Open:         settingsWindow.Open,
-			Autostart:    autostart.Enabled,
-			SetAutostart: autostart.Set,
-			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
-			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
-			Version:      version,
+			Browsers:             web.Installed,
+			OpenFolder:           func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Clipboard:            clips,
+			RebindClipboard:      func(accelerator string) error { return bar.RebindFill(accelerator, "clip: ") },
+			ClipboardHotkeyError: bar.FillError,
+			Updates:              checker,
+			OpenURL:              browser.Open,
+			Open:                 settingsWindow.Open,
+			Autostart:            autostart.Enabled,
+			SetAutostart:         autostart.Set,
+			Engine:               func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:               filepath.Join(cacheDir, "AGI", "logs"),
+			Version:              version,
 		})),
 	} {
 		app.RegisterService(service)
@@ -324,6 +326,12 @@ func run() error {
 			engineSwitch.On()
 		} else {
 			engineSwitch.Off()
+		}
+		if hotkey := cfg.Clipboard.Hotkey; hotkey != "" {
+			if err := bar.RebindFill(hotkey, "clip: "); err != nil {
+				log.Print(err)
+				bar.SetFillError(err.Error())
+			}
 		}
 		go indexer.Run(ctx)
 		go clips.Run(ctx)
