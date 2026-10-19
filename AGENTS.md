@@ -25,7 +25,9 @@ Personal, local-first AI launcher for Windows. Go core + Wails v3 + Svelte UI + 
 - Windows 11 only (for now). RTX 4050, **6 GB VRAM**: models must fit together. Only models use the GPU; index storage
   and search run on the CPU.
 - The hotkey → panel path must never wait on a model. Launcher opens in < 100 ms.
-- Privacy: nothing leaves the machine except explicit calls to a configured LLM provider. No telemetry.
+- Privacy: nothing leaves the machine except explicit calls to a configured LLM provider and requests the user
+  starts or switches on (the file-search download, the opt-in update check, `docs/decisions/0005-update-check.md`).
+  No telemetry.
 - Config in `%APPDATA%\AGI\config.toml`; API keys in Windows Credential Manager, never in files or git.
 
 ## Docs

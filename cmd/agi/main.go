@@ -21,6 +21,7 @@ import (
 
 	"agi"
 	"agi/internal/apps"
+	"agi/internal/autostart"
 	"agi/internal/config"
 	"agi/internal/enginesetup"
 	"agi/internal/files"
@@ -34,6 +35,7 @@ import (
 	"agi/internal/state"
 	"agi/internal/status"
 	"agi/internal/tray"
+	"agi/internal/update"
 	"agi/internal/watcher"
 	"agi/internal/web"
 )
@@ -127,6 +129,11 @@ func run() error {
 				return thumbnails(icons(next))
 			},
 		},
+		// The page never sees Alt+Space (Windows takes it as the system-menu key), so the settings'
+		// hotkey field hears about it from here. Emitting from a goroutine keeps the window procedure free.
+		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.KeyMenuFilter(func(accelerator string) {
+			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
+		})},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               "com.adityuhh11.agi.launcher",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
@@ -194,6 +201,11 @@ func run() error {
 	opener := files.New(roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
 	settingsWindow := settingsui.NewWindow(app)
+	var checker *update.Checker
+	checker = update.NewChecker(version, func() {
+		release, _ := checker.Found()
+		icon.SetUpdate(release.Version)
+	})
 	togglePause := func() {
 		if indexer.Status().Paused {
 			indexer.Resume()
@@ -217,12 +229,16 @@ func run() error {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
 			},
-			Browsers:   web.Installed,
-			OpenFolder: func(path string) error { return exec.Command("explorer.exe", path).Start() },
-			Open:       settingsWindow.Open,
-			Engine:     func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
-			LogDir:     filepath.Join(cacheDir, "AGI", "logs"),
-			Version:    version,
+			Browsers:     web.Installed,
+			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Updates:      checker,
+			OpenURL:      browser.Open,
+			Open:         settingsWindow.Open,
+			Autostart:    autostart.Enabled,
+			SetAutostart: autostart.Set,
+			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
+			Version:      version,
 		})),
 	} {
 		app.RegisterService(service)
@@ -284,6 +300,7 @@ func run() error {
 			engineSwitch.Off()
 		}
 		go indexer.Run(ctx)
+		go checker.Run(ctx, func() bool { return store.Get().CheckUpdates })
 		// The list of installed apps is served from its cache at once and rebuilt in the background,
 		// again whenever a program is installed or removed.
 		go catalog.Run(ctx)

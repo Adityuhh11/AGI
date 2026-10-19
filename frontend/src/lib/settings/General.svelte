@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { Events } from "@wailsio/runtime";
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { View } from "../../../bindings/agi/internal/settingsui";
   import { capture } from "../accelerator";
@@ -13,6 +14,8 @@
   let browser = $state(view.Browser);
   // svelte-ignore state_referenced_locally
   let searchURL = $state(view.SearchURL);
+  // svelte-ignore state_referenced_locally
+  let startup = $state(view.Autostart);
   let browsers = $state<string[]>([]);
   let capturing = $state(false);
   let hint = $state("");
@@ -40,14 +43,34 @@
     browsers = (await Settings.Browsers()) ?? [];
   });
 
-  async function save(nextHotkey = hotkey) {
-    error = await Settings.SaveGeneral(nextHotkey, browser, searchURL);
-    if (error !== "") return;
-    hotkey = nextHotkey;
+  function flashSaved() {
     saved = true;
     clearTimeout(savedTimer);
     savedTimer = setTimeout(() => (saved = false), 1800);
   }
+
+  async function save(nextHotkey = hotkey) {
+    error = await Settings.SaveGeneral(nextHotkey, browser, searchURL);
+    if (error !== "") return;
+    hotkey = nextHotkey;
+    flashSaved();
+  }
+
+  async function saveStartup() {
+    error = await Settings.SetAutostart(startup);
+    if (error !== "") startup = !startup;
+    else flashSaved();
+  }
+
+  // The page gets no keydown for Alt+Space (Windows takes it as the system-menu key); Go reports it.
+  $effect(() =>
+    Events.On("hotkey:alt-space", (e) => {
+      if (!capturing) return;
+      capturing = false;
+      hint = "";
+      save(e.data as string);
+    }),
+  );
 
   function startCapture() {
     capturing = true;
@@ -86,17 +109,27 @@
 
 <div class="field">
   <span class="label" id="hotkey-label">Hotkey</span>
-  <button type="button" class="keys" aria-labelledby="hotkey-label" onclick={startCapture} onkeydown={onKeydown} onblur={() => (capturing = false)}>
-    {#if capturing}
-      <span class="prompt">Press the new combination. Esc cancels.</span>
-    {:else}
-      {#each hotkey.split("+") as part (part)}<kbd>{part}</kbd>{/each}
-      <span class="change">Change</span>
+  <div class="keyrow">
+    <button type="button" class="keys" aria-labelledby="hotkey-label" onclick={startCapture} onkeydown={onKeydown} onblur={() => (capturing = false)}>
+      {#if capturing}
+        <span class="prompt">Press the new combination. Esc cancels.</span>
+      {:else}
+        {#each hotkey.split("+") as part (part)}<kbd>{part}</kbd>{/each}
+        <span class="change">Change</span>
+      {/if}
+    </button>
+    {#if hotkey !== view.DefaultHotkey}
+      <button type="button" class="btn quiet" onclick={() => save(view.DefaultHotkey)}>Reset to {view.DefaultHotkey}</button>
     {/if}
-  </button>
+  </div>
   {#if hint}<p class="help">{hint}</p>{/if}
   {#if error && error.includes("hotkey")}<p class="error">{error}</p>{/if}
   <p class="help">Opens the search bar from any app. Windows-key combinations cannot be recorded here; put them in config.toml.</p>
+</div>
+
+<div class="field">
+  <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
+  <p class="help">The search bar is then ready as soon as Windows is. It starts quietly, with no window.</p>
 </div>
 
 <div class="field">
@@ -127,11 +160,15 @@
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
 
 <style>
+  .keyrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
   .keys {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    align-self: flex-start;
     min-height: 40px;
     padding: 6px 12px;
     border: 1px solid var(--line);
