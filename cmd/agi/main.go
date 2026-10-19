@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"agi"
 	"agi/internal/apps"
 	"agi/internal/autostart"
+	"agi/internal/clipboard"
 	"agi/internal/config"
 	"agi/internal/enginesetup"
 	"agi/internal/files"
@@ -32,6 +34,7 @@ import (
 	"agi/internal/settings"
 	"agi/internal/settingsui"
 	"agi/internal/sidecar"
+	"agi/internal/snippets"
 	"agi/internal/state"
 	"agi/internal/status"
 	"agi/internal/tray"
@@ -196,10 +199,32 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	// Pinned from the start, once: the two modes that nothing else in the bar leads to. They can be unpinned.
+	if _, err := history.SeedPins("cmd:clipboard", "cmd:snippets"); err != nil {
+		log.Printf("could not pin the clipboard and the snippets: %v", err)
+	}
 
 	bar = panel.New(app, cfg.Hotkey)
 	opener := files.New(roots, bar.HideForLaunch) // opens files and shows them in Explorer
 	bar.OnHotkeyError = refresh
+
+	// What was copied is kept only while the history is switched on in the settings. Its own copies (a paste,
+	// "copy path") carry this program's name and are not kept.
+	clipStore, err := clipboard.OpenStore(filepath.Join(cacheDir, "AGI", "clipboard.json"))
+	if err != nil {
+		return err
+	}
+	self, _ := os.Executable()
+	clipEnabled := func() bool { return store.Get().Clipboard.Enabled }
+	clips := clipboard.NewManager(clipStore,
+		clipboard.NewWatcher(clipboard.WindowsSource{}, clipStore, clipEnabled,
+			func() []string { return store.Get().Clipboard.Ignore }, strings.TrimSuffix(filepath.Base(self), ".exe")),
+		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
+		clipEnabled)
+	bar.OnShow = clips.Poll // a copy a moment before the bar opened is in the list
+	snips := snippets.New(func() []config.Snippet { return store.Get().Snippets },
+		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
+		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
 	var checker *update.Checker
 	checker = update.NewChecker(version, func() {
@@ -219,7 +244,7 @@ func run() error {
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
-		application.NewService(palette.New(catalog, history, browser, opener, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, bar.HideForLaunch)),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,
@@ -229,16 +254,19 @@ func run() error {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
 			},
-			Browsers:     web.Installed,
-			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
-			Updates:      checker,
-			OpenURL:      browser.Open,
-			Open:         settingsWindow.Open,
-			Autostart:    autostart.Enabled,
-			SetAutostart: autostart.Set,
-			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
-			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
-			Version:      version,
+			Browsers:             web.Installed,
+			OpenFolder:           func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Clipboard:            clips,
+			RebindClipboard:      func(accelerator string) error { return bar.RebindFill(accelerator, "clip: ") },
+			ClipboardHotkeyError: bar.FillError,
+			Updates:              checker,
+			OpenURL:              browser.Open,
+			Open:                 settingsWindow.Open,
+			Autostart:            autostart.Enabled,
+			SetAutostart:         autostart.Set,
+			Engine:               func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:               filepath.Join(cacheDir, "AGI", "logs"),
+			Version:              version,
 		})),
 	} {
 		app.RegisterService(service)
@@ -299,7 +327,18 @@ func run() error {
 		} else {
 			engineSwitch.Off()
 		}
+		if hotkey := cfg.Clipboard.Hotkey; hotkey != "" {
+			// Registering a hotkey asks the main thread, which is the thread running this handler: from a goroutine, like
+			// the panel's own hotkey, or the launcher would wait for itself.
+			go func() {
+				if err := bar.RebindFill(hotkey, "clip: "); err != nil {
+					log.Print(err)
+					bar.SetFillError(err.Error())
+				}
+			}()
+		}
 		go indexer.Run(ctx)
+		go clips.Run(ctx)
 		go checker.Run(ctx, func() bool { return store.Get().CheckUpdates })
 		// The list of installed apps is served from its cache at once and rebuilt in the background,
 		// again whenever a program is installed or removed.

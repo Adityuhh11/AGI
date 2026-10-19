@@ -19,9 +19,11 @@
     onactivate: () => void;
     /** The tags this file carries. */
     tags?: string[];
+    /** Whether the file is pinned. */
+    pinned?: boolean;
   }
 
-  let { row, match, query, id, selected, expanded = false, onhover, onactivate, tags = [] }: Props = $props();
+  let { row, match, query, id, selected, expanded = false, onhover, onactivate, tags = [], pinned = false }: Props = $props();
 
   const icons = { code: "code", text: "text", image: "image" } as const;
   const icon = $derived(icons[row.Kind as keyof typeof icons] ?? "file");
@@ -80,6 +82,7 @@
       </div>
     {/if}
   </div>
+  {#if !match && pinned}<span class="pin" title="Pinned"><Icon name="pin" size={14} /></span>{/if}
   {#if !match && tags.length > 0}
     <span class="tags">{#each tags as tag}<span class="tag">#{tag}</span>{/each}</span>
   {/if}
@@ -183,6 +186,12 @@
     background: none;
     color: #fff;
     font-weight: 620;
+  }
+  .pin {
+    flex: none;
+    align-self: center;
+    display: grid;
+    color: var(--text-3);
   }
   .tags {
     flex: none;

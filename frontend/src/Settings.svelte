@@ -3,14 +3,18 @@
   import { Service as Settings } from "../bindings/agi/internal/settingsui";
   import type { View } from "../bindings/agi/internal/settingsui";
   import About from "./lib/settings/About.svelte";
+  import Clipboard from "./lib/settings/Clipboard.svelte";
   import FileSearch from "./lib/settings/FileSearch.svelte";
   import General from "./lib/settings/General.svelte";
   import Quicklinks from "./lib/settings/Quicklinks.svelte";
+  import Snippets from "./lib/settings/Snippets.svelte";
 
   const SECTIONS = [
     { id: "general", label: "General" },
     { id: "quicklinks", label: "Quicklinks" },
+    { id: "snippets", label: "Snippets" },
     { id: "search", label: "File search" },
+    { id: "clipboard", label: "Clipboard" },
     { id: "about", label: "About" },
   ] as const;
 
@@ -41,8 +45,12 @@
         <General {view} />
       {:else if section === "quicklinks"}
         <Quicklinks {view} />
+      {:else if section === "snippets"}
+        <Snippets {view} />
       {:else if section === "search"}
         <FileSearch {view} {reload} />
+      {:else if section === "clipboard"}
+        <Clipboard />
       {:else}
         <About {view} />
       {/if}

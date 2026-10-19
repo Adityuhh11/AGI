@@ -61,17 +61,27 @@ func (f *fakeUpdates) Found() (update.Release, bool) {
 	return update.Release{}, false
 }
 
+// fakeHistory plays the clipboard history.
+type fakeHistory struct{ count, cleared int }
+
+func (f *fakeHistory) Len() int     { return f.count }
+func (f *fakeHistory) Path() string { return "C:/cache/clipboard.json" }
+func (f *fakeHistory) Clear() error { f.count = 0; f.cleared++; return nil }
+
 type harness struct {
-	updates   *fakeUpdates
-	openedURL string
-	index     *fakeIndexing
-	setup     *fakeSetup
-	svc       *Service
-	store     *settings.Store
-	hotkeys   []string // every accelerator Rebind was asked for, in order
-	picked    string
-	opened    string
-	startup   bool
+	history         *fakeHistory
+	clipHotkeys     []string // every accelerator RebindClipboard was asked for, in order
+	clipHotkeyError string
+	updates         *fakeUpdates
+	openedURL       string
+	index           *fakeIndexing
+	setup           *fakeSetup
+	svc             *Service
+	store           *settings.Store
+	hotkeys         []string // every accelerator Rebind was asked for, in order
+	picked          string
+	opened          string
+	startup         bool
 }
 
 func newHarness(t *testing.T, refuse ...string) *harness {
@@ -80,7 +90,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}}
+	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, history: &fakeHistory{count: 3}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
@@ -94,16 +104,27 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 			}
 			return nil
 		},
-		PickFolder:   func() (string, error) { return h.picked, nil },
-		Browsers:     func() []string { return []string{"chrome"} },
-		OpenFolder:   func(p string) error { h.opened = p; return nil },
-		Engine:       func() (string, string) { return "off", "" },
-		Updates:      h.updates,
-		OpenURL:      func(a string) error { h.openedURL = a; return nil },
-		Autostart:    func() bool { return h.startup },
-		SetAutostart: func(on bool) error { h.startup = on; return nil },
-		LogDir:       `C:\logs`,
-		Version:      "test",
+		PickFolder: func() (string, error) { return h.picked, nil },
+		Browsers:   func() []string { return []string{"chrome"} },
+		OpenFolder: func(p string) error { h.opened = p; return nil },
+		Engine:     func() (string, string) { return "off", "" },
+		Clipboard:  h.history,
+		RebindClipboard: func(a string) error {
+			h.clipHotkeys = append(h.clipHotkeys, a)
+			for _, r := range refuse {
+				if a == r {
+					return errors.New("the hotkey " + a + " cannot be used: taken")
+				}
+			}
+			return nil
+		},
+		ClipboardHotkeyError: func() string { return h.clipHotkeyError },
+		Updates:              h.updates,
+		OpenURL:              func(a string) error { h.openedURL = a; return nil },
+		Autostart:            func() bool { return h.startup },
+		SetAutostart:         func(on bool) error { h.startup = on; return nil },
+		LogDir:               `C:\logs`,
+		Version:              "test",
 	})
 	return h
 }
@@ -380,5 +401,110 @@ func TestCheckUpdatesIsSavedAndStartsOff(t *testing.T) {
 	}
 	if msg := h.svc.SetCheckUpdates(true); msg != "" || !h.store.Get().CheckUpdates {
 		t.Fatalf("message %q, saved %v", msg, h.store.Get().CheckUpdates)
+	}
+}
+
+func TestTheClipboardPageShowsTheSwitchTheCountAndWhatIsLeftOut(t *testing.T) {
+	h := newHarness(t)
+	v := h.svc.Clipboard()
+	if v.Enabled || v.Count != 3 || len(v.Ignore) != 0 || len(v.Defaults) == 0 || v.File == "" {
+		t.Fatalf("a fresh install's page: %+v (the history is off, the defaults are listed)", v)
+	}
+}
+
+func TestSavingTheClipboardSettingsKeepsTrimmedNamesAndDropsBlankLines(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.SaveClipboard(true, []string{" MyVault.exe ", "", "  ", "Notepad"}, ""); msg != "" {
+		t.Fatal(msg)
+	}
+	got := h.store.Get().Clipboard
+	if !got.Enabled || strings.Join(got.Ignore, "|") != "MyVault.exe|Notepad" {
+		t.Fatalf("saved %+v", got)
+	}
+	if msg := h.svc.SaveClipboard(false, nil, ""); msg != "" || h.store.Get().Clipboard.Enabled {
+		t.Fatalf("switching off: %q, %+v", msg, h.store.Get().Clipboard)
+	}
+}
+
+func TestClearingTheClipboardForgetsEverything(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.ClearClipboard(); msg != "" || h.history.cleared != 1 || h.svc.Clipboard().Count != 0 {
+		t.Fatalf("message %q, cleared %d, count %d", msg, h.history.cleared, h.svc.Clipboard().Count)
+	}
+}
+
+func TestSavingSnippetsStoresThemAndRefusesWhatTheConfigRefuses(t *testing.T) {
+	h := newHarness(t)
+	good := []config.Snippet{{Name: "Address", Keyword: "addr", Text: "12 Example Street\nSpringfield"}}
+	if msg := h.svc.SaveSnippets(good); msg != "" {
+		t.Fatal(msg)
+	}
+	if got := h.svc.View().Snippets; len(got) != 1 || got[0].Text != good[0].Text {
+		t.Fatalf("the page would show %+v", got)
+	}
+	twice := []config.Snippet{{Name: "A", Text: "x"}, {Name: "a", Text: "y"}}
+	if msg := h.svc.SaveSnippets(twice); !strings.Contains(msg, "used twice") {
+		t.Fatalf("message %q", msg)
+	}
+	if got := h.store.Get().Snippets; len(got) != 1 || got[0].Name != "Address" {
+		t.Fatalf("a refused save changed the snippets: %+v", got)
+	}
+}
+
+func TestTheClipboardHotkeyIsRebornBeforeItIsSavedAndARefusedOneChangesNothing(t *testing.T) {
+	h := newHarness(t, "Ctrl+Shift+C")
+	if msg := h.svc.SaveClipboard(true, nil, " Ctrl+Shift+V "); msg != "" {
+		t.Fatal(msg)
+	}
+	if got := h.store.Get().Clipboard.Hotkey; got != "Ctrl+Shift+V" || h.svc.Clipboard().Hotkey != "Ctrl+Shift+V" {
+		t.Fatalf("saved %q", got)
+	}
+	if msg := h.svc.SaveClipboard(true, nil, "Ctrl+Shift+C"); !strings.Contains(msg, "Ctrl+Shift+C") {
+		t.Fatalf("message %q: the combination that cannot be used must be named", msg)
+	}
+	if got := h.store.Get().Clipboard.Hotkey; got != "Ctrl+Shift+V" {
+		t.Fatalf("a refused hotkey changed the saved one to %q", got)
+	}
+	if msg := h.svc.SaveClipboard(true, nil, ""); msg != "" || h.store.Get().Clipboard.Hotkey != "" {
+		t.Fatalf("turning the hotkey off: %q, %q", msg, h.store.Get().Clipboard.Hotkey)
+	}
+	if last := h.clipHotkeys[len(h.clipHotkeys)-1]; last != "" {
+		t.Fatalf("the last rebind was %q, want the hotkey turned off", last)
+	}
+}
+
+func TestAnUnchangedClipboardHotkeyIsNotRebound(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.SaveClipboard(true, nil, "Ctrl+Shift+V"); msg != "" {
+		t.Fatal(msg)
+	}
+	before := len(h.clipHotkeys)
+	if msg := h.svc.SaveClipboard(false, []string{"Notepad"}, "Ctrl+Shift+V"); msg != "" || len(h.clipHotkeys) != before {
+		t.Fatalf("message %q, %d rebinds after %d", msg, len(h.clipHotkeys), before)
+	}
+}
+
+func TestTheHotkeyThatCouldNotBeBoundAtStartIsOnThePage(t *testing.T) {
+	h := newHarness(t)
+	h.clipHotkeyError = "the hotkey Ctrl+Shift+V cannot be used: taken"
+	if got := h.svc.Clipboard().HotkeyError; got != h.clipHotkeyError {
+		t.Fatalf("page error %q", got)
+	}
+}
+
+func TestARefusedSaveGivesTheOldClipboardHotkeyBack(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.SaveClipboard(true, nil, "Ctrl+Shift+V"); msg != "" {
+		t.Fatal(msg)
+	}
+	// the main hotkey is the one thing the config refuses for the clipboard, though the shortcut manager would take it
+	if msg := h.svc.SaveClipboard(true, nil, h.store.Get().Hotkey); msg == "" {
+		t.Fatal("the launcher's own hotkey was accepted")
+	}
+	if last := h.clipHotkeys[len(h.clipHotkeys)-1]; last != "Ctrl+Shift+V" {
+		t.Fatalf("the last rebind was %q: the working hotkey must be put back", last)
+	}
+	if got := h.store.Get().Clipboard.Hotkey; got != "Ctrl+Shift+V" {
+		t.Fatalf("saved %q", got)
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -28,8 +29,12 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"agi"
+	"agi/internal/apps"
+	"agi/internal/clipboard"
 	"agi/internal/config"
+	"agi/internal/palette"
 	"agi/internal/panel"
+	"agi/internal/state"
 )
 
 const (
@@ -104,6 +109,13 @@ window.addEventListener('focus', () => requestAnimationFrame(start => {
     requestAnimationFrame(tick);
   });
 }), { once: true });
+// What the page does with the text a hotkey types into it (-fill): its errors, and the input's value once settled.
+window.addEventListener('error', e => send('jserr-' + encodeURIComponent(e.message)));
+window.addEventListener('unhandledrejection', e => send('jsrej-' + encodeURIComponent(String(e.reason))));
+window.addEventListener('focus', () => setTimeout(() => {
+  const i = document.querySelector('input');
+  send('value-' + encodeURIComponent(i ? i.value : 'noinput'));
+}, 400));
 fetch('/ready');
 </script>`
 
@@ -126,12 +138,17 @@ func key(vk uintptr, up bool) {
 	_, _, _ = keybdEvent.Call(vk, 0, flags, 0)
 }
 
-// pressHotkey types Alt+Shift+Space, the default hotkey.
+// pressHotkey types Alt+Shift+Space, the default hotkey, or with -fill Ctrl+Alt+V, the second one (both have Alt:
+// Windows lets the bar take the keyboard from synthetic keys without one only some of the time).
 func pressHotkey() {
-	for _, vk := range []uintptr{0x12, 0x10, 0x20} {
+	down, up := []uintptr{0x12, 0x10, 0x20}, []uintptr{0x20, 0x10, 0x12}
+	if *fill {
+		down, up = []uintptr{0x11, 0x12, 0x56}, []uintptr{0x56, 0x12, 0x11}
+	}
+	for _, vk := range down {
 		key(vk, false)
 	}
-	for _, vk := range []uintptr{0x20, 0x10, 0x12} {
+	for _, vk := range up {
 		key(vk, true)
 	}
 }
@@ -175,7 +192,64 @@ var (
 	usePill = flag.Bool("pill", false, "measure the pill-with-shader stand-in page instead of the plain bar")
 	hold    = flag.Duration("hold", 0, "keep the panel open this long after the first run, to look at it")
 	real    = flag.Bool("real", false, "measure the launcher's real page (frontend/dist) with a probe script added")
+	fill    = flag.Bool("fill", false, "with -real: press a second hotkey (Ctrl+Alt+V) that opens the bar with \"clip: \" typed in, instead of the main one")
+	pins    = flag.Int("pins", 0, "with -real: pin this many made-up apps, so the page opens on its list of pinned things")
 )
+
+// withPins gives the real page what it needs to open on n pinned rows: the palette service over a catalog
+// of n made-up apps (their icons do not exist, so the rows show their glyph, which is cheaper than the
+// real icons the launcher would load) and the panel service the page resizes the window through.
+func withPins(app *application.App, p *panel.Panel, n int) {
+	dir, err := os.MkdirTemp("", "panelbench")
+	if err != nil {
+		log.Fatal(err)
+	}
+	history, err := state.Open(filepath.Join(dir, "state.json"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	catalog := apps.NewCatalog("", "")
+	list := make([]apps.App, n)
+	for i := range list {
+		list[i] = apps.App{ID: fmt.Sprintf("Bench!App%d", i), Name: fmt.Sprintf("Bench app %d", i)}
+		if _, err := history.TogglePin("app:" + list[i].ID); err != nil {
+			log.Fatal(err)
+		}
+	}
+	catalog.Index.Set(list)
+	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, benchClips{}, benchSnippets{}, p.HideForLaunch)))
+	app.RegisterService(application.NewService(panel.NewService(p)))
+}
+
+// benchBrowser and benchFiles are the parts of the launcher the pinned rows never reach.
+type benchBrowser struct{}
+
+func (benchBrowser) Search(string) error { return nil }
+func (benchBrowser) Open(string) error   { return nil }
+func (benchBrowser) Quicklink(string) (config.Quicklink, string, bool) {
+	return config.Quicklink{}, "", false
+}
+func (benchBrowser) Find(string) (config.Quicklink, bool) { return config.Quicklink{}, false }
+
+type benchClips struct{}
+
+func (benchClips) Enabled() bool { return true }
+func (benchClips) Search(string, int) []clipboard.Entry {
+	return []clipboard.Entry{{ID: 3, Text: "gamma lunch plans"}, {ID: 2, Text: "beta kubernetes pod yaml"}, {ID: 1, Text: "alpha invoice"}}
+}
+func (benchClips) Paste(int64) error  { return nil }
+func (benchClips) Copy(int64) error   { return nil }
+func (benchClips) Delete(int64) error { return nil }
+
+type benchSnippets struct{}
+
+func (benchSnippets) List() []config.Snippet { return nil }
+func (benchSnippets) Paste(string) error     { return nil }
+
+type benchFiles struct{}
+
+func (benchFiles) Open(string, int) error { return nil }
+func (benchFiles) Reveal(string) error    { return nil }
 
 func main() {
 	flag.Parse()
@@ -190,6 +264,10 @@ func main() {
 	})
 	mux.HandleFunc("/m", func(_ http.ResponseWriter, r *http.Request) {
 		name := r.URL.Query().Get("ev")
+		if strings.HasPrefix(name, "jserr-") || strings.HasPrefix(name, "jsrej-") || strings.HasPrefix(name, "value-") {
+			fmt.Println("page:", name)
+			return
+		}
 		if strings.HasPrefix(name, "fps-") { // "fps-<frames per second>-<longest gap in ms>"
 			fmt.Printf("page frame cadence: %s (frames per second, longest gap in ms)\n", strings.TrimPrefix(name, "fps-"))
 			return
@@ -228,6 +306,9 @@ func main() {
 
 	app := application.New(application.Options{Name: "panelbench", Assets: application.AssetOptions{Handler: mux}})
 	p := panel.New(app, config.DefaultHotkey)
+	if *real && (*pins > 0 || *fill) {
+		withPins(app, p, *pins)
+	}
 
 	go func() { os.Exit(bench(p, ev, ready)) }()
 	if err := app.Run(); err != nil {
@@ -237,6 +318,12 @@ func main() {
 
 func bench(p *panel.Panel, ev *events, ready <-chan struct{}) int {
 	<-ready
+	if *fill {
+		if err := p.RebindFill("Ctrl+Alt+V", "clip: "); err != nil {
+			fmt.Println("FAIL:", err)
+			return 1
+		}
+	}
 	time.Sleep(2 * time.Second) // the window prepares itself (cloak, first show, hotkey)
 	if msg := p.HotkeyError(); msg != "" {
 		fmt.Println("FAIL:", msg)

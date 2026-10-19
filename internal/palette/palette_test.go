@@ -55,7 +55,7 @@ func newServiceWithBrowser(t *testing.T, names ...string) (*Service, *int, *fake
 	}
 	dismissed := 0
 	browser := &fakeBrowser{links: []config.Quicklink{gh}}
-	return New(catalog, history, browser, &fakeFiles{}, func() { dismissed++ }), &dismissed, browser
+	return New(catalog, history, browser, &fakeFiles{}, &fakeClips{}, &fakeSnips{}, func() { dismissed++ }), &dismissed, browser
 }
 
 // titles lists the app rows of an answer; other kinds have their own tests.
@@ -214,7 +214,7 @@ func TestAnItemNamesItsIconAndOnlyOffersActionsItCanDo(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "tool.exe")
 	catalog.Index.Set([]apps.App{{ID: file, Name: "Tool"}, {ID: "Pkg!App", Name: "Store Thing"}})
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
-	s := New(catalog, history, &fakeBrowser{}, &fakeFiles{}, func() {})
+	s := New(catalog, history, &fakeBrowser{}, &fakeFiles{}, &fakeClips{}, &fakeSnips{}, func() {})
 	byTitle := map[string]Item{}
 	for _, item := range s.Query("t", ModeApps).Items {
 		byTitle[item.Title] = item
@@ -315,7 +315,7 @@ func TestTaggedFilesOpenThroughTheFilesService(t *testing.T) {
 	catalog := apps.NewCatalog("", "")
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
 	f := &fakeFiles{}
-	s := New(catalog, history, &fakeBrowser{}, f, func() {})
+	s := New(catalog, history, &fakeBrowser{}, f, &fakeClips{}, &fakeSnips{}, func() {})
 	if err := s.Do(`file:C:\docs\a.pdf`, "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != `C:\docs\a.pdf` {
 		t.Fatalf("opened %v, %v", f.opened, err)
 	}
@@ -334,4 +334,48 @@ func titlesOf(a Answer) string {
 		out = append(out, item.Title)
 	}
 	return strings.Join(out, "|")
+}
+
+func TestPinnedRowsAreInTheOrderPinnedAndGoneOnesAreLeftOut(t *testing.T) {
+	s, _ := newService(t, "Visual Studio Code", "Calculator")
+	file := filepath.Join(t.TempDir(), "budget.xlsx")
+	if err := os.WriteFile(file, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"file:" + file, "quicklink:gh:", "app:id:Calculator", "app:id:Gone"} {
+		if on, err := s.TogglePin(id); err != nil || !on {
+			t.Fatalf("pin %s = %v, %v", id, on, err)
+		}
+	}
+	var got []string
+	for _, item := range s.Pinned() {
+		got = append(got, item.Kind+":"+item.Title)
+	}
+	if want := "file:budget.xlsx|quicklink:GitHub|app:Calculator"; strings.Join(got, "|") != want {
+		t.Fatalf("pinned rows %v, want %s (the uninstalled app is hidden, not unpinned)", got, want)
+	}
+	if len(s.PinIDs()) != 4 {
+		t.Errorf("a gone app must stay pinned in case it comes back, ids %v", s.PinIDs())
+	}
+	if pinned := s.Pinned(); pinned[1].ID != "quicklink:gh:" {
+		t.Errorf("a pinned quicklink is its trigger with no text, got %q", pinned[1].ID)
+	}
+}
+
+func TestAQuicklinkIsPinnedAsItsTriggerAndOnlyPinnableThingsArePinned(t *testing.T) {
+	s, _ := newService(t)
+	if on, err := s.TogglePin("quicklink:gh:rust lifetimes"); err != nil || !on {
+		t.Fatalf("pin = %v, %v", on, err)
+	}
+	if ids := s.PinIDs(); len(ids) != 1 || ids[0] != "quicklink:gh:" {
+		t.Fatalf("pinned %v, want the trigger alone", ids)
+	}
+	if on, err := s.TogglePin("quicklink:gh:other text"); err != nil || on {
+		t.Fatalf("the same quicklink with other text must unpin it, got %v, %v", on, err)
+	}
+	for _, id := range []string{"web:rust", "tag:work", "nonsense"} {
+		if _, err := s.TogglePin(id); err == nil {
+			t.Errorf("%q cannot be pinned", id)
+		}
+	}
 }

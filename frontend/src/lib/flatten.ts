@@ -16,9 +16,11 @@ export function moreCount(row: Row): number {
 
 /**
  * The visible list: a quicklink the text triggers, then the apps, then every file (each followed by its
- * further matches if it is expanded), and the web search last.
+ * further matches if it is expanded), and the web search last. With `keepOrder` (the pinned things shown
+ * when nothing is typed) the entries are listed as given: pins are in the order they were pinned.
  */
-export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Entry[] = []): Item[] {
+export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Entry[] = [], keepOrder = false): Item[] {
+  if (keepOrder) return entries.map((entry) => ({ kind: "entry", entry }));
   const of = (match: (e: Entry) => boolean): Item[] =>
     entries.filter(match).map((entry) => ({ kind: "entry", entry }));
   const items: Item[] = [...of((e) => e.Kind === "quicklink"), ...of((e) => e.Kind !== "quicklink" && e.Kind !== "web")];
@@ -58,4 +60,15 @@ export function tagIdOf(item: Item): string | null {
 export function filePathOf(item: Item): string | null {
   if (item.kind !== "entry") return item.row.Path;
   return item.entry.Kind === "file" ? item.entry.ID.slice("file:".length) : null;
+}
+
+/**
+ * The id a row is pinned by: the same as its tag id for a file or an app, and for a quicklink its trigger
+ * alone (`quicklink:gh:`), because a pin is the shortcut, not what was typed after it; a snippet and a built-in
+ * row are pinned by their own ids. The web search, copied texts and tags cannot be pinned.
+ */
+export function pinIdOf(item: Item): string | null {
+  if (item.kind === "entry" && item.entry.Kind === "quicklink") return "quicklink:" + item.entry.ID.split(":")[1] + ":";
+  if (item.kind === "entry" && (item.entry.Kind === "snippet" || item.entry.Kind === "cmd")) return item.entry.ID;
+  return tagIdOf(item);
 }
