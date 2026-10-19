@@ -34,7 +34,10 @@ type Config struct {
 	SearchURL string `toml:"search_url,omitempty"`
 	// Quicklinks turn a trigger word and some text into a web address: "gh rust lifetimes".
 	Quicklinks []Quicklink `toml:"quicklink,omitempty"`
-	Search     Search      `toml:"search"`
+	// CheckUpdates lets the launcher ask GitHub once a day whether a newer release exists. Off unless
+	// the user turns it on, because it is a request to a server the user did not name.
+	CheckUpdates bool   `toml:"check_updates,omitempty"`
+	Search       Search `toml:"search"`
 	// Sidecar is the retired [sidecar] table (where the engine lived in the repository). Load reads
 	// it so old files still open and then clears it, so it is never written back.
 	Sidecar *retiredSidecar `toml:"sidecar,omitempty"`

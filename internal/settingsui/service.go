@@ -5,15 +5,18 @@
 package settingsui
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"agi/internal/config"
 	"agi/internal/enginesetup"
 	"agi/internal/indexing"
 	"agi/internal/settings"
+	"agi/internal/update"
 )
 
 // Setup is the installer of file search as the service uses it; *enginesetup.Manager satisfies it.
@@ -31,6 +34,12 @@ type Indexing interface {
 	Resume()
 	Status() indexing.Status
 	Folders() []indexing.FolderStatus
+}
+
+// Updates is the update checker as the service uses it; *update.Checker satisfies it.
+type Updates interface {
+	Check(ctx context.Context) (update.Release, bool, error)
+	Found() (update.Release, bool)
 }
 
 // Options are the parts of the launcher the service needs; main supplies them.
@@ -52,6 +61,9 @@ type Options struct {
 	// Autostart says whether the launcher starts when the user signs in; SetAutostart changes that.
 	Autostart    func() bool
 	SetAutostart func(on bool) error
+	// Updates asks whether a newer release exists; OpenURL opens an address in the user's browser.
+	Updates Updates
+	OpenURL func(address string) error
 	// Open opens (or brings forward) the settings window.
 	Open func()
 	// Engine reports the file-search engine's state and message, for the diagnostics.
@@ -79,6 +91,8 @@ type View struct {
 	FileSearch    bool
 	Pace          string
 	Autostart     bool
+	CheckUpdates  bool
+	UpdateFound   string // the version of a newer release the last check saw, or ""
 	ConfigPath    string
 	LogDir        string
 	Version       string
@@ -90,7 +104,7 @@ func (s *Service) View() View {
 	return View{
 		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
-		Autostart:  s.o.Autostart(),
+		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, UpdateFound: s.updateFound(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
 	}
 }
@@ -129,6 +143,45 @@ func (s *Service) SetAutostart(on bool) string {
 		return err.Error()
 	}
 	return ""
+}
+
+func (s *Service) updateFound() string {
+	rel, _ := s.o.Updates.Found()
+	return rel.Version
+}
+
+// SetCheckUpdates turns the daily update check on or off.
+func (s *Service) SetCheckUpdates(on bool) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.CheckUpdates = on }))
+}
+
+// UpdateView is what a check found: the newest release, whether it is newer than this build, or why
+// the check failed.
+type UpdateView struct {
+	Latest    string
+	Available bool
+	Error     string
+}
+
+// CheckUpdate asks GitHub for the newest release now.
+func (s *Service) CheckUpdate() UpdateView {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	rel, newer, err := s.o.Updates.Check(ctx)
+	if err != nil {
+		return UpdateView{Error: err.Error()}
+	}
+	return UpdateView{Latest: rel.Version, Available: newer}
+}
+
+// OpenUpdate opens the page of the newer release the last check found. The address comes from that
+// check, never from the window.
+func (s *Service) OpenUpdate() string {
+	rel, ok := s.o.Updates.Found()
+	if !ok {
+		return "there is no newer release to open"
+	}
+	return reason(s.o.OpenURL(rel.URL))
 }
 
 // SaveQuicklinks replaces the quicklinks.

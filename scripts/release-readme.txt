@@ -11,6 +11,8 @@ STARTING IT
      by the clock). The first time it starts it opens Settings so you can see the hotkey.
   3. Press Alt+Shift+Space to open the bar. Settings > General changes the hotkey, and says
      so if another program already owns the one you pick.
+  4. Settings > General > "Start when I sign in" makes it start with Windows. It remembers where
+     agi.exe is; if you move the file, switch that off and on again.
 
 WHAT TO TRY
 
@@ -52,9 +54,11 @@ WHERE THINGS ARE
   Index           %LOCALAPPDATA%\AGI\memory      (what file search has indexed)
   Quit            right-click the icon in the notification area, then Quit
   Remove it all   quit it, delete this folder, then delete the folders above.
-  The program has no telemetry and does not check for updates. Besides the downloads of file
-  search it only touches the network when you open a web search or a link, and then your browser
-  does it.
+  The program has no telemetry. Besides the downloads of file search it only touches the network
+  when you open a web search or a link (your browser does that), and when you ask about updates:
+  Settings > About > "Check for updates", or "Check once a day" if you turn it on (off by default).
+  That request goes to api.github.com, asks for the latest version number and sends nothing else.
+  A new version is downloaded by you from its release page; replace agi.exe with the new one.
 
 NOT HERE YET
 

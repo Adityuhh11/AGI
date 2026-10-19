@@ -149,17 +149,6 @@
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
 
 <style>
-  .check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text);
-    font: 560 13px/1.2 var(--sans);
-    cursor: pointer;
-  }
-  .check input {
-    accent-color: var(--text-2);
-  }
   .keyrow {
     display: flex;
     align-items: center;

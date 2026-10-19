@@ -1,6 +1,7 @@
 package settingsui
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"agi/internal/enginesetup"
 	"agi/internal/indexing"
 	"agi/internal/settings"
+	"agi/internal/update"
 )
 
 // fakeSetup plays the installer: it is installed or not, and says what it was asked to do.
@@ -39,15 +41,37 @@ func (f *fakeIndexing) Resume()                          { f.paused = false; f.s
 func (f *fakeIndexing) Status() indexing.Status          { return f.status }
 func (f *fakeIndexing) Folders() []indexing.FolderStatus { return f.folders }
 
+// fakeUpdates plays the update checker.
+type fakeUpdates struct {
+	rel    update.Release
+	newer  bool
+	err    error
+	looked bool
+}
+
+func (f *fakeUpdates) Check(context.Context) (update.Release, bool, error) {
+	f.looked = f.newer && f.err == nil
+	return f.rel, f.newer, f.err
+}
+
+func (f *fakeUpdates) Found() (update.Release, bool) {
+	if f.looked {
+		return f.rel, true
+	}
+	return update.Release{}, false
+}
+
 type harness struct {
-	index   *fakeIndexing
-	setup   *fakeSetup
-	svc     *Service
-	store   *settings.Store
-	hotkeys []string // every accelerator Rebind was asked for, in order
-	picked  string
-	opened  string
-	startup bool
+	updates   *fakeUpdates
+	openedURL string
+	index     *fakeIndexing
+	setup     *fakeSetup
+	svc       *Service
+	store     *settings.Store
+	hotkeys   []string // every accelerator Rebind was asked for, in order
+	picked    string
+	opened    string
+	startup   bool
 }
 
 func newHarness(t *testing.T, refuse ...string) *harness {
@@ -56,7 +80,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}}
+	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
@@ -74,6 +98,8 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 		Browsers:     func() []string { return []string{"chrome"} },
 		OpenFolder:   func(p string) error { h.opened = p; return nil },
 		Engine:       func() (string, string) { return "off", "" },
+		Updates:      h.updates,
+		OpenURL:      func(a string) error { h.openedURL = a; return nil },
 		Autostart:    func() bool { return h.startup },
 		SetAutostart: func(on bool) error { h.startup = on; return nil },
 		LogDir:       `C:\logs`,
@@ -317,5 +343,42 @@ func TestAutostartIsShownAndChanged(t *testing.T) {
 	}
 	if msg := h.svc.SetAutostart(true); msg != "" || !h.svc.View().Autostart {
 		t.Fatalf("turned on: message %q, view %v", msg, h.svc.View().Autostart)
+	}
+}
+
+func TestUpdateCheckReportsWhatGitHubSaid(t *testing.T) {
+	h := newHarness(t)
+	h.updates.rel, h.updates.newer = update.Release{Version: "0.3.0", URL: "https://github.com/Adityuhh11/AGI/releases/tag/v0.3.0"}, true
+	if got := h.svc.CheckUpdate(); !got.Available || got.Latest != "0.3.0" || got.Error != "" {
+		t.Fatalf("got %+v", got)
+	}
+	if got := h.svc.View().UpdateFound; got != "0.3.0" {
+		t.Fatalf("the page would not show the update it was just told about: %q", got)
+	}
+	h.updates.err = errors.New("no network")
+	if got := h.svc.CheckUpdate(); got.Error == "" || got.Available {
+		t.Fatalf("a failed check looked like %+v", got)
+	}
+}
+
+func TestOpenUpdateOpensOnlyWhatACheckFound(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.OpenUpdate(); msg == "" || h.openedURL != "" {
+		t.Fatalf("opened %q although nothing was found (message %q)", h.openedURL, msg)
+	}
+	h.updates.rel, h.updates.newer = update.Release{Version: "0.3.0", URL: "https://example.test/release"}, true
+	h.svc.CheckUpdate()
+	if msg := h.svc.OpenUpdate(); msg != "" || h.openedURL != "https://example.test/release" {
+		t.Fatalf("message %q, opened %q", msg, h.openedURL)
+	}
+}
+
+func TestCheckUpdatesIsSavedAndStartsOff(t *testing.T) {
+	h := newHarness(t)
+	if h.svc.View().CheckUpdates {
+		t.Fatal("the update check is on before anyone asked for it")
+	}
+	if msg := h.svc.SetCheckUpdates(true); msg != "" || !h.store.Get().CheckUpdates {
+		t.Fatalf("message %q, saved %v", msg, h.store.Get().CheckUpdates)
 	}
 }

@@ -121,6 +121,17 @@
     color: var(--text);
     font: 560 13px/1.2 var(--sans);
   }
+  main :global(.check) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font: 560 13px/1.2 var(--sans);
+    cursor: pointer;
+  }
+  main :global(.check input) {
+    accent-color: var(--text-2);
+  }
   main :global(.help) {
     margin: 0;
     color: var(--text-3);
