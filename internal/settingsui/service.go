@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"agi/internal/clipboard"
 	"agi/internal/config"
 	"agi/internal/enginesetup"
 	"agi/internal/indexing"
@@ -34,6 +35,13 @@ type Indexing interface {
 	Resume()
 	Status() indexing.Status
 	Folders() []indexing.FolderStatus
+}
+
+// ClipboardHistory is the clipboard history as the service uses it; *clipboard.Manager satisfies it.
+type ClipboardHistory interface {
+	Len() int
+	Path() string
+	Clear() error
 }
 
 // Updates is the update checker as the service uses it; *update.Checker satisfies it.
@@ -61,6 +69,8 @@ type Options struct {
 	// Autostart says whether the launcher starts when the user signs in; SetAutostart changes that.
 	Autostart    func() bool
 	SetAutostart func(on bool) error
+	// Clipboard is the history of what was copied.
+	Clipboard ClipboardHistory
 	// Updates asks whether a newer release exists; OpenURL opens an address in the user's browser.
 	Updates Updates
 	OpenURL func(address string) error
@@ -380,3 +390,41 @@ func (s *Service) PauseIndexing() { s.o.Indexing.Pause() }
 
 // ResumeIndexing lets indexing go on.
 func (s *Service) ResumeIndexing() { s.o.Indexing.Resume() }
+
+// ClipboardView is the Clipboard page: whether the history is on, how much it holds, and the programs it leaves out.
+type ClipboardView struct {
+	Enabled bool
+	Count   int
+	// Ignore are the programs the user added; Defaults are the password managers always left out.
+	Ignore   []string
+	Defaults []string
+	File     string
+}
+
+// Clipboard returns the Clipboard page.
+func (s *Service) Clipboard() ClipboardView {
+	c := s.o.Store.Get().Clipboard
+	return ClipboardView{
+		Enabled: c.Enabled, Count: s.o.Clipboard.Len(), Ignore: c.Ignore,
+		Defaults: clipboard.DefaultIgnore, File: s.o.Clipboard.Path(),
+	}
+}
+
+// SaveClipboard switches the history on or off and sets the programs it leaves out (blank lines are dropped).
+func (s *Service) SaveClipboard(enabled bool, ignore []string) string {
+	var programs []string
+	for _, name := range ignore {
+		if name = strings.TrimSpace(name); name != "" {
+			programs = append(programs, name)
+		}
+	}
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Clipboard = config.Clipboard{Enabled: enabled, Ignore: programs} }))
+}
+
+// ClearClipboard forgets everything the history holds.
+func (s *Service) ClearClipboard() string {
+	if err := s.o.Clipboard.Clear(); err != nil {
+		return err.Error()
+	}
+	return ""
+}

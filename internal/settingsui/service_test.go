@@ -61,7 +61,15 @@ func (f *fakeUpdates) Found() (update.Release, bool) {
 	return update.Release{}, false
 }
 
+// fakeHistory plays the clipboard history.
+type fakeHistory struct{ count, cleared int }
+
+func (f *fakeHistory) Len() int     { return f.count }
+func (f *fakeHistory) Path() string { return "C:/cache/clipboard.json" }
+func (f *fakeHistory) Clear() error { f.count = 0; f.cleared++; return nil }
+
 type harness struct {
+	history   *fakeHistory
 	updates   *fakeUpdates
 	openedURL string
 	index     *fakeIndexing
@@ -80,7 +88,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}}
+	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, history: &fakeHistory{count: 3}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
@@ -98,6 +106,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 		Browsers:     func() []string { return []string{"chrome"} },
 		OpenFolder:   func(p string) error { h.opened = p; return nil },
 		Engine:       func() (string, string) { return "off", "" },
+		Clipboard:    h.history,
 		Updates:      h.updates,
 		OpenURL:      func(a string) error { h.openedURL = a; return nil },
 		Autostart:    func() bool { return h.startup },
@@ -380,5 +389,34 @@ func TestCheckUpdatesIsSavedAndStartsOff(t *testing.T) {
 	}
 	if msg := h.svc.SetCheckUpdates(true); msg != "" || !h.store.Get().CheckUpdates {
 		t.Fatalf("message %q, saved %v", msg, h.store.Get().CheckUpdates)
+	}
+}
+
+func TestTheClipboardPageShowsTheSwitchTheCountAndWhatIsLeftOut(t *testing.T) {
+	h := newHarness(t)
+	v := h.svc.Clipboard()
+	if v.Enabled || v.Count != 3 || len(v.Ignore) != 0 || len(v.Defaults) == 0 || v.File == "" {
+		t.Fatalf("a fresh install's page: %+v (the history is off, the defaults are listed)", v)
+	}
+}
+
+func TestSavingTheClipboardSettingsKeepsTrimmedNamesAndDropsBlankLines(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.SaveClipboard(true, []string{" MyVault.exe ", "", "  ", "Notepad"}); msg != "" {
+		t.Fatal(msg)
+	}
+	got := h.store.Get().Clipboard
+	if !got.Enabled || strings.Join(got.Ignore, "|") != "MyVault.exe|Notepad" {
+		t.Fatalf("saved %+v", got)
+	}
+	if msg := h.svc.SaveClipboard(false, nil); msg != "" || h.store.Get().Clipboard.Enabled {
+		t.Fatalf("switching off: %q, %+v", msg, h.store.Get().Clipboard)
+	}
+}
+
+func TestClearingTheClipboardForgetsEverything(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.ClearClipboard(); msg != "" || h.history.cleared != 1 || h.svc.Clipboard().Count != 0 {
+		t.Fatalf("message %q, cleared %d, count %d", msg, h.history.cleared, h.svc.Clipboard().Count)
 	}
 }

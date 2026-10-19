@@ -248,6 +248,7 @@ func run() error {
 			},
 			Browsers:     web.Installed,
 			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			Clipboard:    clips,
 			Updates:      checker,
 			OpenURL:      browser.Open,
 			Open:         settingsWindow.Open,
