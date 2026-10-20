@@ -219,7 +219,9 @@ def test_index_options_are_applied_and_a_bad_one_is_a_422(api, folder):
 
     def sync(options):
         job_id = api.post("/sources", json={**body, "options": options}).json()["job_id"]
-        return wait_for(lambda: (j := api.get(f"/jobs/{job_id}").json())["state"] != "running" and j)
+        return wait_for(
+            lambda: (j := api.get(f"/jobs/{job_id}").json())["state"] != "running" and j
+        )
 
     assert sync({"photos": "name"})["report"]["added"] == 4
     report = sync({"photos": "content", "pdf_pages": "text", "videos": "content"})["report"]
