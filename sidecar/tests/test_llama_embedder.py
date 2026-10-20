@@ -107,12 +107,14 @@ def test_images_are_resized_to_what_the_models_own_processor_gives(fake, tmp_pat
     assert uri.startswith("data:image/png;base64,")
 
 
-def test_images_go_in_batches_and_come_back_in_order(fake, tmp_path):
-    embedder, _ = make(fake, tmp_path, image_batch_size=2)
+def test_images_go_one_per_request_and_come_back_in_order(fake, tmp_path):
+    embedder, _ = make(fake, tmp_path)
     images = [Image.new("RGB", (200 + 50 * i, 300), (i * 40, 10, 10)) for i in range(5)]
     got = embedder.embed_images(images)
     assert got.shape == (5, 768)
-    assert [len(body["input"]) for _, body in fake.requests] == [2, 2, 1]
+    assert [len(body["input"]) for _, body in fake.requests] == [1] * 5
+    alone = [embedder.embed_images([image])[0] for image in images]
+    assert np.allclose(got, np.stack(alone), atol=1e-6)
 
 
 def test_a_smaller_dimension_keeps_the_first_values_and_renormalises(fake, tmp_path):

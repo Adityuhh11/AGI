@@ -23,7 +23,9 @@ if TYPE_CHECKING:
 
 
 class SerializedEmbedder:
-    def __init__(self, inner: Embedder, *, text_slice: int = 4, image_slice: int = 1) -> None:
+    # Two images per slice: `LlamaEmbedder` has two in flight at once, so a query still waits for
+    # about one image's time.
+    def __init__(self, inner: Embedder, *, text_slice: int = 4, image_slice: int = 2) -> None:
         self._inner = inner
         self._text_slice = text_slice
         self._image_slice = image_slice

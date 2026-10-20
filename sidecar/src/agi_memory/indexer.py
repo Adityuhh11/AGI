@@ -3,16 +3,17 @@
 Flow for one `sync`: scan the folder, diff against the files the store already knows, remove what
 disappeared, then for every new or changed file read it once, hash it and chunk it. Text chunks
 from many small files are embedded together (one GPU call has a ~200 ms fixed cost, so one call
-per file would dominate indexing time); PDFs and images are embedded per file because they are
-heavy and rendered lazily. Each file lands in the store atomically (`FlatStore.replace_file`).
+per file would dominate indexing time), and so are image files, a few at a time, so the embedder
+can keep two in flight; PDFs are embedded per file because their pages are rendered lazily. Each
+file lands in the store atomically (`FlatStore.replace_file`).
 
 Failure policy: a file that cannot be read, chunked or rendered, whatever the reason, is recorded
 in the report and skipped, so one bad file never costs the rest of the folder. Files that are
 plainly bad (unreadable, corrupt) are skipped however many there are; but a run of
 `MAX_CONSECUTIVE_FAILURES` files in a row that fail in unexpected ways means the cause is not the
 files (a failing GPU or disk), and the sync aborts with the last error. A failure while embedding
-a batch of text chunks or writing to the store aborts at once. Everything committed so far stays
-valid, and the next sync continues from there because file records are written last.
+a batch of text chunks or images, or writing to the store, aborts at once. Everything committed so
+far stays valid, and the next sync continues from there because file records are written last.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+from PIL.Image import Image
 
 from agi_memory.chunking.common import ChunkingError
 from agi_memory.chunking.image import image_chunk, load_image
@@ -71,6 +73,14 @@ class _Pending:
     record: FileRecord
     chunks: list[Chunk]
     is_new: bool
+
+
+@dataclass(slots=True)
+class _PendingImage:
+    record: FileRecord
+    chunk: Chunk
+    is_new: bool
+    image: Image
 
 
 class Indexer:
@@ -121,11 +131,14 @@ class Indexer:
         donors = self._donors(known, gone, scanned.files)
 
         pending: list[_Pending] = []
+        images: list[_PendingImage] = []
         total = len(scanned.files)
         failures = 0  # files in a row that failed
         for number, file in enumerate(scanned.files, start=1):
             try:
-                self._index_file(source_id, file, known.get(file.uri), report, pending, donors)
+                self._index_file(
+                    source_id, file, known.get(file.uri), report, pending, images, donors
+                )
                 failures = 0
             except NotTextError:
                 report.unsupported += 1
@@ -140,9 +153,12 @@ class Indexer:
                     raise
             if sum(len(item.chunks) for item in pending) >= self._settings.flush_chunks:
                 self._flush(pending, report)
+            if len(images) >= self._settings.image_batch_size:
+                self._flush_images(images, report)
             if on_progress is not None:
                 on_progress(number, total)
         self._flush(pending, report)
+        self._flush_images(images, report)
         # After the files above, so a moved file's old chunks were still there to take vectors from.
         report.removed = self._store.remove_files(source_id, gone)
         self._store.mark_scanned(source_id, self._clock())
@@ -178,6 +194,7 @@ class Indexer:
         known: FileRecord | None,
         report: SyncReport,
         pending: list[_Pending],
+        images: list[_PendingImage],
         donors: dict[str, str],
     ) -> None:
         if known is not None and known.size == file.size and known.mtime_ns == file.mtime_ns:
@@ -200,7 +217,17 @@ class Indexer:
         elif file.route is Route.PDF:
             self._index_pdf(record, data, file.mtime_ns, is_new, report, donor)
         else:
-            self._index_image(record, data, file.mtime_ns, is_new, report, donor)
+            self._index_image(record, data, file.mtime_ns, is_new, report, donor, images)
+
+    def _flush_images(self, images: list[_PendingImage], report: SyncReport) -> None:
+        """Embed the pending image files in one call (the embedder keeps two in flight), then
+        store each one."""
+        if not images:
+            return
+        vectors = self._embedder.embed_images([item.image for item in images])
+        for item, vector in zip(images, vectors, strict=True):
+            self._commit(item.record, [item.chunk], vector[None, :], item.is_new, report)
+        images.clear()
 
     def _flush(self, pending: list[_Pending], report: SyncReport) -> None:
         """Embed every pending text chunk in one call, then store each file atomically."""
@@ -293,6 +320,7 @@ class Indexer:
         is_new: bool,
         report: SyncReport,
         donor: str | None,
+        images: list[_PendingImage],
     ) -> None:
         chunk = image_chunk(record.source_id, record.uri, record.sha256, mtime_ns)
         stored = (
@@ -303,4 +331,4 @@ class Indexer:
             self._commit(record, [chunk], stored[chunk.locator][None, :], is_new, report)
             return
         image = load_image(data, self._settings.image_max_side)
-        self._commit(record, [chunk], self._embedder.embed_images([image]), is_new, report)
+        images.append(_PendingImage(record, chunk, is_new, image))
