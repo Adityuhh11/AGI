@@ -88,11 +88,15 @@ class LlamaEmbedder:
         llama-server closes an idle keep-alive connection after a few seconds, so a failure on the
         first try is most likely that: connect again. A second failure means the server is gone:
         start it again (its url and API key change, so the request is built afresh) and try once
-        more. Two image workers can find it gone at once; only the first restarts it.
+        more. Two image workers can find it gone at once; only the first restarts it, and the other
+        waits for that restart to finish before it reads the new address and key.
         """
         payload = json.dumps(body).encode()
         for attempt in range(3):
-            url, key = self._server.url, self._server.api_key
+            # Under the restart lock: a worker that arrives while the other restarts the server
+            # waits for it to be healthy, instead of meeting it half loaded or restarting it twice.
+            with self._restarting:
+                url, key = self._server.url, self._server.api_key
             headers = {"Content-Type": "application/json", "Authorization": "Bearer " + key}
             conn: http.client.HTTPConnection | None = getattr(self._local, "conn", None)
             try:

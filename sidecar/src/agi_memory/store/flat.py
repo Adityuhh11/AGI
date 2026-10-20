@@ -324,14 +324,21 @@ class FlatStore:
     def mark_scanned(
         self, source_id: str, scanned_ns: int, options: IndexOptions | None = None
     ) -> None:
-        """Record a finished sync, and the options it applied."""
+        """Record a finished sync: the options it applied, with nothing left to redo."""
         with self._lock:
             self._catalog.mark_scanned(source_id, scanned_ns)
             if options is not None:
                 self._catalog.set_source_options(source_id, options)
 
-    def source_options(self, source_id: str) -> IndexOptions | None:
-        """The options of the source's last finished sync; None if none was recorded."""
+    def begin_options(self, source_id: str, options: IndexOptions, redo: Collection[str]) -> None:
+        """Record, before a sync touches any file, the options it applies and the kinds of file
+        (routes) it must redo, so a sync that stops part-way leaves them to the next one."""
+        with self._lock:
+            self._catalog.set_source_options(source_id, options, redo)
+
+    def source_options(self, source_id: str) -> tuple[IndexOptions, frozenset[str]] | None:
+        """The options the source is indexed with and the kinds of file still to redo under them;
+        None if none were ever recorded (an index from before the options)."""
         with self._lock:
             return self._catalog.source_options(source_id)
 
@@ -366,21 +373,23 @@ class FlatStore:
     def vectors_of(
         self, source_id: str, uri: str, kinds: Collection[ChunkKind]
     ) -> dict[str, np.ndarray]:
-        """The stored vectors of one file's chunks of the given kinds, keyed by locator.
+        """The stored vectors of one file's chunks of the given kinds, keyed by content hash.
 
         Lets the indexer give an identical file (moved, renamed or copied) the vectors the model
-        already computed for it instead of computing them again.
+        already computed for it instead of computing them again. The content hash, not the
+        locator, is the key because it says what the vector was computed from: a photo embedded
+        from its name and the same photo embedded from its pixels share a locator, not a hash.
         """
         marks = ",".join("?" * len(kinds))
         query = (
-            "SELECT locator, vec_row FROM chunks "
+            "SELECT content_hash, vec_row FROM chunks "
             f"WHERE source_id = ? AND uri = ? AND kind IN ({marks})"
         )
         with self._lock:
             rows = self._db.execute(
                 query, [source_id, uri, *(kind.value for kind in kinds)]
             ).fetchall()
-            return {locator: self._vectors.read(row) for locator, row in rows}
+            return {content_hash: self._vectors.read(row) for content_hash, row in rows}
 
     def vectors_for(self, ids: Sequence[str]) -> dict[str, np.ndarray]:
         """The stored vectors of the chunks among `ids` that exist, by id.

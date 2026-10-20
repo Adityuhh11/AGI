@@ -46,6 +46,7 @@ class FakeLlama:
         self.requests: list[tuple[str, dict]] = []
         self.client_ports: set[int] = set()
         self.drop_next = 0  # close this many requests without an answer
+        self.loading = False  # answer 503 "Loading model", as the real server does while it starts
         self.image_sizes: list[tuple[int, int]] = []
         owner = self
 
@@ -60,6 +61,8 @@ class FakeLlama:
                 owner.client_ports.add(self.client_address[1])
                 if self.headers.get("Authorization") != "Bearer " + owner.api_key:
                     return self._send(401, {"error": "no"})
+                if owner.loading:
+                    return self._send(503, {"error": "Loading model"})
                 if owner.drop_next > 0:
                     owner.drop_next -= 1
                     self.close_connection = True

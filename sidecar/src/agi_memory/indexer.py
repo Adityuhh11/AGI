@@ -11,17 +11,21 @@ Nothing is embedded twice: a chunk whose id is already stored keeps its vector (
 from everything its embedding is computed from), and a moved, renamed or copied file takes the
 picture vectors of the identical file already indexed.
 
-Index options (`IndexOptions`) say what a PDF page, a photo and a video become. The options of a
-source's last finished sync are stored; when they change, every file of the kinds concerned is
-processed again, even if it did not change on disk, and the reuse above makes that cheap.
+Index options (`IndexOptions`) say what a PDF page, a photo and a video become. When they change,
+every file of the kinds concerned is processed again, even if it did not change on disk, and the
+reuse above makes that cheap. The options and the kinds still to redo are stored before the first
+file is touched and the redo is cleared when the sync finishes, so a sync that stops part-way
+(and options changed back meanwhile) never leaves files in the wrong mode.
 
 Failure policy: a file that cannot be read, chunked or rendered, whatever the reason, is recorded
 in the report and skipped, so one bad file never costs the rest of the folder. Files that are
 plainly bad (unreadable, corrupt) are skipped however many there are; but a run of
 `MAX_CONSECUTIVE_FAILURES` files in a row that fail in unexpected ways means the cause is not the
-files (a failing GPU or disk), and the sync aborts with the last error. A failure while embedding
-a batch of text chunks or images, or writing to the store, aborts at once. Everything committed so
-far stays valid, and the next sync continues from there because file records are written last.
+files (a failing GPU or disk), and the sync aborts with the last error. A batch of images that
+fails is tried again one picture at a time, so a picture the model refuses is that file's error;
+all of them failing, a failure while embedding a batch of text chunks, or a failure writing to the
+store aborts at once. Everything committed so far stays valid, and the next sync continues from
+there because file records are written last.
 """
 
 from __future__ import annotations
@@ -58,7 +62,7 @@ def _title(uri: str) -> str:
 
 def _changed_routes(before: IndexOptions, now: IndexOptions) -> frozenset[Route]:
     """The kinds of file whose chunks depend on an option that changed."""
-    changed = set()
+    changed: set[Route] = set()
     if before.pdf_pages != now.pdf_pages:
         changed.add(Route.PDF)
     if before.photos != now.photos:
@@ -161,18 +165,16 @@ class Indexer:
         report.errors.extend(FileError(uri, message) for uri, message in scanned.unreadable)
         self._store.register_source(source_id, str(root))
         known = self._store.file_records(source_id)
-        before = self._store.source_options(source_id) or LEGACY_OPTIONS
+        before, unfinished = self._store.source_options(source_id) or (LEGACY_OPTIONS, frozenset())
+        # Kinds whose option changed, plus those an interrupted sync left half done: recorded
+        # before any file is touched, so stopping part-way never strands files in the wrong mode.
+        redo = _changed_routes(before, options) | {Route(route) for route in unfinished}
+        self._store.begin_options(source_id, options, redo)
 
         on_disk = {file.uri for file in scanned.files}
         protected = tuple(prefix for prefix, _ in scanned.unreadable)  # could not look in there
         gone = [u for u in sorted(known) if u not in on_disk and not u.startswith(protected)]
-        run = _Run(
-            source_id,
-            options,
-            _changed_routes(before, options),
-            self._donors(known, gone, scanned.files),
-            report,
-        )
+        run = _Run(source_id, options, redo, self._donors(known, gone, scanned.files), report)
 
         total = len(scanned.files)
         failures = 0  # files in a row that failed
@@ -262,10 +264,34 @@ class Indexer:
         store each one."""
         if not run.images:
             return
-        vectors = self._embedder.embed_images([item.image for item in run.images])
-        for item, vector in zip(run.images, vectors, strict=True):
+        images, run.images = run.images, []
+        try:
+            vectors = self._embedder.embed_images([item.image for item in images])
+            done = list(zip(images, vectors, strict=True))
+        except Exception:
+            done = self._images_one_by_one(run, images)
+        for item, vector in done:
             self._commit(run, item.record, [item.chunk], vector[None, :], item.is_new)
-        run.images.clear()
+
+    def _images_one_by_one(
+        self, run: _Run, images: list[_PendingImage]
+    ) -> list[tuple[_PendingImage, np.ndarray]]:
+        """After a batch failed: one picture the server refuses must not cost the others, so each
+        is embedded alone and a refused one is that file's error. When several were tried and all
+        failed, the cause is not the pictures (the GPU or the server): that aborts the sync."""
+        done: list[tuple[_PendingImage, np.ndarray]] = []
+        last: Exception | None = None
+        for item in images:
+            try:
+                done.append((item, self._embedder.embed_images([item.image])[0]))
+            except Exception as error:
+                last = error
+                run.report.errors.append(
+                    FileError(item.record.uri, f"{type(error).__name__}: {error}")
+                )
+        if not done and len(images) > 1 and last is not None:
+            raise last
+        return done
 
     def _flush(self, run: _Run) -> None:
         """Embed every pending text chunk in one call, then store each file atomically."""
@@ -306,20 +332,22 @@ class Indexer:
     ) -> np.ndarray:
         """Vectors for picture chunks (PDF pages, video frames), in order. A picture's vector comes
         from its pixels alone, so the file's own stored chunks and an identical file's (`donor`,
-        matched by locator) are reused; `draw` makes the pictures of the rest, a batch at a time,
-        so a long file never sits in memory as bitmaps."""
+        matched by content hash) are reused; `draw` makes the pictures of the rest, a batch at a
+        time, so a long file never sits in memory as bitmaps."""
         stored = self._store.vectors_for([chunk.id for chunk in chunks])
         reuse = self._store.vectors_of(record.source_id, donor, (kind,)) if donor else {}
         vectors = np.zeros((len(chunks), self._embedder.dim), dtype=np.float32)
         missing = []
+        reused = False
         for index, chunk in enumerate(chunks):
             if chunk.id in stored:
                 vectors[index] = stored[chunk.id]
-            elif chunk.locator in reuse:
-                vectors[index] = reuse[chunk.locator]
+            elif chunk.content_hash in reuse:
+                vectors[index] = reuse[chunk.content_hash]
+                reused = True
             else:
                 missing.append(index)
-        if reuse:
+        if reused:
             run.report.reused += 1
         step = self._settings.image_batch_size
         for start in range(0, len(missing), step):
@@ -382,9 +410,9 @@ class Indexer:
         stored = (
             self._store.vectors_of(record.source_id, donor, (ChunkKind.IMAGE,)) if donor else {}
         )
-        if chunk.locator in stored:  # the same picture: its vector is already known
+        if chunk.content_hash in stored:  # the same picture, embedded the same way
             run.report.reused += 1
-            self._commit(run, record, [chunk], stored[chunk.locator][None, :], is_new)
+            self._commit(run, record, [chunk], stored[chunk.content_hash][None, :], is_new)
             return
         image = load_image(data, self._settings.image_max_side)
         run.images.append(_PendingImage(record, chunk, is_new, image))

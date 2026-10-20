@@ -14,7 +14,6 @@ from types import TracebackType
 from typing import Self
 
 import av
-from av.error import FFmpegError
 from PIL.Image import Image
 
 from agi_memory.chunking.common import ChunkingError, locator_json, sha256_hex
@@ -39,19 +38,37 @@ class Video:
     """An open video file. Use as a context manager so the decoder is always released."""
 
     def __init__(self, path: Path) -> None:
+        # Any failure to open is this file's problem (an odd container, metadata in a legacy
+        # encoding, whatever the decoder raises), so it is a ChunkingError and the video keeps its
+        # name chunk.
         try:
             self._container = av.open(str(path))
-            if not self._container.streams.video:
-                raise ChunkingError("the file has no video stream")
-            self._stream = self._container.streams.video[0]
-        except FFmpegError as error:
+        except Exception as error:
             raise ChunkingError(f"unreadable video: {error}") from error
-        except ChunkingError:
+        if not self._container.streams.video:
             self._container.close()
-            raise
+            raise ChunkingError("the file has no video stream")
+        self._stream = self._container.streams.video[0]
         self._stream.thread_type = "AUTO"
-        duration = self._container.duration
-        self.duration = 0.0 if duration is None else duration / av.time_base  # seconds
+        self.duration = self._length()  # seconds
+
+    def _length(self) -> float:
+        """The video stream's own length: the container's can include a longer audio track, and
+        frames asked for past the last picture would not exist. Containers that do not record it
+        per stream (Matroska) are measured: seek to the end and read the last frame's time."""
+        stream, container = self._stream, self._container
+        if stream.duration is not None and stream.time_base is not None:
+            return float(stream.duration * stream.time_base)
+        whole = 0.0 if container.duration is None else container.duration / av.time_base
+        try:
+            if stream.time_base:
+                container.seek(int(whole / stream.time_base), stream=stream, backward=True)
+            last = max(
+                (f.time for f in container.decode(stream) if f.time is not None), default=None
+            )
+        except Exception:  # unmeasurable: the container's length is the best there is
+            return whole
+        return whole if last is None else min(whole, last)
 
     def __enter__(self) -> Self:
         return self
@@ -71,19 +88,26 @@ class Video:
         return list(dict.fromkeys(times))
 
     def frame(self, seconds: float, max_side: int) -> Image:
-        """The first frame at or after `seconds`, as an RGB picture no larger than `max_side`."""
+        """The first frame at or after `seconds` (or the last one, when the pictures end before
+        `seconds`), as an RGB picture no larger than `max_side`."""
         try:
             time_base = self._stream.time_base
             target = int(seconds / time_base) if time_base else 0
             self._container.seek(target, stream=self._stream, backward=True)
+            last = None
             for frame in self._container.decode(self._stream):
+                last = frame
                 if frame.time is None or frame.time >= seconds - 0.05:
-                    image = frame.to_image().convert("RGB")
-                    image.thumbnail((max_side, max_side))
-                    return image
-        except FFmpegError as error:
+                    break
+            if last is None:
+                raise ChunkingError(f"no frame at {seconds} s")
+            image = last.to_image().convert("RGB")
+        except ChunkingError:
+            raise
+        except Exception as error:  # any decoder failure is this file's problem
             raise ChunkingError(f"cannot decode the frame at {seconds} s: {error}") from error
-        raise ChunkingError(f"no frame at {seconds} s")
+        image.thumbnail((max_side, max_side))
+        return image
 
 
 def video_name_chunk(source_id: str, uri: str, identity: str, mtime_ns: int) -> Chunk:

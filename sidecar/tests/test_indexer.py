@@ -4,6 +4,7 @@ import os
 from collections import Counter
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -343,7 +344,8 @@ def png(colour):
 
 
 def vector_of(store, uri):
-    return store.vectors_of("s", uri, [ChunkKind.IMAGE])["{}"]
+    (vector,) = store.vectors_of("s", uri, [ChunkKind.IMAGE]).values()
+    return vector
 
 
 def test_a_moved_image_keeps_its_vector_and_costs_no_embedding(indexer, store, embedder, root):
@@ -512,23 +514,79 @@ def test_changing_an_option_processes_that_kind_again_and_nothing_else(
     assert embedder.titles == ["beach.png", "notes.md", "beach.png"]
 
 
-def test_options_are_recorded_only_when_a_sync_finishes(indexer, store, root, monkeypatch):
+class RefusingEmbedder(CountingEmbedder):
+    """Plays a server that refuses some pictures: those `refuse` says no to, or all of them."""
+
+    def __init__(self, refuse) -> None:
+        super().__init__()
+        self.refuse = refuse
+
+    def embed_images(self, images):
+        if any(self.refuse(image) for image in images):
+            raise RuntimeError("llama-server answered 500")
+        return super().embed_images(images)
+
+
+def test_a_picture_the_server_refuses_is_that_files_error_and_the_rest_are_indexed(
+    store, settings, root
+):
+    for number, width in enumerate([64, 13, 64, 64]):  # a batch of four, one of them refused
+        path = root / f"p{number}.png"
+        Image.new("RGB", (width, 48), (number * 50, 0, 0)).save(path)
+    refusing = RefusingEmbedder(lambda image: image.size[0] == 13)
+    report = Indexer(store, refusing, settings).sync("s", root)
+    assert [e.uri for e in report.errors] == ["p1.png"]
+    assert "answered 500" in report.errors[0].message
+    assert sorted(store.file_records("s")) == ["p0.png", "p2.png", "p3.png"]
+
+
+def test_when_every_picture_of_a_batch_fails_the_sync_stops(store, settings, root):
+    for number in range(4):
+        Image.new("RGB", (64, 48), (number * 50, 0, 0)).save(root / f"p{number}.png")
+    with pytest.raises(RuntimeError, match="answered 500"):
+        Indexer(store, RefusingEmbedder(lambda image: True), settings).sync("s", root)
+
+
+def test_a_photo_moved_while_switching_to_content_never_inherits_its_name_vector(
+    indexer, store, embedder, root
+):
+    write_png(root / "inbox" / "photo.png")
+    indexer.sync("s", root, options=IndexOptions(photos="name"))
+    by_name = vector_of(store, "inbox/photo.png")
+    (root / "inbox" / "photo.png").rename(root / "kept.png")
+    report = indexer.sync("s", root, options=IndexOptions(photos="content"))
+    assert embedder.image_calls == 1 and report.reused == 0  # embedded from its pixels
+    assert not np.allclose(vector_of(store, "kept.png"), by_name)
+
+
+def test_a_finished_sync_leaves_its_options_and_nothing_to_redo(indexer, store, root):
     write(root, "a.txt", "x")
     assert store.source_options("s") is None
     indexer.sync("s", root, options=IndexOptions(pdf_pages="text"))
-    assert store.source_options("s") == IndexOptions(pdf_pages="text")
-    import agi_memory.indexer as module
+    assert store.source_options("s") == (IndexOptions(pdf_pages="text"), frozenset())
 
-    def broken(*args, **kwargs):
-        raise RuntimeError("the GPU is gone")
 
-    write(root, "a.txt", "changed")
-    for number in range(6):
-        write(root, f"b{number}.txt", "x")
-    monkeypatch.setattr(module, "chunk_text_document", broken)
+def test_a_change_cut_short_and_then_undone_still_puts_every_file_back(
+    indexer, store, root, monkeypatch
+):
+    for name in ("a", "b"):
+        write_png(root / f"{name}.png")
+    indexer.sync("s", root)  # photos by what they show
+    real = store.remove_files
+
+    def cut_short(*args, **kwargs):  # every photo is converted, then the sync stops
+        raise RuntimeError("the computer went to sleep")
+
+    monkeypatch.setattr(store, "remove_files", cut_short)
     with pytest.raises(RuntimeError):
-        indexer.sync("s", root, options=IndexOptions(pdf_pages="all"))
-    assert store.source_options("s") == IndexOptions(pdf_pages="text")
+        indexer.sync("s", root, options=IndexOptions(photos="name"))
+    assert store.source_options("s") == (IndexOptions(photos="name"), {"image"})
+    monkeypatch.setattr(store, "remove_files", real)
+    report = indexer.sync("s", root, options=IndexOptions(photos="content"))  # changed back
+    assert report.updated == 2
+    hashes = {c.content_hash for c in all_chunks(store).values()}
+    assert not any(h.startswith("name:") for h in hashes)  # both by their pixels again
+    assert store.source_options("s") == (IndexOptions(), frozenset())
 
 
 def test_an_index_from_before_the_options_drops_plain_pages_without_embedding_anything(

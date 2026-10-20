@@ -8,6 +8,7 @@ PDF never sits in memory as bitmaps.
 
 from __future__ import annotations
 
+from itertools import islice
 from types import TracebackType
 from typing import Self
 
@@ -81,8 +82,9 @@ class PdfPages:
             try:
                 if any(True for _ in page.get_objects([pdfium_c.FPDF_PAGEOBJ_IMAGE], max_depth=2)):
                     return True
+                # Stop at the first shape past the limit: a map or CAD page has tens of thousands.
                 shapes = page.get_objects([pdfium_c.FPDF_PAGEOBJ_PATH], max_depth=2)
-                return sum(1 for _ in shapes) > _MAX_PLAIN_SHAPES
+                return next(islice(shapes, _MAX_PLAIN_SHAPES, None), None) is not None
             finally:
                 page.close()
         except pdfium.PdfiumError as error:

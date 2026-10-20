@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agi_memory.jobs import JobState
 from agi_memory.pace import MIN_DUTY
-from agi_memory.types import ChunkKind
+from agi_memory.types import ChunkKind, IndexOptions
 
 # Also validated for the path parameter of DELETE /sources/{source_id}.
 SOURCE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
@@ -43,12 +43,21 @@ class SetPace(_Request):
     duty: float = Field(ge=MIN_DUTY, le=1.0)
 
 
-class IndexOptionsIn(_Request):
-    """What to index of each kind of file; see `types.IndexOptions`."""
+_DEFAULT_OPTIONS = IndexOptions()
 
-    pdf_pages: Literal["auto", "all", "text"] = "auto"
-    photos: Literal["content", "name"] = "content"
-    videos: Literal["name", "content"] = "name"
+
+class IndexOptionsIn(_Request):
+    """What to index of each kind of file. The allowed values and the defaults are those of
+    `types.IndexOptions`, which checks them; one it refuses is a 422."""
+
+    pdf_pages: str = _DEFAULT_OPTIONS.pdf_pages
+    photos: str = _DEFAULT_OPTIONS.photos
+    videos: str = _DEFAULT_OPTIONS.videos
+
+    @model_validator(mode="after")
+    def _known_values(self) -> Self:
+        IndexOptions(**self.model_dump())
+        return self
 
 
 class AddSource(_Request):

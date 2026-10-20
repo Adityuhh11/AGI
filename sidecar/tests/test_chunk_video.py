@@ -22,6 +22,25 @@ def test_frames_are_taken_from_the_middle_of_each_part(tmp_path):
     assert first.getpixel((10, 10)) != last.getpixel((10, 10))  # the colour changed over time
 
 
+def test_frames_come_from_the_picture_even_when_the_sound_runs_longer(tmp_path):
+    clip = make_video(tmp_path / "talk.mkv", seconds=2, audio_seconds=6)
+    with Video(clip) as video:
+        assert video.duration == pytest.approx(2.0, abs=0.2)  # the picture's length, not 6 s
+        frames = [video.frame(t, 32) for t in video.frame_times()]
+        assert len(frames) == FRAMES
+        late = video.frame(5.5, 32)  # past the last picture: the last frame, not an error
+    assert late.size == frames[-1].size
+
+
+def test_any_failure_to_open_is_a_chunking_error(tmp_path, monkeypatch):
+    def legacy_metadata(*args, **kwargs):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr("agi_memory.chunking.video.av.open", legacy_metadata)
+    with pytest.raises(ChunkingError, match="unreadable video"):
+        Video(tmp_path / "camera.mp4")
+
+
 def test_a_file_that_is_not_a_video_is_a_chunking_error(tmp_path):
     fake = tmp_path / "fake.mp4"
     fake.write_bytes(b"not a video at all" * 100)
