@@ -34,16 +34,25 @@ WHAT TO TRY
 
 FILE SEARCH (optional, off until you turn it on)
 
-  Finds files by what they contain, not by their names: code, PDF pages, notes, and pictures by
-  what they show ("the diagram with the three boxes"). It is the part of AGI that needs the most
-  from your computer, so it is a choice.
+  Finds files by what they contain, not by their names: code, PDF pages, notes, pictures by what
+  they show ("the diagram with the three boxes") and videos. It is the part of AGI that needs the
+  most from your computer, so it is a choice.
 
   Settings > File search > "Download and turn on".
-  - It downloads about 0.9 GB once, from github.com, pypi.org, files.pythonhosted.org and
+  - It downloads about 1 GB once, from github.com, pypi.org, files.pythonhosted.org and
     huggingface.co, and says so before you press the button. Afterwards AGI makes no network
     calls for it. It took about two minutes on a fast connection.
   - It runs on the graphics card (NVIDIA, AMD or Intel Arc, through Vulkan) and falls back to the
-    processor, which is much slower, if there is none or its driver does not support Vulkan.
+    processor if there is none or its driver does not support Vulkan. On the processor a picture
+    takes about 5 seconds to index instead of a fraction of one; Settings says when that is so.
+  - "What to index" chooses what pictures cost you:
+      PDF pages: "Pages that need it" (the default: scans, slides and pages with pictures or tables
+        are also found by how they look), "Every page" (slowest) or "Words only" (fastest).
+      Photos: by what they show (the default) or by their names only.
+      Videos: by their names (the default) or also by what is in them (eight frames each; type
+        "vid:" to search only videos, and a match says where, e.g. "at 1:23").
+    On a computer without a graphics card, "Words only" and names are the quick choices. Changing
+    one later redoes only that kind of file, and nothing already indexed is computed again.
   - Add the folders you want searched, one at a time (Settings > File search > Add folder).
     Nothing is read until you do.
   - Indexing runs in the background. Pick how hard it works: Fast, Balanced (the default, about
@@ -53,6 +62,9 @@ FILE SEARCH (optional, off until you turn it on)
   - "Turn off" stops it and keeps the files. "Delete downloaded files" removes the engine and the
     models (about 1.1 GB on disk) and keeps the index, which works again after turning it on.
   - A new version of AGI may come with a newer search engine; Settings offers an Update button.
+    (0.5.0 does: press it once after updating from 0.4.0, so videos can be indexed.)
+  - A folder that shows "Nothing here AGI can read" may be one Windows moved: with OneDrive's
+    backup on, Documents, Desktop and Pictures live under the OneDrive folder. Settings says where.
 
 WHERE THINGS ARE
 
@@ -73,8 +85,8 @@ WHERE THINGS ARE
 
 NOT HERE YET
 
-  Window management, system commands, searching Office files and videos by their content (they are
-  found by name only), images in the clipboard history.
+  Window management, system commands, searching Office files, what is said in a video (only what
+  is seen), images in the clipboard history.
 
 WHAT I WOULD LIKE TO KNOW
 
