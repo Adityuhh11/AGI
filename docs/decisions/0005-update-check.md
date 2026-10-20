@@ -1,6 +1,7 @@
-# 0005: Update check, opt-in, no self-install
+# 0005: Update check, opt-in; installing is a button the person presses
 
-Status: accepted, 2026-10-19.
+Status: accepted, 2026-10-19. Amended 2026-10-20: the program can now install the update when its person presses the button
+(see the end of this note and `superpowers/specs/2026-10-20-one-click-update-design.md`).
 
 ## Context
 
@@ -10,7 +11,7 @@ except calls to a configured LLM provider, and that there is no telemetry.
 
 ## Decision
 
-- **Ask, never install.** `internal/update` asks `api.github.com/repos/Adityuhh11/AGI/releases/latest`
+- **Ask.** (Installing was added on 2026-10-20, below.) `internal/update` asks `api.github.com/repos/Adityuhh11/AGI/releases/latest`
   for the newest release and compares its tag with the build's version. When it is newer, Settings >
   About says so and opens the release page; the tray shows "Update available". The person downloads and
   replaces the file.
@@ -41,3 +42,21 @@ except calls to a configured LLM provider, and that there is no telemetry.
 - GitHub allows 60 anonymous requests an hour per address; one a day is far below that.
 - Moving `agi.exe` breaks nothing here, but "Start when I sign in" remembers the path (see
   `internal/autostart`) and must be switched off and on again.
+
+## Amendment, 2026-10-20: one-click install
+
+The person asked for the update to be installable from About. Built as the spec says: **a button the person presses, never
+automatic**. "Update to X" downloads the release's zip from this project's releases only, checks it against the SHA-256 GitHub
+publishes for the file (nothing is installed without one), takes the file named `agi.exe` out of it, renames the running
+program to `agi.exe.old`, puts the new one in its place (undoing the first rename if the second fails), and starts it with
+`--wait-for <pid>`; it waits for the old launcher to end (a second launcher while the first runs would only hand over and exit),
+deletes `agi.exe.old` and opens Settings on About. The program is replaced where it is: no fixed install folder, so start at
+login keeps working and the folder only has to be writable (checked before the download). The launcher's kill-on-close job now
+allows a deliberate breakaway so the successor is not killed with it; the search engine, started the ordinary way, still is.
+
+What the checksum does and does not protect: a corrupt, truncated or tampered-with download, yes; a compromised GitHub account
+or repository, no (whoever can publish a release can publish its digest). Code signing would close that and is not done.
+
+A release older than this feature would not know `--wait-for`, lose the race for the single-instance lock and leave no launcher
+running; it is never offered, because only a newer release is, and every release from this one on has the feature. The
+first update that really crosses from a build with the installer to one with it is therefore the next release after this.

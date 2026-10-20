@@ -49,7 +49,7 @@ var version = "dev"
 func main() {
 	closeLog := setUpLog()
 	defer closeLog()
-	if err := run(); err != nil {
+	if err := run(finishUpdate()); err != nil {
 		log.Print(err)
 		closeLog()
 		os.Exit(1)
@@ -85,7 +85,26 @@ func (b bestEffort) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func run() error {
+// finishUpdate is the start of a launcher that an update has just put in place: it was started with "--wait-for <the
+// old launcher's process id>", and waits for that one to end (a second launcher while the first still runs would only hand
+// over to it and exit). It also deletes the program the update moved aside. It says whether this start follows an update.
+func finishUpdate() (afterUpdate bool) {
+	if pid, ok := update.WaitForArg(os.Args[1:]); ok {
+		afterUpdate = true
+		if !update.WaitForExit(pid, 15*time.Second) {
+			log.Printf("update: the earlier launcher (process %d) was still running after 15 s; starting anyway", pid)
+		}
+		log.Print("update: started as the new launcher")
+	}
+	if exe, err := os.Executable(); err == nil {
+		if err := update.RemoveOld(exe); err != nil {
+			log.Printf("update: could not delete the earlier program: %v", err)
+		}
+	}
+	return afterUpdate
+}
+
+func run(afterUpdate bool) error {
 	path, err := config.Path()
 	if err != nil {
 		return err
@@ -214,7 +233,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	self, _ := os.Executable()
+	self, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("locate this program: %w", err)
+	}
 	clipEnabled := func() bool { return store.Get().Clipboard.Enabled }
 	clips := clipboard.NewManager(clipStore,
 		clipboard.NewWatcher(clipboard.WindowsSource{}, clipStore, clipEnabled,
@@ -260,13 +282,22 @@ func run() error {
 			RebindClipboard:      func(accelerator string) error { return bar.RebindFill(accelerator, "clip: ") },
 			ClipboardHotkeyError: bar.FillError,
 			Updates:              checker,
-			OpenURL:              browser.Open,
-			Open:                 settingsWindow.Open,
-			Autostart:            autostart.Enabled,
-			SetAutostart:         autostart.Set,
-			Engine:               func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
-			LogDir:               filepath.Join(cacheDir, "AGI", "logs"),
-			Version:              version,
+			Installer:            update.NewInstaller(filepath.Join(cacheDir, "AGI", "update")),
+			ExePath:              self,
+			Restart: func() error {
+				if err := update.StartNew(self, os.Getpid()); err != nil {
+					return err
+				}
+				app.Quit()
+				return nil
+			},
+			OpenURL:      browser.Open,
+			Open:         settingsWindow.Open,
+			Autostart:    autostart.Enabled,
+			SetAutostart: autostart.Set,
+			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
+			Version:      version,
 		})),
 	} {
 		app.RegisterService(service)
@@ -320,6 +351,12 @@ func run() error {
 			go func() {
 				time.Sleep(time.Second)
 				settingsWindow.Open()
+			}()
+		} else if afterUpdate {
+			// The window the update was started from went with the old launcher: show the new version on its About page.
+			go func() {
+				time.Sleep(time.Second)
+				settingsWindow.OpenAt("about")
 			}()
 		}
 		if engineWanted(cfg) {

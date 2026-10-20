@@ -22,7 +22,10 @@ type Window struct {
 func NewWindow(app *application.App) *Window { return &Window{app: app} }
 
 // Open shows the settings window.
-func (w *Window) Open() {
+func (w *Window) Open() { w.OpenAt("") }
+
+// OpenAt shows the settings window; a new window starts on the section with this id ("about"), the first one if it is empty.
+func (w *Window) OpenAt(section string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.win != nil {
@@ -32,6 +35,10 @@ func (w *Window) Open() {
 		return
 	}
 	w.count++
+	url := "/#settings"
+	if section != "" {
+		url += "/" + section
+	}
 	win := w.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             fmt.Sprintf("settings-%d", w.count),
 		Title:            "AGI Settings",
@@ -39,7 +46,7 @@ func (w *Window) Open() {
 		Height:           620,
 		MinWidth:         680,
 		MinHeight:        480,
-		URL:              "/#settings",
+		URL:              url,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 255),
 		Windows:          application.WindowsWindow{Theme: application.Dark},
 	})

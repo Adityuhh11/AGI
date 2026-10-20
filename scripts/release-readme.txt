@@ -67,7 +67,9 @@ WHERE THINGS ARE
   when you open a web search or a link (your browser does that), and when you ask about updates:
   Settings > About > "Check for updates", or "Check once a day" if you turn it on (off by default).
   That request goes to api.github.com, asks for the latest version number and sends nothing else.
-  A new version is downloaded by you from its release page; replace agi.exe with the new one.
+  "Update to X" in the same place downloads the new version only when you press it, checks it against
+  the checksum GitHub published for it, replaces agi.exe where it is (the folder must be one you can
+  write to) and restarts. Or download the zip yourself and replace agi.exe by hand.
 
 NOT HERE YET
 

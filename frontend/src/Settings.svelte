@@ -18,7 +18,9 @@
     { id: "about", label: "About" },
   ] as const;
 
-  let section = $state<(typeof SECTIONS)[number]["id"]>("general");
+  // A window opened on a section ("#settings/about", after an update) starts there.
+  const wanted = location.hash.split("/")[1];
+  let section = $state<(typeof SECTIONS)[number]["id"]>(SECTIONS.find((s) => s.id === wanted)?.id ?? "general");
   let view = $state<View | null>(null);
   const reload = async () => {
     view = await Settings.View();

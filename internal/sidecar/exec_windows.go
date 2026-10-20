@@ -19,6 +19,7 @@ const createNoWindow = 0x08000000
 type execProcess struct{ cmd *exec.Cmd }
 
 func (p *execProcess) Wait() error { return p.cmd.Wait() }
+
 // Kill ends the process and everything it started. A virtual environment's python.exe is a launcher
 // that runs the real interpreter as a child, which in turn runs llama-server: ending only the process we
 // started would leave the engine alive on its port, and the next start could not bind it.
@@ -44,7 +45,8 @@ func execStarter(_ context.Context, spec Spec, output io.Writer) (Process, error
 
 // KillWithLauncher puts the calling process in a Job Object that kills everything in it when the
 // last handle closes. Children started afterwards (the engine) join the job automatically, so
-// they die with the launcher even if it crashes or is killed from the task manager.
+// they die with the launcher even if it crashes or is killed from the task manager. The job allows breakaway: the
+// launcher that replaces this one after an update asks to be created outside it (internal/update), and nothing else does.
 func KillWithLauncher() error {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
@@ -52,7 +54,7 @@ func KillWithLauncher() error {
 	}
 	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{
 		BasicLimitInformation: windows.JOBOBJECT_BASIC_LIMIT_INFORMATION{
-			LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+			LimitFlags: windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | windows.JOB_OBJECT_LIMIT_BREAKAWAY_OK,
 		},
 	}
 	if _, err := windows.SetInformationJobObject(
