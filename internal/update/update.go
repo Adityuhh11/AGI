@@ -1,5 +1,5 @@
-// Package update finds out whether a newer release of the launcher exists. It only asks; installing
-// is the person's choice, from the release page. The one request goes to api.github.com and carries
+// Package update finds out whether a newer release of the launcher exists and, when the person presses the
+// button, installs it. Nothing is downloaded unasked. The check is one request to api.github.com that carries
 // nothing about the user or the machine.
 package update
 
