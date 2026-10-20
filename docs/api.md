@@ -75,9 +75,12 @@ fields are rejected. `exclude` is optional: folders below `path` to leave out, w
 an indexed source shrinks it. Each counts once in `ignored`.
 
 `options` is optional: `{"pdf_pages": "auto" | "all" | "text", "photos": "content" | "name", "videos": "name" |
-"content"}`, defaults first (spec: `superpowers/specs/2026-10-20-indexing-choices-design.md`). The options of the
-source's last finished sync are kept; a sync with different ones processes every PDF, picture or video again (whichever
-option changed) and reuses every vector it already has, so only chunks that did not exist before are embedded. An index
+"content"}`, defaults first (spec: `superpowers/specs/2026-10-20-indexing-choices-design.md`). A sync with
+options different from the source's last ones processes every PDF, picture or video again (whichever option changed)
+and reuses every vector it already has, so only chunks that did not exist before are embedded. The options and the
+kinds still to redo are recorded before the first file is touched, so a sync that stops part-way leaves the redo to the
+next one, whatever options that one brings. The launcher leaves `options` out when they are the defaults, so an engine
+from before this field still indexes after a launcher update. An index
 built before options existed counts as `{"pdf_pages": "all", "photos": "content"}`.
 
 - `202` `{"job_id": "job-1"}`
