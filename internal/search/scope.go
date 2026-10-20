@@ -14,11 +14,13 @@ var (
 	imageScope = scope{"Images", []string{"image"}}
 	pdfScope   = scope{"PDFs", []string{"pdf_text", "pdf_page"}}
 	docScope   = scope{"Documents", []string{"markdown", "text"}}
+	videoScope = scope{"Videos", []string{"video", "video_frame"}}
 )
 
 var scopes = map[string]scope{
 	"code": codeScope,
 	"img":  imageScope, "image": imageScope, "images": imageScope,
+	"vid": videoScope, "video": videoScope, "videos": videoScope,
 	"pdf": pdfScope, "pdfs": pdfScope,
 	"doc": docScope, "docs": docScope, "text": docScope, "notes": docScope,
 }

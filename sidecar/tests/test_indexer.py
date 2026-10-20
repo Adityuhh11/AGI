@@ -1,8 +1,10 @@
 import builtins
 import io
 import os
+from collections import Counter
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -10,8 +12,9 @@ from agi_memory.config import Settings
 from agi_memory.embedding import FakeEmbedder
 from agi_memory.indexer import Indexer
 from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind
+from agi_memory.types import LEGACY_OPTIONS, ChunkKind, IndexOptions
 from pdf_fixture import make_text_pdf
+from video_fixture import make_video
 
 DIM = 16
 
@@ -117,6 +120,17 @@ def test_a_modified_file_is_reindexed_and_stale_chunks_disappear(indexer, store,
     assert (report.updated, report.added) == (1, 0)
     assert store.count() == 1
     assert "short now" in next(iter(all_chunks(store).values())).text
+
+
+def test_an_edit_embeds_only_the_chunks_it_changed(indexer, store, embedder, root):
+    lines = [f"line {n} of the notes" for n in range(100)]
+    write(root, "notes.txt", "\n".join(lines))
+    indexer.sync("s", root)
+    before = len(embedder.titles)
+    write(root, "notes.txt", "\n".join([*lines, "one more line at the end"]))
+    indexer.sync("s", root)
+    assert len(embedder.titles) - before == 1  # three windows are unchanged, one is new
+    assert len(all_chunks(store)) == 4
 
 
 def test_rewriting_identical_bytes_only_updates_the_record(indexer, store, embedder, root):
@@ -330,7 +344,8 @@ def png(colour):
 
 
 def vector_of(store, uri):
-    return store.vectors_of("s", uri, [ChunkKind.IMAGE])["{}"]
+    (vector,) = store.vectors_of("s", uri, [ChunkKind.IMAGE]).values()
+    return vector
 
 
 def test_a_moved_image_keeps_its_vector_and_costs_no_embedding(indexer, store, embedder, root):
@@ -460,3 +475,158 @@ def test_any_number_of_corrupt_files_in_a_row_never_aborts_the_sync(indexer, sto
     write(root, "z.txt", "fine")
     report = indexer.sync("s", root)
     assert (len(report.errors), report.added) == (8, 1)
+
+
+# --- index options ------------------------------------------------------------------------
+
+
+def write_png(path, colour="red"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), colour).save(buffer, format="PNG")
+    path.write_bytes(buffer.getvalue())
+
+
+def test_photos_by_name_are_embedded_from_their_name_not_their_pixels(
+    indexer, store, embedder, root
+):
+    write_png(root / "trips" / "beach.png")
+    indexer.sync("s", root, options=IndexOptions(photos="name"))
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text) == (ChunkKind.IMAGE, "trips/beach.png")
+    assert embedder.image_calls == 0 and embedder.titles == ["beach.png"]
+
+
+def test_changing_an_option_processes_that_kind_again_and_nothing_else(
+    indexer, store, embedder, root
+):
+    write_png(root / "beach.png")
+    write(root, "notes.md", "# Notes\nsome words")
+    indexer.sync("s", root, options=IndexOptions(photos="name"))
+    again = indexer.sync("s", root, options=IndexOptions(photos="name"))
+    assert (again.updated, again.unchanged) == (0, 2)  # the same options: nothing to do
+    switched = indexer.sync("s", root, options=IndexOptions(photos="content"))
+    assert (switched.updated, switched.unchanged) == (1, 1)  # the picture, not the notes
+    assert embedder.image_calls == 1
+    back = indexer.sync("s", root, options=IndexOptions(photos="name"))
+    assert back.updated == 1 and embedder.image_calls == 1
+    # the notes once; the name twice, because the switch to pixels removed its chunk
+    assert embedder.titles == ["beach.png", "notes.md", "beach.png"]
+
+
+class RefusingEmbedder(CountingEmbedder):
+    """Plays a server that refuses some pictures: those `refuse` says no to, or all of them."""
+
+    def __init__(self, refuse) -> None:
+        super().__init__()
+        self.refuse = refuse
+
+    def embed_images(self, images):
+        if any(self.refuse(image) for image in images):
+            raise RuntimeError("llama-server answered 500")
+        return super().embed_images(images)
+
+
+def test_a_picture_the_server_refuses_is_that_files_error_and_the_rest_are_indexed(
+    store, settings, root
+):
+    for number, width in enumerate([64, 13, 64, 64]):  # a batch of four, one of them refused
+        path = root / f"p{number}.png"
+        Image.new("RGB", (width, 48), (number * 50, 0, 0)).save(path)
+    refusing = RefusingEmbedder(lambda image: image.size[0] == 13)
+    report = Indexer(store, refusing, settings).sync("s", root)
+    assert [e.uri for e in report.errors] == ["p1.png"]
+    assert "answered 500" in report.errors[0].message
+    assert sorted(store.file_records("s")) == ["p0.png", "p2.png", "p3.png"]
+
+
+def test_when_every_picture_of_a_batch_fails_the_sync_stops(store, settings, root):
+    for number in range(4):
+        Image.new("RGB", (64, 48), (number * 50, 0, 0)).save(root / f"p{number}.png")
+    with pytest.raises(RuntimeError, match="answered 500"):
+        Indexer(store, RefusingEmbedder(lambda image: True), settings).sync("s", root)
+
+
+def test_a_photo_moved_while_switching_to_content_never_inherits_its_name_vector(
+    indexer, store, embedder, root
+):
+    write_png(root / "inbox" / "photo.png")
+    indexer.sync("s", root, options=IndexOptions(photos="name"))
+    by_name = vector_of(store, "inbox/photo.png")
+    (root / "inbox" / "photo.png").rename(root / "kept.png")
+    report = indexer.sync("s", root, options=IndexOptions(photos="content"))
+    assert embedder.image_calls == 1 and report.reused == 0  # embedded from its pixels
+    assert not np.allclose(vector_of(store, "kept.png"), by_name)
+
+
+def test_a_finished_sync_leaves_its_options_and_nothing_to_redo(indexer, store, root):
+    write(root, "a.txt", "x")
+    assert store.source_options("s") is None
+    indexer.sync("s", root, options=IndexOptions(pdf_pages="text"))
+    assert store.source_options("s") == (IndexOptions(pdf_pages="text"), frozenset())
+
+
+def test_a_change_cut_short_and_then_undone_still_puts_every_file_back(
+    indexer, store, root, monkeypatch
+):
+    for name in ("a", "b"):
+        write_png(root / f"{name}.png")
+    indexer.sync("s", root)  # photos by what they show
+    real = store.remove_files
+
+    def cut_short(*args, **kwargs):  # every photo is converted, then the sync stops
+        raise RuntimeError("the computer went to sleep")
+
+    monkeypatch.setattr(store, "remove_files", cut_short)
+    with pytest.raises(RuntimeError):
+        indexer.sync("s", root, options=IndexOptions(photos="name"))
+    assert store.source_options("s") == (IndexOptions(photos="name"), {"image"})
+    monkeypatch.setattr(store, "remove_files", real)
+    report = indexer.sync("s", root, options=IndexOptions(photos="content"))  # changed back
+    assert report.updated == 2
+    hashes = {c.content_hash for c in all_chunks(store).values()}
+    assert not any(h.startswith("name:") for h in hashes)  # both by their pixels again
+    assert store.source_options("s") == (IndexOptions(), frozenset())
+
+
+def test_an_index_from_before_the_options_drops_plain_pages_without_embedding_anything(
+    indexer, store, embedder, root
+):
+    prose = "plain words of a page of prose " * 10
+    (root / "paper.pdf").write_bytes(make_text_pdf([prose, "Figure 1"]))
+    indexer.sync("s", root, options=LEGACY_OPTIONS)
+    store._db.execute("DELETE FROM source_options")  # as an index built before them
+    images, documents = embedder.image_calls, embedder.document_calls
+    report = indexer.sync("s", root)  # the default, auto
+    pages = [c for c in all_chunks(store).values() if c.kind is ChunkKind.PDF_PAGE]
+    assert [p.locator for p in pages] == ['{"page":2}'] and report.updated == 1
+    assert (embedder.image_calls, embedder.document_calls) == (images, documents)
+
+
+def test_a_video_is_found_by_its_name_by_default(indexer, store, embedder, root):
+    make_video(root / "holiday.mp4")
+    indexer.sync("s", root)
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text) == (ChunkKind.VIDEO, "holiday.mp4")
+    assert embedder.image_calls == 0
+
+
+def test_a_video_by_content_has_its_name_and_eight_frames(indexer, store, embedder, root):
+    make_video(root / "holiday.mp4")
+    indexer.sync("s", root, options=IndexOptions(videos="content"))
+    kinds = Counter(c.kind for c in all_chunks(store).values())
+    assert kinds == {ChunkKind.VIDEO: 1, ChunkKind.VIDEO_FRAME: 8}
+    calls = embedder.image_calls
+    report = indexer.sync("s", root, options=IndexOptions(videos="name"))
+    assert report.updated == 1
+    assert Counter(c.kind for c in all_chunks(store).values()) == {ChunkKind.VIDEO: 1}
+    assert embedder.image_calls == calls
+
+
+def test_a_video_whose_frames_cannot_be_read_keeps_its_name(indexer, store, root):
+    (root / "broken.mp4").write_bytes(b"not a video" * 100)
+    report = indexer.sync("s", root, options=IndexOptions(videos="content"))
+    (chunk,) = all_chunks(store).values()
+    assert chunk.kind is ChunkKind.VIDEO
+    assert [e.uri for e in report.errors] == ["broken.mp4"]
+    assert "found by its name only" in report.errors[0].message

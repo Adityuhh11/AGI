@@ -1,3 +1,6 @@
+import threading
+import time
+
 import numpy as np
 import pytest
 from PIL import Image
@@ -107,12 +110,14 @@ def test_images_are_resized_to_what_the_models_own_processor_gives(fake, tmp_pat
     assert uri.startswith("data:image/png;base64,")
 
 
-def test_images_go_in_batches_and_come_back_in_order(fake, tmp_path):
-    embedder, _ = make(fake, tmp_path, image_batch_size=2)
+def test_images_go_one_per_request_and_come_back_in_order(fake, tmp_path):
+    embedder, _ = make(fake, tmp_path)
     images = [Image.new("RGB", (200 + 50 * i, 300), (i * 40, 10, 10)) for i in range(5)]
     got = embedder.embed_images(images)
     assert got.shape == (5, 768)
-    assert [len(body["input"]) for _, body in fake.requests] == [2, 2, 1]
+    assert [len(body["input"]) for _, body in fake.requests] == [1] * 5
+    alone = [embedder.embed_images([image])[0] for image in images]
+    assert np.allclose(got, np.stack(alone), atol=1e-6)
 
 
 def test_a_smaller_dimension_keeps_the_first_values_and_renormalises(fake, tmp_path):
@@ -157,6 +162,36 @@ def test_a_server_that_is_gone_is_started_again_and_the_new_key_is_used(fake, tm
         got, unit(expected_for_text("task: search result | query: after the crash")), atol=1e-6
     )
     embedder.embed_query("and again")  # the connection made after the restart keeps working
+
+
+def test_a_request_made_during_a_restart_waits_for_the_new_server(fake, tmp_path):
+    embedder, handle = make(fake, tmp_path)
+    embedder.embed_query("warm up")
+    results: list = []
+    workers: list[threading.Thread] = []
+
+    def meanwhile():
+        try:
+            results.append(embedder.embed_query("meanwhile"))
+        except Exception as error:  # what the test must not see
+            results.append(error)
+
+    def slow_restart():  # the new key is out at once, the model takes a moment to load
+        handle.restarts += 1
+        handle.api_key = fake.api_key = f"key-{handle.restarts + 1}"
+        fake.loading = True
+        workers.append(threading.Thread(target=meanwhile))
+        workers[0].start()
+        time.sleep(0.3)
+        fake.loading = False
+
+    handle.restart = slow_restart
+    fake.drop_next = 2  # the server died
+    embedder.embed_query("after the crash")
+    workers[0].join(5)
+    assert handle.restarts == 1  # the second request did not restart it again
+    expected = unit(expected_for_text("task: search result | query: meanwhile"))
+    assert len(results) == 1 and np.allclose(results[0], expected, atol=1e-6), results
 
 
 def test_a_server_that_fails_again_after_the_restart_fails_the_call(fake, tmp_path):

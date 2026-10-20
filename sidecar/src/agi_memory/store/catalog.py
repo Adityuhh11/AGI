@@ -6,10 +6,12 @@ schedule beyond the explicit `with db:` blocks: `FlatStore` owns locking and ord
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import sqlite3
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 
-from agi_memory.types import FileRecord, SourceInfo
+from agi_memory.types import FileRecord, IndexOptions, SourceInfo
 
 
 class Catalog:
@@ -90,3 +92,26 @@ class Catalog:
         with self._db:
             self._db.execute("DELETE FROM files WHERE source_id = ?", (source_id,))
             self._db.execute("DELETE FROM sources WHERE id = ?", (source_id,))
+            self._db.execute("DELETE FROM source_options WHERE source_id = ?", (source_id,))
+
+    def source_options(self, source_id: str) -> tuple[IndexOptions, frozenset[str]] | None:
+        """The options a source is indexed with and the kinds of file still to redo under them."""
+        row = self._db.execute(
+            "SELECT options FROM source_options WHERE source_id = ?", (source_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        stored = json.loads(row[0])
+        redo = frozenset(stored.pop("redo", ()))
+        return IndexOptions(**stored), redo
+
+    def set_source_options(
+        self, source_id: str, options: IndexOptions, redo: Collection[str] = ()
+    ) -> None:
+        state = {**dataclasses.asdict(options), "redo": sorted(redo)}
+        with self._db:
+            self._db.execute(
+                "INSERT INTO source_options (source_id, options) VALUES (?, ?) "
+                "ON CONFLICT(source_id) DO UPDATE SET options = excluded.options",
+                (source_id, json.dumps(state)),
+            )

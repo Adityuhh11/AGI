@@ -41,6 +41,8 @@ type Status struct {
 	State    State
 	Message  string // a reason for Restarting and Failed, otherwise empty
 	Restarts int    // how many times the process has been started again
+	// Device is where the model runs once Ready: "vulkan", "cuda" or "cpu" (the fallback without a usable graphics card).
+	Device string
 }
 
 // Options configure a Supervisor.
@@ -272,6 +274,11 @@ func (s *Supervisor) runOnce(ctx context.Context, modelFailures *int) outcome {
 		case health.Ready:
 			failedPolls, *modelFailures = 0, 0
 			ready = true
+			if health.Device != nil {
+				s.mu.Lock()
+				s.status.Device = *health.Device
+				s.mu.Unlock()
+			}
 			s.set(StateReady, "")
 		default:
 			failedPolls = 0

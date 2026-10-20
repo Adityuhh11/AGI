@@ -66,7 +66,7 @@ func TestTheRealEngineStartsIndexesSearchesAndStops(t *testing.T) {
 	if err != nil || len(sources) != 0 {
 		t.Fatalf("sources = %v, err = %v; a fresh index should be empty", sources, err)
 	}
-	jobID, err := client.AddSource(ctx, sample, "sample", nil)
+	jobID, err := client.AddSource(ctx, sample, "sample", nil, IndexOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

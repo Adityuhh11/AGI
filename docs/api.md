@@ -74,6 +74,15 @@ fields are rejected. `exclude` is optional: folders below `path` to leave out, w
 (matched whole and without regard to case). What they held is dropped from the index at the sync, so adding one to
 an indexed source shrinks it. Each counts once in `ignored`.
 
+`options` is optional: `{"pdf_pages": "auto" | "all" | "text", "photos": "content" | "name", "videos": "name" |
+"content"}`, defaults first (spec: `superpowers/specs/2026-10-20-indexing-choices-design.md`). A sync with
+options different from the source's last ones processes every PDF, picture or video again (whichever option changed)
+and reuses every vector it already has, so only chunks that did not exist before are embedded. The options and the
+kinds still to redo are recorded before the first file is touched, so a sync that stops part-way leaves the redo to the
+next one, whatever options that one brings. The launcher leaves `options` out when they are the defaults, so an engine
+from before this field still indexes after a launcher update. An index
+built before options existed counts as `{"pdf_pages": "all", "photos": "content"}`.
+
 - `202` `{"job_id": "job-1"}`
 - `400` `path` is not an absolute local path to an existing folder. Network (UNC) paths are refused.
 - `409` another job is running: `{"detail": {"message": "job-1 is still running", "job_id": "job-1"}}`. Follow that
@@ -155,7 +164,7 @@ Request:
 ```
 
 `query` is up to 4000 characters; empty or blank returns no hits. `k` is 1-100, default 10. Every filter is
-optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_text`, `pdf_page`, `image`.
+optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_text`, `pdf_page`, `image`, `video` (found by its name), `video_frame` (locator `{"t": seconds}`).
 `modified_after_ns` is integer nanoseconds since the epoch (the store's unit). Unknown fields are rejected.
 
 `200`:

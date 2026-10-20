@@ -1,6 +1,6 @@
 <script lang="ts">
   interface Props {
-    name: "code" | "text" | "image" | "file" | "app" | "web" | "tag" | "pin" | "clip" | "snippet";
+    name: "code" | "text" | "image" | "video" | "file" | "app" | "web" | "tag" | "pin" | "clip" | "snippet";
     size?: number;
   }
   let { name, size = 20 }: Props = $props();
@@ -11,6 +11,7 @@
     code: `${page} M10.5 12.2 9 14l1.5 1.8 M13.5 12.2 15 14l-1.5 1.8`,
     text: `${page} M9 12h6 M9 15h6 M9 18h3.5`,
     image: "M5 5h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z M4.5 16.5l4.2-4.2 3 3 2.3-2.3 5.5 5.5 M15.5 9.7a.7.7 0 1 0 0 .01",
+    video: "M5 5h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z M10.2 9.2v5.6l4.6-2.8z",
     file: page,
     tag: "M4 12.5V5a1 1 0 0 1 1-1h7.5l7.2 7.2a1 1 0 0 1 0 1.4l-6.6 6.6a1 1 0 0 1-1.4 0z M8.5 8.5h.01",
     web: "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z M4 12h16 M12 4c2.4 2.2 3.6 4.9 3.6 8s-1.2 5.8-3.6 8c-2.4-2.2-3.6-4.9-3.6-8s1.2-5.8 3.6-8z",

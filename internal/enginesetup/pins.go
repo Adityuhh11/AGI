@@ -45,9 +45,9 @@ var (
 // Hosts are the servers turning file search on talks to, for the window to show before the person agrees.
 var Hosts = []string{"github.com", "pypi.org", "files.pythonhosted.org", "huggingface.co"}
 
-// DownloadBytes is roughly what turning file search on downloads (the pinned files plus about 80 MB of
-// Python and libraries that uv fetches), for the window to say how big it is.
+// DownloadBytes is roughly what turning file search on downloads (the pinned files plus about 110 MB of
+// Python and libraries that uv fetches, 27 MB of it PyAV for videos), for the window to say how big it is.
 func DownloadBytes() int64 {
-	const pythonAndLibraries = 80 << 20
+	const pythonAndLibraries = 110 << 20
 	return UV.Size + Llama.Size + TextModel.Size + VisionModel.Size + pythonAndLibraries
 }

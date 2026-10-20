@@ -229,6 +229,10 @@ func TestLocations(t *testing.T) {
 		{`{"lines":[12,52]}`, "lines 12-52", 12},
 		{`{"lines":[7,7]}`, "line 7", 7},
 		{`{"page":3}`, "page 3", 0},
+		{`{"t":7.5}`, "at 0:07", 0},
+		{`{"t":83}`, "at 1:23", 0},
+		{`{"t":3723.4}`, "at 1:02:03", 0},
+		{`{"t":0}`, "at 0:00", 0},
 		{`{}`, "", 0},
 		{``, "", 0},
 		{`not json`, "", 0},
@@ -247,7 +251,8 @@ func TestLocations(t *testing.T) {
 func TestDisplayKinds(t *testing.T) {
 	want := map[string]string{
 		"code": "code", "markdown": "text", "text": "text",
-		"pdf_text": "pdf", "pdf_page": "pdf", "image": "image", "something new": "text",
+		"pdf_text": "pdf", "pdf_page": "pdf", "image": "image", "video": "video", "video_frame": "video",
+		"something new": "text",
 	}
 	for kind, expected := range want {
 		if got := displayKind(kind); got != expected {
@@ -268,6 +273,8 @@ func TestParseScope(t *testing.T) {
 		{"image:dog", "Images", "dog"},
 		{"pdf: lease clause about pets", "PDFs", "lease clause about pets"},
 		{"notes: meeting", "Documents", "meeting"},
+		{"vid: red ball in a river", "Videos", "red ball in a river"},
+		{"videos:shrek", "Videos", "shrek"},
 		{"code:", "Code", ""},
 		{"  code :  spaced out  ", "Code", "spaced out"},
 		{"note to self: buy milk", "", "note to self: buy milk"},

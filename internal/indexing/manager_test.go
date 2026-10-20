@@ -17,9 +17,10 @@ import (
 type fakeEngine struct {
 	mu         sync.Mutex
 	sources    map[string]sidecar.Source
-	jobs       map[string]int      // job id -> checks so far
-	submitted  []string            // roots, in order
-	excluded   map[string][]string // what each root was told to leave out
+	jobs       map[string]int         // job id -> checks so far
+	submitted  []string               // roots, in order
+	excluded   map[string][]string    // what each root was told to leave out
+	options    []sidecar.IndexOptions // what each sync was told, in order
 	deleted    []string
 	busyWith   string // while set, AddSource answers 409 for this job once
 	failRoot   string // jobs for this root fail
@@ -69,7 +70,7 @@ func (f *fakeEngine) Sources(context.Context) ([]sidecar.Source, error) {
 	return out, nil
 }
 
-func (f *fakeEngine) AddSource(_ context.Context, root, id string, exclude []string) (string, error) {
+func (f *fakeEngine) AddSource(_ context.Context, root, id string, exclude []string, options sidecar.IndexOptions) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.busyWith != "" {
@@ -83,6 +84,7 @@ func (f *fakeEngine) AddSource(_ context.Context, root, id string, exclude []str
 		f.excluded = map[string][]string{}
 	}
 	f.excluded[root] = exclude
+	f.options = append(f.options, options)
 	job := "job-" + id
 	f.jobs[job], f.jobRoot[job] = 0, root
 	f.sources[id] = sidecar.Source{ID: id, Root: root, Files: 3, Chunks: 10}
@@ -350,6 +352,21 @@ func TestExcludedFoldersGoToTheEngineRelativeToTheirOwnRoot(t *testing.T) {
 	}
 	if got := fake.excluded[`C:\b`]; len(got) != 1 || got[0] != "old" {
 		t.Errorf("root b was told to exclude %v", got)
+	}
+}
+
+func TestEverySyncCarriesTheIndexOptions(t *testing.T) {
+	fake := newFake()
+	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
+	m.poll = time.Millisecond
+	m.deleted = func(string) bool { return false }
+	want := sidecar.IndexOptions{PDFPages: "text", Photos: "name", Videos: "content"}
+	m.SetOptions(want)
+	if !m.cycle(context.Background(), nil) {
+		t.Fatalf("cycle failed: %v", m.Status())
+	}
+	if len(fake.options) != 2 || fake.options[0] != want || fake.options[1] != want {
+		t.Errorf("the engine was told %v, want %v for each root", fake.options, want)
 	}
 }
 

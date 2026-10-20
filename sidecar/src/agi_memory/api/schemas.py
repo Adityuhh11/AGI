@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agi_memory.jobs import JobState
 from agi_memory.pace import MIN_DUTY
-from agi_memory.types import ChunkKind
+from agi_memory.types import ChunkKind, IndexOptions
 
 # Also validated for the path parameter of DELETE /sources/{source_id}.
 SOURCE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
@@ -43,9 +43,27 @@ class SetPace(_Request):
     duty: float = Field(ge=MIN_DUTY, le=1.0)
 
 
+_DEFAULT_OPTIONS = IndexOptions()
+
+
+class IndexOptionsIn(_Request):
+    """What to index of each kind of file. The allowed values and the defaults are those of
+    `types.IndexOptions`, which checks them; one it refuses is a 422."""
+
+    pdf_pages: str = _DEFAULT_OPTIONS.pdf_pages
+    photos: str = _DEFAULT_OPTIONS.photos
+    videos: str = _DEFAULT_OPTIONS.videos
+
+    @model_validator(mode="after")
+    def _known_values(self) -> Self:
+        IndexOptions(**self.model_dump())
+        return self
+
+
 class AddSource(_Request):
     path: str = Field(min_length=1, max_length=1024)
     source_id: str = Field(pattern=SOURCE_ID_PATTERN)
+    options: IndexOptionsIn = Field(default_factory=IndexOptionsIn)
     # Folders below `path` to leave out, '/'-separated and relative, e.g. "vendor/skills".
     exclude: list[Annotated[str, Field(min_length=1, max_length=1024)]] = Field(
         default_factory=list, max_length=500

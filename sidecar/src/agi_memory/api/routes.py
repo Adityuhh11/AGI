@@ -30,7 +30,7 @@ from agi_memory.api.schemas import (
 )
 from agi_memory.jobs import Job, JobBusyError
 from agi_memory.store import FlatStore
-from agi_memory.types import Filters, SourceInfo
+from agi_memory.types import Filters, IndexOptions, SourceInfo
 
 router = APIRouter()
 
@@ -103,7 +103,9 @@ def add_source(
             },
         )
     try:
-        job = engine.jobs.submit(body.source_id, root, body.exclude)
+        job = engine.jobs.submit(
+            body.source_id, root, body.exclude, IndexOptions(**body.options.model_dump())
+        )
     except JobBusyError as busy:
         raise HTTPException(
             status_code=409, detail={"message": str(busy), "job_id": busy.job_id}

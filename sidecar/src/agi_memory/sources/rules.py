@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import enum
 import fnmatch
+import sys
 from pathlib import PurePosixPath
 
 from agi_memory.config import Settings
@@ -21,6 +22,7 @@ class Route(enum.StrEnum):
     TEXT = "text"
     PDF = "pdf"
     IMAGE = "image"
+    VIDEO = "video"
 
 
 _DENIED_DIRS = frozenset(
@@ -110,6 +112,7 @@ _TEXT = frozenset(
     ]
 )
 _IMAGE = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"})
+_VIDEO = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".wmv"})
 
 
 def is_denied_dir(name: str) -> bool:
@@ -141,11 +144,15 @@ def route_for(name: str) -> Route | None:
         return Route.PDF
     if suffix in _IMAGE:
         return Route.IMAGE
+    if suffix in _VIDEO:
+        return Route.VIDEO
     return None
 
 
 def size_limit(route: Route, settings: Settings) -> int:
-    """Largest file (bytes) the route will index."""
+    """Largest file (bytes) the route will index. A video has none: it is never read whole."""
+    if route is Route.VIDEO:
+        return sys.maxsize
     if route in (Route.PDF, Route.IMAGE):
         return settings.max_media_file_bytes
     return settings.max_text_file_bytes

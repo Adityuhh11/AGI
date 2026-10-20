@@ -22,10 +22,10 @@ from pathlib import Path
 
 import numpy as np
 
+from agi_memory.store import keyword
 from agi_memory.store.catalog import Catalog
 from agi_memory.store.filters import filter_clause
 from agi_memory.store.identifiers import path_words, split_identifiers
-from agi_memory.store.keyword import build_match, search_words
 from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
 from agi_memory.store.vectors import VectorFile, VectorFileError
 from agi_memory.types import (
@@ -33,6 +33,7 @@ from agi_memory.types import (
     ChunkKind,
     FileRecord,
     Filters,
+    IndexOptions,
     KeywordHit,
     SourceInfo,
     VectorHit,
@@ -41,14 +42,6 @@ from agi_memory.types import (
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
 _MMAP_BYTES = 1 << 30  # how much of meta.db SQLite may map (a 44,000-chunk index is 160 MB)
-# A path needle found in more chunks or files than this (`txt`, `.js`, `src`) is a common
-# fragment, not a file name: it carries no signal and scoring every match is slow at scale.
-_MAX_PATH_CHUNKS = 1000
-_MAX_PATH_FILES = 50
-# A query word in more than this share of the chunks (and in over `_COMMON_MIN_DOCS` of them) has
-# almost no weight in bm25 but still costs a full scan; keyword search leaves it out.
-_COMMON_FRACTION = 0.2
-_COMMON_MIN_DOCS = 1000
 
 _UPSERT = """
 INSERT INTO chunks (id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns,
@@ -328,9 +321,26 @@ class FlatStore:
         with self._lock:
             return self._catalog.sources()
 
-    def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
+    def mark_scanned(
+        self, source_id: str, scanned_ns: int, options: IndexOptions | None = None
+    ) -> None:
+        """Record a finished sync: the options it applied, with nothing left to redo."""
         with self._lock:
             self._catalog.mark_scanned(source_id, scanned_ns)
+            if options is not None:
+                self._catalog.set_source_options(source_id, options)
+
+    def begin_options(self, source_id: str, options: IndexOptions, redo: Collection[str]) -> None:
+        """Record, before a sync touches any file, the options it applies and the kinds of file
+        (routes) it must redo, so a sync that stops part-way leaves them to the next one."""
+        with self._lock:
+            self._catalog.set_source_options(source_id, options, redo)
+
+    def source_options(self, source_id: str) -> tuple[IndexOptions, frozenset[str]] | None:
+        """The options the source is indexed with and the kinds of file still to redo under them;
+        None if none were ever recorded (an index from before the options)."""
+        with self._lock:
+            return self._catalog.source_options(source_id)
 
     def file_records(self, source_id: str) -> dict[str, FileRecord]:
         with self._lock:
@@ -363,21 +373,33 @@ class FlatStore:
     def vectors_of(
         self, source_id: str, uri: str, kinds: Collection[ChunkKind]
     ) -> dict[str, np.ndarray]:
-        """The stored vectors of one file's chunks of the given kinds, keyed by locator.
+        """The stored vectors of one file's chunks of the given kinds, keyed by content hash.
 
         Lets the indexer give an identical file (moved, renamed or copied) the vectors the model
-        already computed for it instead of computing them again.
+        already computed for it instead of computing them again. The content hash, not the
+        locator, is the key because it says what the vector was computed from: a photo embedded
+        from its name and the same photo embedded from its pixels share a locator, not a hash.
         """
         marks = ",".join("?" * len(kinds))
         query = (
-            "SELECT locator, vec_row FROM chunks "
+            "SELECT content_hash, vec_row FROM chunks "
             f"WHERE source_id = ? AND uri = ? AND kind IN ({marks})"
         )
         with self._lock:
             rows = self._db.execute(
                 query, [source_id, uri, *(kind.value for kind in kinds)]
             ).fetchall()
-            return {locator: self._vectors.read(row) for locator, row in rows}
+            return {content_hash: self._vectors.read(row) for content_hash, row in rows}
+
+    def vectors_for(self, ids: Sequence[str]) -> dict[str, np.ndarray]:
+        """The stored vectors of the chunks among `ids` that exist, by id.
+
+        A chunk id is derived from everything its embedding is computed from, so a chunk that is
+        already stored never needs embedding again (an edited file, or a change of index options).
+        """
+        _reject_bare_string(ids)
+        with self._lock:
+            return {i: self._vectors.read(row) for i, row in self._rows_for(list(ids)).items()}
 
     def touch_file(self, record: FileRecord) -> None:
         """Update a file's remembered size/mtime/hash when its content is known to be unchanged."""
@@ -463,68 +485,14 @@ class FlatStore:
     def keyword_search(
         self, query: str, n: int, filters: Filters | None = None
     ) -> list[KeywordHit]:
-        """Top-`n` chunks by bm25 over text, identifiers and path words, ordered by (-score, id)."""
-        if n <= 0:
-            return []
+        """Top-`n` chunks by bm25 over text, identifiers and path words (see `keyword.py`)."""
         with self._lock:
-            match = build_match(query, self._common_words(search_words(query)))
-        if not match:
-            return []
-        sql = (
-            "SELECT c.id, bm25(chunks_fts, 1.0, 0.5, 2.0) AS score FROM chunks_fts "
-            "JOIN chunks c ON c.rid = chunks_fts.rowid WHERE chunks_fts MATCH ?"
-        )
-        params: list[object] = [match]
-        clause = filter_clause(filters) if filters is not None else None
-        if clause is not None:
-            sql += f" AND ({clause[0]})"
-            params.extend(clause[1])
-        sql += " ORDER BY score, c.id LIMIT ?"
-        params.append(n)
-        with self._lock:
-            rows = self._db.execute(sql, params).fetchall()
-        return [KeywordHit(id=chunk_id, score=-score) for chunk_id, score in rows]
-
-    def _common_words(self, words: Sequence[str]) -> set[str]:
-        """The `words` too common to rank by (one vocabulary lookup); call with the lock held."""
-        if not words:
-            return set()
-        (newest,) = self._db.execute("SELECT COALESCE(MAX(rid), 0) FROM chunks").fetchone()
-        limit = max(_COMMON_MIN_DOCS, newest * _COMMON_FRACTION)  # newest >= live count: safe side
-        marks = ",".join("?" * len(words))
-        rows = self._db.execute(
-            f"SELECT term FROM chunks_vocab WHERE term IN ({marks}) AND doc > ?", [*words, limit]
-        )
-        return {term for (term,) in rows}
+            return keyword.keyword_search(self._db, query, n, filters)
 
     def path_search(self, query: str, filters: Filters | None = None) -> list[KeywordHit]:
-        """Chunks whose path contains the whole query as a substring (case-insensitive).
-
-        This is what finds a file by typing its name, or part of it. Every chunk of a matching
-        file matches, with score 1.0 so that the embedding decides the order among them. Nothing
-        matches for queries under 3 characters, or when the fragment is found in more than
-        `_MAX_PATH_CHUNKS` chunks or `_MAX_PATH_FILES` files of the searched scope.
-        """
-        needle = query.strip().replace('"', '""')
-        if len(needle) < 3:
-            return []
-        sql = (
-            "SELECT chunks.id, chunks.uri FROM "
-            "(SELECT rowid AS rid FROM chunks_path_tri WHERE chunks_path_tri MATCH ?) AS m "
-            "JOIN chunks ON chunks.rid = m.rid"
-        )
-        params: list[object] = [f'"{needle}"']
-        clause = filter_clause(filters) if filters is not None else None
-        if clause is not None:
-            sql += f" WHERE ({clause[0]})"
-            params.extend(clause[1])
-        sql += " LIMIT ?"  # stops early on a fragment found everywhere
-        params.append(_MAX_PATH_CHUNKS + 1)
+        """Chunks whose path contains the whole query as a substring (see `keyword.py`)."""
         with self._lock:
-            rows = self._db.execute(sql, params).fetchall()
-        if len(rows) > _MAX_PATH_CHUNKS or len({uri for _, uri in rows}) > _MAX_PATH_FILES:
-            return []
-        return [KeywordHit(id=chunk_id, score=1.0) for chunk_id in sorted(i for i, _ in rows)]
+            return keyword.path_search(self._db, query, filters)
 
     def warm(self) -> None:
         """Read every chunk row once, so the first keyword searches do not pay for it.

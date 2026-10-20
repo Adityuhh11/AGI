@@ -38,6 +38,21 @@ export function actionsFor(item: Item, taggable: boolean, pinning: "pin" | "unpi
   ];
 }
 
+/** What can be done with a row besides opening it: files can be revealed, everything else says what it can. */
+export type Way = "open" | "reveal" | "admin" | "copy" | "delete";
+
+/** Whether the row can be revealed, run as administrator, copied or deleted. */
+export function available(item: Item, how: Exclude<Way, "open">): boolean {
+  if (item.kind !== "entry") return how === "reveal";
+  return item.entry.Actions?.includes(how) ?? false;
+}
+
+/** A copied text: Ctrl+Enter copies it and Ctrl+Delete forgets it. */
+export const isClip = (item: Item) => item.kind === "entry" && item.entry.Kind === "clip";
+
+/** A row whose Enter pastes (a copied text, a snippet) instead of opening. */
+export const pastes = (item: Item) => item.kind === "entry" && (item.entry.Kind === "clip" || item.entry.Kind === "snippet");
+
 /** The actions whose title contains every word typed, in the order given. */
 export function filterActions<T extends { title: string }>(actions: readonly T[], text: string): T[] {
   const words = text.toLowerCase().split(/\s+/).filter(Boolean);

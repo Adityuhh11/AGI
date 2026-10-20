@@ -2,6 +2,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from agi_memory.embedding import FakeEmbedder
 from api_helpers import DIM, FailingEmbedder, GatedEmbedder, index, running_app, wait_ready
@@ -210,6 +211,23 @@ def test_listing_sources_works_while_the_model_is_still_loading(tmp_path):
     with running_app(tmp_path / "idx", slow_load, wait=False) as client:
         assert client.get("/sources").status_code == 200  # reads the store only, not the model
         release.set()
+
+
+def test_index_options_are_applied_and_a_bad_one_is_a_422(api, folder):
+    Image.new("RGB", (32, 32), "blue").save(folder / "photo.png")
+    body = {"path": str(folder), "source_id": "repo", "options": {"photos": "name"}}
+
+    def sync(options):
+        job_id = api.post("/sources", json={**body, "options": options}).json()["job_id"]
+        return wait_for(
+            lambda: (j := api.get(f"/jobs/{job_id}").json())["state"] != "running" and j
+        )
+
+    assert sync({"photos": "name"})["report"]["added"] == 4
+    report = sync({"photos": "content", "pdf_pages": "text", "videos": "content"})["report"]
+    assert (report["updated"], report["unchanged"]) == (1, 3)  # only the picture changes
+    for bad in [{"photos": "pixels"}, {"pdf_pages": "some"}, {"videos": "off"}, {"other": "x"}]:
+        assert api.post("/sources", json={**body, "options": bad}).status_code == 422, bad
 
 
 def test_excluded_folders_are_left_out_and_a_bad_exclude_is_a_422(api, folder):

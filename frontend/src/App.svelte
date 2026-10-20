@@ -4,7 +4,7 @@
   import { Clipboard, Events } from "@wailsio/runtime";
   import { Service as Files } from "../bindings/agi/internal/files";
   import { Service as Palette } from "../bindings/agi/internal/palette";
-  import type { Item as Entry, TagInfo } from "../bindings/agi/internal/palette";
+  import type { Item as Entry } from "../bindings/agi/internal/palette";
   import { Service as Panel } from "../bindings/agi/internal/panel";
   import { Service as Search } from "../bindings/agi/internal/search";
   import { Service as SettingsWindow } from "../bindings/agi/internal/settingsui";
@@ -13,14 +13,18 @@
   import type { Info } from "../bindings/agi/internal/status";
   import ActionPanel from "./lib/ActionPanel.svelte";
   import EntryRow from "./lib/EntryRow.svelte";
+  import Hints from "./lib/Hints.svelte";
   import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
   import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
-  import { actionsFor, type Action } from "./lib/actions";
+  import { actionsFor, available, type Way } from "./lib/actions";
   import { filePathOf, flatten, openLine, pathOf, pinIdOf, step, tagIdOf, type Item } from "./lib/flatten";
+  import { keyCommand } from "./lib/keys";
   import { cycle, escapeStep, label, type Mode } from "./lib/modes";
+  import { notesFor } from "./lib/notes";
+  import TagPicker from "./lib/TagPicker.svelte";
 
   const DEBOUNCE_MS = 120;
   const RING = 2.5; // px of metal around the card
@@ -44,9 +48,7 @@
   let mode = $state<Mode>("all"); // the chip: what a search covers, cycled with Tab
   let effective = $state<Mode>("all"); // the mode of the text once a prefix such as "app:" is taken off
   let entries = $state<Entry[]>([]); // the instant answers (apps): they arrive in a millisecond, before the files
-  // The tag picker (Ctrl+T): which thing is being tagged, the tags it carries, and every tag there is.
-  let picker = $state<{ id: string; title: string; applied: string[] } | null>(null);
-  let allTags = $state<TagInfo[]>([]);
+  let picker = $state<{ id: string; title: string } | null>(null); // the thing the tag picker (Ctrl+T) is open on
   let tagsByID = $state<Record<string, string[] | null | undefined>>({}); // the tags of the rows on screen, shown as chips
   let answerText = $state(""); // the text the instant answer searched, with any prefix taken off
   let answerNote = $state(""); // why the Clipboard mode has nothing to list (it is off, nothing matches), if it has not
@@ -86,32 +88,20 @@
     return "";
   });
 
-  // One line each, most urgent first, shown above the results.
-  const notes = $derived.by(() => {
-    const out: { text: string; problem: boolean }[] = [];
-    if (info?.HotkeyError) out.push({ text: info.HotkeyError, problem: true });
-    if (problem) out.push({ text: problem, problem: true });
-    if (query.trim() === "") {
-      if (info?.Engine === "failed") out.push({ text: info.EngineMessage, problem: true });
-    } else if (effective === "tags") {
-      if (entries.length === 0) out.push({ text: "Nothing is tagged like that yet. Select a row and press Ctrl+T.", problem: false });
-    } else if (effective === "clip" || effective === "snip") {
-      if (answerNote) out.push({ text: answerNote, problem: false });
-    } else if (effective === "apps") {
-      if (local.length === 0) out.push({ text: `No app matched “${query.replace(/^\s*apps?:/i, "").trim()}”`, problem: false });
-    } else if (results?.State === "warming") {
-      out.push({ text: results.Message, problem: false });
-    } else if (results?.State === "off") {
-      if (fileRows.length + local.length === 0) out.push({ text: results.Message, problem: false });
-    } else if (results?.State === "unavailable" || results?.State === "error") {
-      out.push({ text: results.Message, problem: true });
-    } else if (results) {
-      if (fileRows.length + local.length === 0 && results.Message) out.push({ text: results.Message, problem: false });
-      else if (fileRows.length + local.length === 0 && answered.trim() !== "") out.push({ text: `Nothing matched “${answered}”`, problem: false });
-      else if (!results.Confident && local.length === 0) out.push({ text: "No strong match. The closest files:", problem: false });
-    }
-    return out;
-  });
+  const notes = $derived(
+    notesFor({
+      info,
+      problem,
+      query,
+      effective,
+      entries: entries.length,
+      local: local.length,
+      answerNote,
+      results,
+      fileRows: fileRows.length,
+      answered,
+    }),
+  );
   const showPanel = $derived(notes.length > 0 || items.length > 0);
 
   // The card is exactly as tall as what it holds, plus its ring; the window around it is taller by the
@@ -319,12 +309,9 @@
 
   // --- tags
 
-  async function openPicker(item: Item | undefined) {
+  function openPicker(item: Item | undefined) {
     const id = item && tagIdOf(item);
-    if (!item || !id) return;
-    const [tags, mine] = await Promise.all([Palette.Tags(), Palette.TagsOf([id])]);
-    allTags = tags ?? [];
-    picker = { id, title: item.kind === "entry" ? item.entry.Title : item.row.Name, applied: mine?.[id] ?? [] };
+    if (item && id) picker = { id, title: item.kind === "entry" ? item.entry.Title : item.row.Name };
   }
 
   async function closePicker() {
@@ -333,37 +320,9 @@
     input?.focus();
   }
 
-  /** Puts a tag on the thing, or takes it off. A name typed that is new becomes a tag. */
-  async function toggleTag(id: string) {
-    if (!picker) return;
-    const name = id.startsWith("new:") ? id.slice(4) : id;
-    const thing = picker.id;
-    await attempt(async () => {
-      const now = await Palette.Tag(thing, name);
-      if (picker?.id !== thing) return;
-      picker.applied = now ?? [];
-      tagsByID = { ...tagsByID, [thing]: now ?? [] };
-      allTags = (await Palette.Tags()) ?? [];
-      if (mode === "tags" || query.trim().startsWith("#")) update(); // the list being looked at has changed
-    });
-  }
-
-  const tagLines = $derived(
-    allTags.map((tag) => ({ id: tag.Name, title: "#" + tag.Name, keys: picker?.applied.includes(tag.Name) ? "✓" : "" })),
-  );
-  const newTag = (typed: string) => {
-    const name = typed.replace(/^#/, "").trim().toLowerCase();
-    if (!name || allTags.some((tag) => tag.Name === name)) return null;
-    return { id: "new:" + typed.replace(/^#/, "").trim(), title: `Add the tag “${typed.replace(/^#/, "").trim()}”` };
-  };
-
-  /** What can be done with a row besides opening it: files can be revealed, everything else says what it can. */
-  type Way = "open" | "reveal" | "admin" | "copy" | "delete";
-
-  /** Whether the row can be revealed, run as administrator, copied or deleted. */
-  function available(item: Item, how: Exclude<Way, "open">): boolean {
-    if (item.kind !== "entry") return how === "reveal";
-    return item.entry.Actions?.includes(how) ?? false;
+  function tagsChanged(id: string, tags: string[]) {
+    tagsByID = { ...tagsByID, [id]: tags };
+    if (mode === "tags" || query.trim().startsWith("#")) update(); // the list being looked at has changed
   }
 
   /** Runs something the user asked for; if it fails the reason is shown above the results. */
@@ -414,24 +373,25 @@
     expanded = next;
   }
 
-  const isClip = (item: Item) => item.kind === "entry" && item.entry.Kind === "clip";
-  const pastes = (item: Item) => item.kind === "entry" && (item.entry.Kind === "clip" || item.entry.Kind === "snippet");
-
   function atEndOfText() {
     return input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
   }
 
   function onKeydown(event: KeyboardEvent) {
     if (target || picker) return; // a panel has the keyboard
-    if (event.ctrlKey && event.key === ",") {
-      event.preventDefault();
-      SettingsWindow.Open();
-      Panel.Hide();
-      return;
-    }
-    switch (event.key) {
-      case "Escape": {
-        event.preventDefault();
+    const command = keyCommand(event, {
+      current,
+      atEndOfText: atEndOfText(),
+      expanded: current !== undefined && current.kind !== "entry" && expanded.has(current.row.Path),
+    });
+    if (!command) return;
+    event.preventDefault();
+    switch (command.do) {
+      case "settings":
+        SettingsWindow.Open();
+        Panel.Hide();
+        break;
+      case "escape": {
         const next = escapeStep(mode, query);
         if (next === "mode") setMode("all");
         else if (next === "text") {
@@ -440,68 +400,34 @@
         } else Panel.Hide();
         break;
       }
-      case "Tab":
-        if (!event.ctrlKey && !event.altKey) {
-          event.preventDefault();
-          setMode(cycle(mode, event.shiftKey ? -1 : 1));
-        }
+      case "mode":
+        setMode(cycle(mode, command.by));
         break;
-      case "ArrowDown":
-      case "ArrowUp":
-        event.preventDefault();
-        selected = step(selected, event.key === "ArrowDown" ? 1 : -1, items.length);
+      case "move":
+        selected = step(selected, command.by, items.length);
         scrollToSelected();
         break;
-      case "Enter":
-        event.preventDefault();
-        if (event.altKey) searchTheWeb();
-        else run(current, event.ctrlKey && event.shiftKey ? "admin" : event.ctrlKey ? (current && isClip(current) ? "copy" : "reveal") : "open");
+      case "web":
+        searchTheWeb();
         break;
-      case "Delete":
-        if (event.ctrlKey && current && isClip(current)) {
-          event.preventDefault();
-          run(current, "delete");
-        }
+      case "run":
+        run(current, command.how);
         break;
-      case "ArrowRight":
-        if (atEndOfText() && current) {
-          event.preventDefault();
-          toggle(true);
-        }
+      case "expand":
+      case "collapse":
+        toggle(command.do === "expand");
         break;
-      case "ArrowLeft":
-        if (atEndOfText() && current && current.kind !== "entry" && (current.kind === "match" || expanded.has(current.row.Path))) {
-          event.preventDefault();
-          toggle(false);
-        }
+      case "copy-path":
+        if (current) copyPath(current);
         break;
-      case "C":
-      case "c":
-        if (event.ctrlKey && event.shiftKey && current && filePathOf(current)) {
-          event.preventDefault();
-          copyPath(current);
-        }
+      case "tag":
+        openPicker(current);
         break;
-      case "T":
-      case "t":
-        if (event.ctrlKey && current && tagIdOf(current)) {
-          event.preventDefault();
-          openPicker(current);
-        }
+      case "pin":
+        togglePin(current);
         break;
-      case "P":
-      case "p":
-        if (event.ctrlKey && current && pinIdOf(current)) {
-          event.preventDefault();
-          togglePin(current);
-        }
-        break;
-      case "K":
-      case "k":
-        if (event.ctrlKey && current) {
-          event.preventDefault();
-          openActions();
-        }
+      case "actions":
+        openActions();
         break;
     }
   }
@@ -598,22 +524,7 @@
                   {/if}
                 {/each}
               </div>
-              <footer class="hints">
-                <span><kbd>Enter</kbd>{current && pastes(current) ? "paste" : "open"}</span>
-                {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
-                {#if current && available(current, "copy")}<span><kbd>Ctrl+Enter</kbd>copy</span>{/if}
-                <span><kbd>Ctrl+K</kbd>actions</span>
-                {#if current && pinIdOf(current)}<span><kbd>Ctrl+P</kbd>{pins.has(pinIdOf(current) ?? "") ? "unpin" : "pin"}</span>{/if}
-                {#if current && current.kind !== "entry" && current.row.Matches && current.row.Matches.length > 1}
-                  <span><kbd>→</kbd>more</span>
-                {/if}
-                <span><kbd>Tab</kbd>mode</span>
-                <span><kbd>Alt+Enter</kbd>web</span>
-                <span><kbd>Esc</kbd>close</span>
-                {#if info && info.IndexText && info.IndexState !== "uptodate"}
-                  <span class="index">{info.IndexText}</span>
-                {/if}
-              </footer>
+              <Hints {current} pinned={current && pinningOf(current) ? pinningOf(current) === "unpin" : null} {info} />
             {/if}
           </div>
         {/if}
@@ -621,13 +532,7 @@
       {#if target}
         <ActionPanel actions={actionsFor(target, tagIdOf(target) !== null, pinningOf(target))} onrun={runAction} onclose={closeActions} />
       {:else if picker}
-        <ActionPanel
-          actions={tagLines}
-          onrun={toggleTag}
-          onclose={closePicker}
-          placeholder={"Tag “" + picker.title + "”"}
-          create={newTag}
-        />
+        <TagPicker id={picker.id} title={picker.title} {attempt} onchange={tagsChanged} onclose={closePicker} />
       {/if}
     </div>
   </div>
@@ -761,33 +666,6 @@
     border: 3px solid transparent;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.14) padding-box;
-  }
-  .hints {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px 16px;
-    padding: 11px 24px 13px;
-    border-top: 1px solid var(--line);
-    color: var(--text-3);
-    font-size: 11.5px;
-  }
-  kbd {
-    margin-right: 7px;
-    padding: 2px 7px;
-    border-radius: 7px;
-    background: var(--tile);
-    color: var(--text-2);
-    font: 500 10.5px var(--mono);
-  }
-  .index {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-align: right;
-    font-family: var(--mono);
-    font-size: 11px;
   }
   .live {
     position: absolute;

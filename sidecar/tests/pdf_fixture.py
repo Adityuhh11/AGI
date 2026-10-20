@@ -1,6 +1,8 @@
-def make_text_pdf(pages: list[str]) -> bytes:
-    """A minimal valid PDF with one line of Helvetica text per page (pdfium can extract it)."""
+def make_text_pdf(pages: list[str], shapes: list[int] | None = None) -> bytes:
+    """A minimal valid PDF with one line of Helvetica text per page (pdfium can extract it) and,
+    if given, that many stroked rectangles on each page (each one a path object)."""
     count = len(pages)
+    shapes = shapes or [0] * count
     kids = " ".join(f"{4 + 2 * i} 0 R" for i in range(count))
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -9,7 +11,8 @@ def make_text_pdf(pages: list[str]) -> bytes:
     ]
     for index, text in enumerate(pages):
         safe = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-        stream = f"BT /F1 18 Tf 50 700 Td ({safe}) Tj ET".encode()
+        boxes = "".join(f" {10 + i} 10 5 5 re S" for i in range(shapes[index]))
+        stream = f"BT /F1 18 Tf 50 700 Td ({safe}) Tj ET{boxes}".encode()
         objects.append(
             f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {5 + 2 * index} 0 R "
             f"/Resources << /Font << /F1 3 0 R >> >> >>".encode()

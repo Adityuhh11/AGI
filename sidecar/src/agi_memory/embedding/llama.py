@@ -12,7 +12,11 @@ gives identical results. What it takes to get there, each found by measuring:
 - Images are resized here to the size the model's own processor uses (about 2520 patches of 16 px,
   aspect kept, each side a multiple of 48, bicubic), so llama.cpp has nothing left to resize;
   without it images drift to cosine 0.97.
-- One keep-alive connection: opening a new one per request cost 20 ms a query on Windows.
+- Keep-alive connections: opening a new one per request cost 20 ms a query on Windows.
+- Images go `_IMAGE_REQUESTS` at a time, one per request on connections of their own: the server
+  decodes and slices one image while the GPU embeds the other (4.4 to 6.4 images/s), and PNG is
+  written at compression level 1, half the encoding time of the default for the same pixels
+  (docs/eval/2026-10-20-indexing-throughput.md).
 
 Not thread-safe by itself: `SerializedEmbedder` wraps it, as for every embedder.
 """
@@ -25,8 +29,10 @@ import io
 import json
 import logging
 import math
+import threading
 import urllib.parse
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
 import numpy as np
@@ -41,6 +47,7 @@ logger = logging.getLogger(__name__)
 _SHORT_TEXT = 400  # characters
 _PATCH_BUDGET = 2520 * 16 * 16  # pixels the model's image processor aims for
 _SIDE_STEP = 48  # its patch size (16) times its pooling kernel (3)
+_IMAGE_REQUESTS = 2  # measured: 2 in flight 6.4 images/s, 4 in flight 6.5
 
 
 class Server(Protocol):
@@ -59,7 +66,9 @@ class LlamaEmbedder:
     def __init__(self, server: Server, settings: Settings) -> None:
         self._server = server
         self._settings = settings
-        self._conn: http.client.HTTPConnection | None = None
+        self._local = threading.local()  # one connection per thread: the image workers have theirs
+        self._restarting = threading.Lock()
+        self._images = ThreadPoolExecutor(_IMAGE_REQUESTS, thread_name_prefix="embed-image")
 
     @property
     def model_id(self) -> str:
@@ -79,29 +88,38 @@ class LlamaEmbedder:
         llama-server closes an idle keep-alive connection after a few seconds, so a failure on the
         first try is most likely that: connect again. A second failure means the server is gone:
         start it again (its url and API key change, so the request is built afresh) and try once
-        more.
+        more. Two image workers can find it gone at once; only the first restarts it, and the other
+        waits for that restart to finish before it reads the new address and key.
         """
         payload = json.dumps(body).encode()
         for attempt in range(3):
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + self._server.api_key,
-            }
+            # Under the restart lock: a worker that arrives while the other restarts the server
+            # waits for it to be healthy, instead of meeting it half loaded or restarting it twice.
+            with self._restarting:
+                url, key = self._server.url, self._server.api_key
+            headers = {"Content-Type": "application/json", "Authorization": "Bearer " + key}
+            conn: http.client.HTTPConnection | None = getattr(self._local, "conn", None)
             try:
-                if self._conn is None:
-                    parts = urllib.parse.urlsplit(self._server.url)
+                if conn is None or conn.port != urllib.parse.urlsplit(url).port:
+                    parts = urllib.parse.urlsplit(url)
                     assert parts.hostname is not None  # the server's url is always http://host:port
-                    self._conn = http.client.HTTPConnection(parts.hostname, parts.port, timeout=300)
-                self._conn.request("POST", path, payload, headers)
-                response = self._conn.getresponse()
+                    conn = self._local.conn = http.client.HTTPConnection(
+                        parts.hostname, parts.port, timeout=300
+                    )
+                conn.request("POST", path, payload, headers)
+                response = conn.getresponse()
                 data = response.read()
             except (OSError, http.client.HTTPException) as error:
-                self._conn = None
+                self._local.conn = None
                 if attempt == 2:
                     raise
                 if attempt == 1:
-                    logger.warning("llama-server did not answer (%s); starting it again", error)
-                    self._server.restart()
+                    with self._restarting:
+                        if self._server.api_key == key:  # a restart makes a new key
+                            logger.warning(
+                                "llama-server did not answer (%s); starting it again", error
+                            )
+                            self._server.restart()
                 continue
             if response.status != 200:
                 raise RuntimeError(
@@ -171,20 +189,15 @@ class LlamaEmbedder:
 
     def _data_uri(self, image: Image) -> str:
         buffer = io.BytesIO()
-        self._fitted(image.convert("RGB")).save(
-            buffer, "PNG"
-        )  # lossless: JPEG would move the vectors
+        # Lossless (JPEG would move the vectors); level 1 halves the encoding time of the default.
+        self._fitted(image.convert("RGB")).save(buffer, "PNG", compress_level=1)
         return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+    def _embed_image(self, image: Image) -> np.ndarray:
+        url = self._data_uri(image)
+        return self._vectors([{"content": [{"type": "image_url", "image_url": {"url": url}}]}])
 
     def embed_images(self, images: Sequence[Image]) -> np.ndarray:
         if len(images) == 0:
             return np.zeros((0, self.dim), dtype=np.float32)
-        size = self._settings.image_batch_size
-        rows = []
-        for start in range(0, len(images), size):
-            inputs = [
-                {"content": [{"type": "image_url", "image_url": {"url": self._data_uri(i)}}]}
-                for i in images[start : start + size]
-            ]
-            rows.append(self._vectors(inputs))
-        return np.concatenate(rows)
+        return np.concatenate(list(self._images.map(self._embed_image, images)))

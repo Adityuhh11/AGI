@@ -22,13 +22,13 @@ Dependencies point downward only. Status is `planned` or `built`.
 |---|---|---|
 | `types.py` | Plain data: `Chunk`, `ChunkKind`, `Filters`, `VectorHit`, `chunk_id` | built |
 | `config.py` | `Settings`: paths, model id, dimensions, batch sizes | built |
-| `embedding/` | `Embedder` contract; `LlamaEmbedder` (real: EmbeddingGemma 2, Q8_0 GGUF, through a `llama-server` that `LlamaServer` starts on a loopback port behind an API key, on the discrete GPU through Vulkan or on the CPU; ADR 0004), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model; bulk calls run in small slices and queries go first) | built |
+| `embedding/` | `Embedder` contract; `LlamaEmbedder` (real: EmbeddingGemma 2, Q8_0 GGUF, through a `llama-server` that `LlamaServer` starts on a loopback port behind an API key, on the discrete GPU through Vulkan or on the CPU; ADR 0004), `FakeEmbedder` (tests), `SerializedEmbedder` (lets the job thread and request threads share one model; bulk calls run in small slices and queries go first). Images go to the server two at a time, which overlaps its image decoding with the GPU | built |
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
 | `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
-| `chunking/` | Line-window and Markdown-section chunks, PDF pages (text + image), images | built |
-| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed, and a moved, renamed or copied file takes its image and PDF-page vectors from the identical file already indexed | built |
+| `chunking/` | Line-window and Markdown-section chunks, PDF pages (text, and a picture when the `pdf_pages` choice says so), images, videos (`video.py`: a name chunk, and eight frames by seeking with PyAV) | built |
+| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed: a chunk already stored keeps its vector, and a moved, renamed or copied file takes its picture vectors (images, PDF pages, video frames) from the identical file already indexed. Takes `IndexOptions` (PDF pages, photos, videos); a change of options re-processes only the kinds concerned | built |
 | `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
-| `search/` | `Searcher`: vector, bm25 and path search blended into one score (`fusion.py`), `confident` flag against a noise ceiling the index measures itself (`calibration.py`), filters | built |
+| `search/` | `Searcher`: vector, bm25 and path search (the last two while the query is embedded) blended into one score (`fusion.py`), `confident` flag against a noise ceiling the index measures itself (`calibration.py`), filters | built |
 | `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
 | `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search`; see `api.md` | built |
 | `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
@@ -65,7 +65,7 @@ If nothing is indexed, any leftover vector file (including one cut short while f
 growth (for example disk full) rolls the store back to its previous size and stays usable. `delete` and `get` reject a
 bare string, which would otherwise be treated as a list of one-character ids.
 
-Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sources(id, root, last_scan_ns)` and `files(source_id, uri, size, mtime_ns, sha256)`. `FlatStore.replace_file` upserts a file's new chunks, deletes its stale ones, and writes the `files` row last, so an interrupted sync leaves the file stale and it is redone. An index from another schema version, model or dimension is refused (`reindex required`); there is nothing to migrate.
+Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sources(id, root, last_scan_ns)` and `files(source_id, uri, size, mtime_ns, sha256)`. `FlatStore.replace_file` upserts a file's new chunks, deletes its stale ones, and writes the `files` row last, so an interrupted sync leaves the file stale and it is redone. An index from another schema version, model or dimension is refused (`reindex required`); there is nothing to migrate. `source_options(source_id, options)` (JSON of the index options of the source's last finished sync) is created with `IF NOT EXISTS` and needs no version change: an index without a row counts as built with `pdf_pages = all, photos = content`. A video's `files.sha256` hashes its size and its first and last mebibyte, not the whole file.
 
 ## Invariants
 
