@@ -1,6 +1,12 @@
-"""Searcher: embeds the query, runs vector, keyword and path search, blends and describes hits."""
+"""Searcher: embeds the query, runs vector, keyword and path search, blends and describes hits.
+
+Keyword and path search run on a thread of their own while the query is embedded: neither needs
+the vector, and both wait on the GPU and SQLite with the GIL released.
+"""
 
 from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
 
 from agi_memory.embedding.base import Embedder
 from agi_memory.search.calibration import noise_ceiling
@@ -33,6 +39,7 @@ class Searcher:
         self._embedder = embedder
         self._pool = pool
         self._confident_cosine = confident_cosine
+        self._lexical = ThreadPoolExecutor(1, thread_name_prefix="search-lexical")
 
     @property
     def confident_cosine(self) -> float:
@@ -56,11 +63,16 @@ class Searcher:
         """
         if not query.strip() or k <= 0:
             return SearchResult([], confident=False)
+        lexical = self._lexical.submit(
+            lambda: (
+                self._store.keyword_search(query, self._pool, filters),
+                self._store.path_search(query, filters),
+            )
+        )
         vector_hits = self._store.search_vectors(
             self._embedder.embed_query(query), self._pool, filters
         )
-        keyword_hits = self._store.keyword_search(query, self._pool, filters)
-        path_hits = self._store.path_search(query, filters)
+        keyword_hits, path_hits = lexical.result()
         fused = blend(vector_hits, keyword_hits, path_hits)[:k]
         vector_scores = {h.id: h.score for h in vector_hits}
         path_ids = {h.id for h in path_hits}
