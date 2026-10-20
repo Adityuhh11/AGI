@@ -210,6 +210,7 @@ func run(afterUpdate bool) error {
 		func(indexing.Status) { refresh() })
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
+	indexer.SetOptions(indexOptions(cfg.Search))
 	browser := web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks)
 
 	// What the bar has learned about its user (what was launched, and after typing what) lives beside the
@@ -295,7 +296,7 @@ func run(afterUpdate bool) error {
 			Open:         settingsWindow.Open,
 			Autostart:    autostart.Enabled,
 			SetAutostart: autostart.Set,
-			Engine:       func() (string, string) { st := engine.Status(); return string(st.State), st.Message },
+			Engine:       engine.Status,
 			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
 			Version:      version,
 		})),
@@ -330,6 +331,10 @@ func run(afterUpdate bool) error {
 		browser.Update(updated.Browser, updated.SearchURL, updated.Quicklinks)
 		if old.Search.Pace != updated.Search.Pace {
 			indexer.SetPace(updated.Search.Pace)
+		}
+		if indexOptions(old.Search) != indexOptions(updated.Search) {
+			indexer.SetOptions(indexOptions(updated.Search))
+			indexer.Rescan() // the engine processes again only the kinds of file whose choice changed
 		}
 		if !slices.Equal(old.Roots, updated.Roots) || !slices.Equal(old.Exclude, updated.Exclude) {
 			indexer.SetFolders(updated.Roots, updated.Exclude)
@@ -395,6 +400,11 @@ func run(afterUpdate bool) error {
 		log.Print("the search engine did not stop in time")
 	}
 	return runErr
+}
+
+// indexOptions are the indexing choices of the settings in the engine's terms.
+func indexOptions(s config.Search) sidecar.IndexOptions {
+	return sidecar.IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos}
 }
 
 // statusLine is the one sentence the tray shows about the launcher, most urgent problem first.

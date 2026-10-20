@@ -20,6 +20,43 @@
   ];
   const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
 
+  // What each kind of file is searched by (docs/superpowers/specs/2026-10-20-indexing-choices-design.md). Pictures are
+  // what indexing time goes on: about 0.16 s each on a graphics card, about 5 s on a processor alone.
+  type Kind = "PDFPages" | "Photos" | "Videos";
+  const CHOICES: { kind: Kind; label: string; options: { id: string; name: string; how: string }[] }[] = [
+    {
+      kind: "PDFPages",
+      label: "PDF pages",
+      options: [
+        { id: "auto", name: "Pages that need it", how: "Scans, slides and pages with pictures or tables are also found by how they look. Every page is found by its words." },
+        { id: "all", name: "Every page", how: "Any page can be found by how it looks. The slowest: every page is a picture to index." },
+        { id: "text", name: "Words only", how: "Pages are found by their words. The fastest, and the choice for a computer without a graphics card." },
+      ],
+    },
+    {
+      kind: "Photos",
+      label: "Photos",
+      options: [
+        { id: "content", name: "What they show", how: "Find a photo by describing it: “dog on a beach”." },
+        { id: "name", name: "Their names", how: "Only the file name is searched. Much faster without a graphics card." },
+      ],
+    },
+    {
+      kind: "Videos",
+      label: "Videos",
+      options: [
+        { id: "name", name: "Their names", how: "Videos are found by their file names." },
+        { id: "content", name: "What is in them", how: "Eight frames of each video are searched too; a video costs as much as eight photos." },
+      ],
+    },
+  ];
+
+  async function choose(kind: Kind, id: string) {
+    if (!search) return;
+    const next = { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos, [kind]: id };
+    await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos));
+  }
+
   const refresh = async () => {
     search = await Settings.Search();
   };
@@ -157,6 +194,35 @@
     </div>
     <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
   </div>
+
+  <div class="field">
+    <span class="label">What to index</span>
+    {#if search.Device === "cpu"}
+      <p class="help warn">
+        This computer has no graphics card file search can use, so it runs on the processor: each picture takes about 5 seconds to
+        index. Words only and names are the quick choices here.
+      </p>
+    {/if}
+    {#each CHOICES as choice (choice.kind)}
+      <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
+      <div class="speeds" style:--count={choice.options.length} role="radiogroup" aria-labelledby="{choice.kind}-label">
+        {#each choice.options as option (option.id)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={search[choice.kind] === option.id}
+            class="speed"
+            class:on={search[choice.kind] === option.id}
+            onclick={() => choose(choice.kind, option.id)}
+          >
+            <span class="name">{option.name}</span>
+            <span class="how">{option.how}</span>
+          </button>
+        {/each}
+      </div>
+    {/each}
+    <p class="help">A change applies at the next sync, to that kind of file only; nothing already indexed is computed again.</p>
+  </div>
 {/if}
 
 <div class="field">
@@ -237,8 +303,16 @@
   }
   .speeds {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--count, 3), minmax(0, 1fr));
     gap: 8px;
+  }
+  .sublabel {
+    margin-top: 6px;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+  .warn {
+    color: var(--danger);
   }
   .speed {
     display: flex;

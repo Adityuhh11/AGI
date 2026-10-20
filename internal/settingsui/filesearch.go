@@ -25,6 +25,10 @@ type SearchView struct {
 	Error       string // why the last install failed
 	// EngineState is off, starting, warming, ready, restarting, failed or stopped.
 	EngineState, EngineMessage string
+	// Device is where the model runs once the engine is ready: "vulkan", "cuda" or "cpu" (no usable graphics card).
+	Device string
+	// PDFPages, Photos and Videos are the indexing choices (config.PDFPageModes, PhotoModes, VideoModes).
+	PDFPages, Photos, Videos string
 	// Hosts and DownloadMB are what the page tells a person before they agree to the download.
 	Hosts      []string
 	DownloadMB int
@@ -45,17 +49,26 @@ type FolderView struct {
 // Search returns the File search page; the window asks again every second or two.
 func (s *Service) Search() SearchView {
 	st := s.o.Setup.State()
-	engineState, engineMessage := s.o.Engine()
+	engine := s.o.Engine()
 	cfg := s.o.Store.Get()
 	index := s.o.Indexing.Status()
 	return SearchView{
-		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(engineState),
+		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State)),
 		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
-		EngineState: engineState, EngineMessage: engineMessage,
+		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
 		Hosts: enginesetup.Hosts, DownloadMB: int(enginesetup.DownloadBytes() >> 20), Pace: cfg.Search.Pace,
+		PDFPages: cfg.Search.PDFPages, Photos: cfg.Search.Photos, Videos: cfg.Search.Videos,
 	}
+}
+
+// SetIndexing sets what PDF pages, photos and videos are searched by. The next sync processes again only the kinds of
+// file whose choice changed, and reuses everything already embedded.
+func (s *Service) SetIndexing(pdfPages, photos, videos string) string {
+	return reason(s.o.Store.Update(func(c *config.Config) {
+		c.Search.PDFPages, c.Search.Photos, c.Search.Videos = pdfPages, photos, videos
+	}))
 }
 
 // TurnOn switches file search on. If the engine is not installed yet (or is out of date) the download
@@ -150,6 +163,11 @@ func (s *Service) folders(engineState string) []FolderView {
 			view.Text = "Looking at what is in it"
 		case f.State == indexing.Indexing:
 			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal)
+		case f.State == indexing.UpToDate && f.Files == 0:
+			view.Text = "Nothing here AGI can read"
+			if now := s.movedTo(f.Root); now != "" {
+				view.Text += fmt.Sprintf(". Windows keeps this folder in %s now: add that one instead", now)
+			}
 		case f.State == indexing.UpToDate:
 			view.Text = fmt.Sprintf("%d files searchable", f.Files)
 		case f.State == indexing.Failed:

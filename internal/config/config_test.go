@@ -109,6 +109,9 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"clipboard hotkey that is the main hotkey", "hotkey = 'Alt+Shift+Space'\n[clipboard]\nhotkey = 'alt + shift + space'\n", "launcher's own hotkey"},
 		{"clipboard ignore with an empty program name", "[clipboard]\nignore = ['Notepad', ' ']\n", "program name must not be empty"},
 		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
+		{"unknown pdf mode", "[search]\npace = 'fast'\npdf_pages = 'some'\n", "pdf_pages"},
+		{"unknown photo mode", "[search]\npace = 'fast'\nphotos = 'pixels'\n", "photos"},
+		{"unknown video mode", "[search]\npace = 'fast'\nvideos = 'off'\n", "videos"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,6 +199,22 @@ func TestLoadReadsTheSearchSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !got.Search.Enabled || got.Search.Pace != "gentle" {
+		t.Fatalf("search = %+v", got.Search)
+	}
+	// A file from before the indexing choices keeps their defaults.
+	if got.Search.PDFPages != "auto" || got.Search.Photos != "content" || got.Search.Videos != "name" {
+		t.Fatalf("indexing choices = %+v, want the defaults", got.Search)
+	}
+}
+
+func TestLoadReadsTheIndexingChoices(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[search]\npace = 'fast'\npdf_pages = 'text'\nphotos = 'name'\nvideos = 'content'\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Search.PDFPages != "text" || got.Search.Photos != "name" || got.Search.Videos != "content" {
 		t.Fatalf("search = %+v", got.Search)
 	}
 }

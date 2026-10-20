@@ -11,6 +11,7 @@ import (
 	"agi/internal/enginesetup"
 	"agi/internal/indexing"
 	"agi/internal/settings"
+	"agi/internal/sidecar"
 	"agi/internal/update"
 )
 
@@ -110,7 +111,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 		PickFolder: func() (string, error) { return h.picked, nil },
 		Browsers:   func() []string { return []string{"chrome"} },
 		OpenFolder: func(p string) error { h.opened = p; return nil },
-		Engine:     func() (string, string) { return "off", "" },
+		Engine:     func() sidecar.Status { return sidecar.Status{State: sidecar.StateOff} },
 		Clipboard:  h.history,
 		RebindClipboard: func(a string) error {
 			h.clipHotkeys = append(h.clipHotkeys, a)
@@ -337,7 +338,7 @@ func TestFoldersAreDescribedInWordsForEachState(t *testing.T) {
 		{Root: `C:\e`, State: indexing.Waiting},
 	}
 	h.setup.state.Installed = true
-	h.svc.o.Engine = func() (string, string) { return "ready", "" }
+	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
 	got := h.svc.Search().Folders
 	want := []string{"Indexing: 40 of 96 files", "Looking at what is in it", "12 files searchable", "Could not be indexed: disk on fire", "Waiting"}
 	for i, text := range want {
@@ -345,9 +346,49 @@ func TestFoldersAreDescribedInWordsForEachState(t *testing.T) {
 			t.Errorf("folder %d says %q, want %q", i, got[i].Text, text)
 		}
 	}
-	h.svc.o.Engine = func() (string, string) { return "off", "" }
+	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateOff} }
 	if got := h.svc.Search().Folders[2]; got.State != "waiting" || !strings.Contains(got.Text, "turned on") {
 		t.Errorf("with the engine off a folder says %+v", got)
+	}
+}
+
+func TestAFolderWithNothingReadableSaysSoAndWhereWindowsMovedIt(t *testing.T) {
+	h := newHarness(t)
+	h.index.folders = []indexing.FolderStatus{
+		{Root: `C:\Users\me\Documents`, State: indexing.UpToDate},
+		{Root: `C:\Empty`, State: indexing.UpToDate},
+	}
+	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
+	h.svc.movedTo = func(root string) string {
+		if root == `C:\Users\me\Documents` {
+			return `C:\Users\me\OneDrive\Documents`
+		}
+		return ""
+	}
+	got := h.svc.Search().Folders
+	if want := `Nothing here AGI can read. Windows keeps this folder in C:\Users\me\OneDrive\Documents now: add that one instead`; got[0].Text != want {
+		t.Errorf("a moved folder says %q", got[0].Text)
+	}
+	if got[1].Text != "Nothing here AGI can read" {
+		t.Errorf("an empty folder says %q", got[1].Text)
+	}
+}
+
+func TestTheIndexingChoicesAreShownSavedAndValidated(t *testing.T) {
+	h := newHarness(t)
+	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady, Device: "cpu"} }
+	view := h.svc.Search()
+	if view.PDFPages != "auto" || view.Photos != "content" || view.Videos != "name" || view.Device != "cpu" {
+		t.Fatalf("view = %+v", view)
+	}
+	if msg := h.svc.SetIndexing("text", "name", "content"); msg != "" {
+		t.Fatal(msg)
+	}
+	if s := h.store.Get().Search; s.PDFPages != "text" || s.Photos != "name" || s.Videos != "content" {
+		t.Fatalf("saved %+v", s)
+	}
+	if msg := h.svc.SetIndexing("some", "name", "content"); !strings.Contains(msg, "pdf_pages") {
+		t.Fatalf("a bad choice was not refused: %q", msg)
 	}
 }
 

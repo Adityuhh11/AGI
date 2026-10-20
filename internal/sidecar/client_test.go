@@ -59,7 +59,7 @@ func TestEveryRequestCarriesTheTokenAndUsesTheRightRoute(t *testing.T) {
 			func(c *Client) error { _, err := c.DeleteSource(context.Background(), "root-abc"); return err }, "DELETE", "/sources/root-abc"},
 		{"add", `{"job_id":"job-2"}`,
 			func(c *Client) error {
-				_, err := c.AddSource(context.Background(), `C:\x`, "root-abc", nil)
+				_, err := c.AddSource(context.Background(), `C:\x`, "root-abc", nil, IndexOptions{})
 				return err
 			}, "POST", "/sources"},
 		{"search", `{"files":[],"confident":false}`,
@@ -140,7 +140,8 @@ func TestSearchSendsOnlyWhatWasAskedAndDecodesFiles(t *testing.T) {
 
 func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	client, e := newClient(t, 202, `{"job_id":"job-7"}`)
-	job, err := client.AddSource(context.Background(), `C:\Users\me\Docs`, "root-1", []string{"vendor/skills"})
+	options := IndexOptions{PDFPages: "text", Photos: "name", Videos: "content"}
+	job, err := client.AddSource(context.Background(), `C:\Users\me\Docs`, "root-1", []string{"vendor/skills"}, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,15 +149,19 @@ func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 		t.Fatalf("job id = %q", job)
 	}
 	var sent struct {
-		Path     string   `json:"path"`
-		SourceID string   `json:"source_id"`
-		Exclude  []string `json:"exclude"`
+		Path     string       `json:"path"`
+		SourceID string       `json:"source_id"`
+		Exclude  []string     `json:"exclude"`
+		Options  IndexOptions `json:"options"`
 	}
 	if err := json.Unmarshal([]byte(e.sent), &sent); err != nil {
 		t.Fatal(err)
 	}
-	if sent.Path != `C:\Users\me\Docs` || sent.SourceID != "root-1" || len(sent.Exclude) != 1 || sent.Exclude[0] != "vendor/skills" {
+	if sent.Path != `C:\Users\me\Docs` || sent.SourceID != "root-1" || len(sent.Exclude) != 1 || sent.Exclude[0] != "vendor/skills" || sent.Options != options {
 		t.Fatalf("body = %s", e.sent)
+	}
+	if !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name","videos":"content"}`) {
+		t.Fatalf("options were not sent as documented: %s", e.sent)
 	}
 }
 

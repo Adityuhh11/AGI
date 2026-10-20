@@ -80,10 +80,23 @@ type Search struct {
 	Enabled bool `toml:"enabled"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
+	// PDFPages, Photos and Videos say what each kind of file is searched by (docs/superpowers/specs/
+	// 2026-10-20-indexing-choices-design.md): one of PDFPageModes, PhotoModes and VideoModes, the first the default.
+	PDFPages string `toml:"pdf_pages"`
+	Photos   string `toml:"photos"`
+	Videos   string `toml:"videos"`
 }
 
 // Paces are the allowed values of Search.Pace, from the most to the least demanding.
 var Paces = []string{"fast", "balanced", "gentle"}
+
+// The allowed values of the indexing choices, the default first. PDF pages: a page's picture is searched too when
+// it looks visual (auto), always (all) or never (text). Photos and videos: by what they show (content) or by name.
+var (
+	PDFPageModes = []string{"auto", "all", "text"}
+	PhotoModes   = []string{"content", "name"}
+	VideoModes   = []string{"name", "content"}
+)
 
 type retiredSidecar struct {
 	Dir string `toml:"dir"`
@@ -184,8 +197,18 @@ func (c Config) Validate() error {
 			return fmt.Errorf("clipboard ignore: a program name must not be empty")
 		}
 	}
-	if !slices.Contains(Paces, c.Search.Pace) {
-		return fmt.Errorf("search pace %q must be one of %s", c.Search.Pace, strings.Join(Paces, ", "))
+	for _, choice := range []struct {
+		name, value string
+		allowed     []string
+	}{
+		{"search pace", c.Search.Pace, Paces},
+		{"pdf_pages", c.Search.PDFPages, PDFPageModes},
+		{"photos", c.Search.Photos, PhotoModes},
+		{"videos", c.Search.Videos, VideoModes},
+	} {
+		if !slices.Contains(choice.allowed, choice.value) {
+			return fmt.Errorf("%s %q must be one of %s", choice.name, choice.value, strings.Join(choice.allowed, ", "))
+		}
 	}
 	for _, folder := range c.Exclude {
 		if !filepath.IsAbs(folder) {

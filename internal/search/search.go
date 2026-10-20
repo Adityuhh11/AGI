@@ -197,13 +197,15 @@ func (s *Service) row(file sidecar.File) (Row, bool) {
 	return row, true
 }
 
-// displayKind folds the engine's chunk kinds into the four things the UI tells apart.
+// displayKind folds the engine's chunk kinds into the five things the UI tells apart.
 func displayKind(kind string) string {
 	switch kind {
 	case "pdf_text", "pdf_page":
 		return "pdf"
 	case "image":
 		return "image"
+	case "video", "video_frame":
+		return "video"
 	case "code":
 		return "code"
 	default: // markdown and text
@@ -212,8 +214,9 @@ func displayKind(kind string) string {
 }
 
 type locatorJSON struct {
-	Lines []int `json:"lines"`
-	Page  int   `json:"page"`
+	Lines []int    `json:"lines"`
+	Page  int      `json:"page"`
+	T     *float64 `json:"t"` // seconds into a video
 }
 
 func parseLocator(locator string) locatorJSON {
@@ -222,7 +225,7 @@ func parseLocator(locator string) locatorJSON {
 	return parsed
 }
 
-// location describes where in a file a chunk is: "lines 12-52" or "page 3".
+// location describes where in a file a chunk is: "lines 12-52", "page 3" or, in a video, "at 1:23".
 func location(locator string) string {
 	parsed := parseLocator(locator)
 	switch {
@@ -232,8 +235,19 @@ func location(locator string) string {
 		return fmt.Sprintf("lines %d-%d", parsed.Lines[0], parsed.Lines[1])
 	case parsed.Page > 0:
 		return fmt.Sprintf("page %d", parsed.Page)
+	case parsed.T != nil:
+		return "at " + clock(*parsed.T)
 	}
 	return ""
+}
+
+// clock writes seconds as a video player does: 0:07, 1:23, 1:02:03.
+func clock(seconds float64) string {
+	s := int(seconds)
+	if s >= 3600 {
+		return fmt.Sprintf("%d:%02d:%02d", s/3600, s/60%60, s%60)
+	}
+	return fmt.Sprintf("%d:%02d", s/60, s%60)
 }
 
 func firstLine(locator string) int {

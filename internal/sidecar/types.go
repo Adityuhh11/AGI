@@ -17,6 +17,14 @@ type Health struct {
 	Paused *bool    `json:"paused"`
 }
 
+// IndexOptions say what each kind of file is searched by ("options" of POST /sources); an empty field takes the
+// engine's default.
+type IndexOptions struct {
+	PDFPages string `json:"pdf_pages,omitempty"` // auto, all or text
+	Photos   string `json:"photos,omitempty"`    // content or name
+	Videos   string `json:"videos,omitempty"`    // name or content
+}
+
 // Source is one indexed folder (GET /sources).
 type Source struct {
 	ID         string `json:"id"`

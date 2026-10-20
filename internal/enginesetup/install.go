@@ -230,7 +230,7 @@ func (i *Installer) check(ctx context.Context) error {
 	if i.Check != nil {
 		return i.Check(ctx)
 	}
-	cmd := exec.CommandContext(ctx, i.Layout.Python(), "-c", "import agi_memory, fastapi, numpy, PIL, pypdfium2, uvicorn")
+	cmd := exec.CommandContext(ctx, i.Layout.Python(), "-c", "import agi_memory, av, fastapi, numpy, PIL, pypdfium2, uvicorn")
 	cmd.Dir = i.Layout.App()
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output

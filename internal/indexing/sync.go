@@ -63,7 +63,7 @@ func wasDeleted(root string) bool {
 // others; its problem is returned.
 func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems []string, err error) {
 	var roots []string
-	configured, exclude := m.folders()
+	configured, exclude, options := m.folders()
 	ids := make(map[string]bool, len(configured))
 	for _, root := range configured {
 		if m.deleted(root) {
@@ -95,7 +95,7 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 		if only != nil && !only[root] {
 			continue
 		}
-		if err := m.syncRoot(ctx, root, exclude); err != nil {
+		if err := m.syncRoot(ctx, root, exclude, options); err != nil {
 			problems = append(problems, filepath.Base(root)+": "+err.Error())
 			m.setFolder(FolderStatus{Root: root, State: Failed, Message: err.Error()})
 		}
@@ -128,10 +128,10 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 	return nil, nil
 }
 
-func (m *Manager) syncRoot(ctx context.Context, root string, exclude []string) error {
+func (m *Manager) syncRoot(ctx context.Context, root string, exclude []string, options sidecar.IndexOptions) error {
 	id := config.SourceID(root)
 	for {
-		jobID, err := m.engine.AddSource(ctx, root, id, config.ExcludedUnder(root, exclude))
+		jobID, err := m.engine.AddSource(ctx, root, id, config.ExcludedUnder(root, exclude), options)
 		var busy *sidecar.BusyError
 		if err == nil {
 			return m.follow(ctx, root, jobID)

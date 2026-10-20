@@ -16,6 +16,7 @@ import (
 	"agi/internal/enginesetup"
 	"agi/internal/indexing"
 	"agi/internal/settings"
+	"agi/internal/sidecar"
 	"agi/internal/update"
 )
 
@@ -90,8 +91,8 @@ type Options struct {
 	Restart   func() error
 	// Open opens (or brings forward) the settings window.
 	Open func()
-	// Engine reports the file-search engine's state and message, for the diagnostics.
-	Engine func() (state, message string)
+	// Engine reports the file-search engine's state, why it is in it, and where its model runs.
+	Engine func() sidecar.Status
 	// LogDir is where agi.log is written. Version is the build's version.
 	LogDir, Version string
 }
@@ -101,12 +102,15 @@ type Options struct {
 type Service struct {
 	o Options
 
+	// movedTo says where Windows keeps a user folder that a configured folder is the old place of; tests replace it.
+	movedTo func(root string) string
+
 	mu         sync.Mutex
 	restartErr string // why the launcher could not restart itself after an update, if it could not
 }
 
 // New returns the service.
-func New(o Options) *Service { return &Service{o: o} }
+func New(o Options) *Service { return &Service{o: o, movedTo: movedTo} }
 
 // View is everything the window shows.
 type View struct {
@@ -207,11 +211,12 @@ func (s *Service) OpenFolder(which string) string {
 // nothing about the user's files or settings beyond what is listed.
 func (s *Service) Diagnostics() string {
 	c := s.o.Store.Get()
-	engineState, engineMessage := s.o.Engine()
+	engine := s.o.Engine()
 	var b strings.Builder
 	fmt.Fprintf(&b, "AGI %s on %s/%s\n", s.o.Version, runtime.GOOS, runtime.GOARCH)
-	fmt.Fprintf(&b, "file search: enabled=%v engine=%s %s\n", c.Search.Enabled, engineState, engineMessage)
-	fmt.Fprintf(&b, "folders: %d, quicklinks: %d, pace: %s\n", len(c.Roots), len(c.Quicklinks), c.Search.Pace)
+	fmt.Fprintf(&b, "file search: enabled=%v engine=%s %s device=%s\n", c.Search.Enabled, engine.State, engine.Message, engine.Device)
+	fmt.Fprintf(&b, "folders: %d, quicklinks: %d, pace: %s, pdf pages: %s, photos: %s, videos: %s\n",
+		len(c.Roots), len(c.Quicklinks), c.Search.Pace, c.Search.PDFPages, c.Search.Photos, c.Search.Videos)
 	return b.String()
 }
 

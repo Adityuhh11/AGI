@@ -15,7 +15,7 @@ import (
 // Engine is the part of the engine's API the manager uses; *sidecar.Client satisfies it.
 type Engine interface {
 	Sources(ctx context.Context) ([]sidecar.Source, error)
-	AddSource(ctx context.Context, root, id string, exclude []string) (string, error)
+	AddSource(ctx context.Context, root, id string, exclude []string, options sidecar.IndexOptions) (string, error)
 	Job(ctx context.Context, id string) (sidecar.Job, error)
 	DeleteSource(ctx context.Context, id string) (int, error)
 	SetDuty(ctx context.Context, duty float64) error
@@ -42,6 +42,7 @@ type Manager struct {
 	status  Status
 	roots   []string        // the folders to index
 	exclude []string        // folders inside the roots to leave out
+	options sidecar.IndexOptions
 	dirty   map[string]bool // roots whose folders changed since they were last synced
 	pace    string          // fast, balanced or gentle
 	paused  bool
@@ -115,11 +116,19 @@ func (m *Manager) SetFolders(roots, exclude []string) {
 	m.Rescan()
 }
 
-// folders returns the current folders to index and to leave out.
-func (m *Manager) folders() (roots, exclude []string) {
+// SetOptions sets what each kind of file is searched by, for the next sync and every one after; a running
+// manager is asked for a sync with Rescan.
+func (m *Manager) SetOptions(options sidecar.IndexOptions) {
+	m.mu.Lock()
+	m.options = options
+	m.mu.Unlock()
+}
+
+// folders returns the current folders to index and to leave out, and the options to index them with.
+func (m *Manager) folders() (roots, exclude []string, options sidecar.IndexOptions) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return slices.Clone(m.roots), slices.Clone(m.exclude)
+	return slices.Clone(m.roots), slices.Clone(m.exclude), m.options
 }
 
 // Rescan asks for another sync as soon as the current one is over. Asking twice is the same as once.
