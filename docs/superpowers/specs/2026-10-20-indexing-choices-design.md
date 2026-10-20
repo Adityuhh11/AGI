@@ -32,8 +32,8 @@ saying what it costs:
 | `videos` | `name`, `content` | `name`: videos are found by their file name. `content`: also by what is in them, 8 frames each. |
 
 The `auto` rule, measured on the owner's 16,713 indexed pages: 10,132 have no picture and at least 200 characters; of those,
-2,023 have more than 50 vector path objects (tables, charts). `auto` therefore embeds about 9,400 page images instead of
-16,713 (44% fewer).
+2,023 have more than 50 vector path objects (tables, charts). `auto` therefore embeds 8,604 page images instead of
+16,713 (49% fewer; `../../eval/2026-10-20-indexing-choices.md`).
 
 The page also says where the engine runs: "on the graphics card" or, when it fell back, "on the processor: pictures take
 about 5 seconds each here, so Words only and file names are the quick choices". The engine reports its device already
