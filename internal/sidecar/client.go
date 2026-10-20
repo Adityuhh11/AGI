@@ -73,13 +73,20 @@ func (c *Client) Sources(ctx context.Context) ([]Source, error) {
 // AddSource starts indexing root as source id and returns the job to follow. exclude lists folders
 // below root to leave out, as '/'-separated relative paths; options say what each kind of file is searched by.
 // If another job is running it returns a *BusyError carrying that job's id.
+//
+// Like exclude, options are sent only when they say something: an engine installed by an earlier launcher refuses
+// a field it does not know, and after a launcher update it keeps running until the person presses Update, so the
+// default choices must keep indexing with it.
 func (c *Client) AddSource(ctx context.Context, root, id string, exclude []string, options IndexOptions) (string, error) {
 	var out struct {
 		JobID string `json:"job_id"`
 	}
-	body := map[string]any{"path": root, "source_id": id, "options": options}
+	body := map[string]any{"path": root, "source_id": id}
 	if len(exclude) > 0 {
 		body["exclude"] = exclude
+	}
+	if options != (IndexOptions{}) && options != DefaultIndexOptions {
+		body["options"] = options
 	}
 	if err := c.do(ctx, http.MethodPost, "/sources", body, &out); err != nil {
 		return "", err

@@ -25,6 +25,9 @@ type IndexOptions struct {
 	Videos   string `json:"videos,omitempty"`    // name or content
 }
 
+// DefaultIndexOptions are what the engine does when a request carries no options (docs/api.md).
+var DefaultIndexOptions = IndexOptions{PDFPages: "auto", Photos: "content", Videos: "name"}
+
 // Source is one indexed folder (GET /sources).
 type Source struct {
 	ID         string `json:"id"`

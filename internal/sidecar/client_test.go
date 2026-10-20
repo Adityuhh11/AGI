@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"agi/internal/config"
 )
 
 const testToken = "t0ken-xxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -162,6 +164,25 @@ func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	}
 	if !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name","videos":"content"}`) {
 		t.Fatalf("options were not sent as documented: %s", e.sent)
+	}
+}
+
+func TestTheEnginesDefaultOptionsAreTheSettingsDefaults(t *testing.T) {
+	s := config.Default().Search
+	if (IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos}) != DefaultIndexOptions {
+		t.Fatalf("settings default to %+v, the engine to %+v", s, DefaultIndexOptions)
+	}
+}
+
+func TestTheDefaultOptionsAreNotSentSoAnOlderEngineStillIndexes(t *testing.T) {
+	for _, options := range []IndexOptions{{}, DefaultIndexOptions} {
+		client, e := newClient(t, 202, `{"job_id":"job-1"}`)
+		if _, err := client.AddSource(context.Background(), `C:\x`, "root-1", nil, options); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(e.sent, "options") {
+			t.Errorf("options %+v were sent: %s", options, e.sent)
+		}
 	}
 }
 
