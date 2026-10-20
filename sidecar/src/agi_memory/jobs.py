@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agi_memory.indexer import Indexer, SyncReport
+from agi_memory.types import IndexOptions
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,13 @@ class JobManager:
         self._jobs: OrderedDict[str, Job] = OrderedDict()
         self._counter = 0
 
-    def submit(self, source_id: str, root: Path, exclude: Collection[str] = ()) -> Job:
+    def submit(
+        self,
+        source_id: str,
+        root: Path,
+        exclude: Collection[str] = (),
+        options: IndexOptions | None = None,
+    ) -> Job:
         """Start indexing `root` as `source_id`; returns a snapshot of the new job."""
         with self._lock:
             running = self._running()
@@ -71,7 +78,7 @@ class JobManager:
             self._trim()
             snapshot = dataclasses.replace(job)
         threading.Thread(
-            target=self._run, args=(job, exclude), name=f"index-{job.id}", daemon=True
+            target=self._run, args=(job, exclude, options), name=f"index-{job.id}", daemon=True
         ).start()
         return snapshot
 
@@ -101,14 +108,18 @@ class JobManager:
                 return
             del self._jobs[oldest]
 
-    def _run(self, job: Job, exclude: Collection[str]) -> None:
+    def _run(self, job: Job, exclude: Collection[str], options: IndexOptions | None) -> None:
         def progress(done: int, total: int) -> None:
             with self._lock:
                 job.files_done, job.files_total = done, total
 
         try:
             report = self._indexer.sync(
-                job.source_id, Path(job.root), exclude=exclude, on_progress=progress
+                job.source_id,
+                Path(job.root),
+                exclude=exclude,
+                options=options,
+                on_progress=progress,
             )
         except Exception as error:  # the job fails; the service must stay up
             logger.exception("index job %s failed", job.id)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -43,9 +43,18 @@ class SetPace(_Request):
     duty: float = Field(ge=MIN_DUTY, le=1.0)
 
 
+class IndexOptionsIn(_Request):
+    """What to index of each kind of file; see `types.IndexOptions`."""
+
+    pdf_pages: Literal["auto", "all", "text"] = "auto"
+    photos: Literal["content", "name"] = "content"
+    videos: Literal["name", "content"] = "name"
+
+
 class AddSource(_Request):
     path: str = Field(min_length=1, max_length=1024)
     source_id: str = Field(pattern=SOURCE_ID_PATTERN)
+    options: IndexOptionsIn = Field(default_factory=IndexOptionsIn)
     # Folders below `path` to leave out, '/'-separated and relative, e.g. "vendor/skills".
     exclude: list[Annotated[str, Field(min_length=1, max_length=1024)]] = Field(
         default_factory=list, max_length=500

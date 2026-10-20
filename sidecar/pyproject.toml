@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Local memory engine for AGI: indexing and search over localhost HTTP."
 requires-python = ">=3.12"
 dependencies = [
+    "av>=19.0.1",
     "fastapi",
     "numpy",
     "pathspec",

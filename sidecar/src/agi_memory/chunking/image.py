@@ -21,14 +21,19 @@ def load_image(data: bytes, max_side: int) -> Image.Image:
     return image
 
 
-def image_chunk(source_id: str, uri: str, file_sha256: str, mtime_ns: int) -> Chunk:
-    """The single chunk for an image file. Its text is the path, so file names are searchable."""
+def image_chunk(
+    source_id: str, uri: str, file_sha256: str, mtime_ns: int, *, by_name: bool = False
+) -> Chunk:
+    """The single chunk for an image file. Its text is the path, so file names are searchable.
+
+    A chunk embedded from the name (`by_name`) hashes differently from one embedded from the
+    pixels, so switching between the two never keeps the other's vector."""
     return Chunk(
         source_id=source_id,
         uri=uri,
         kind=ChunkKind.IMAGE,
         locator="{}",
-        content_hash=file_sha256,
+        content_hash=f"name:{file_sha256}" if by_name else file_sha256,
         mtime_ns=mtime_ns,
         text=uri,
     )

@@ -4,8 +4,16 @@ Flow for one `sync`: scan the folder, diff against the files the store already k
 disappeared, then for every new or changed file read it once, hash it and chunk it. Text chunks
 from many small files are embedded together (one GPU call has a ~200 ms fixed cost, so one call
 per file would dominate indexing time), and so are image files, a few at a time, so the embedder
-can keep two in flight; PDFs are embedded per file because their pages are rendered lazily. Each
-file lands in the store atomically (`FlatStore.replace_file`).
+can keep two in flight; PDFs and videos are embedded per file because their pictures are made
+lazily. Each file lands in the store atomically (`FlatStore.replace_file`).
+
+Nothing is embedded twice: a chunk whose id is already stored keeps its vector (an id is derived
+from everything its embedding is computed from), and a moved, renamed or copied file takes the
+picture vectors of the identical file already indexed.
+
+Index options (`IndexOptions`) say what a PDF page, a photo and a video become. The options of a
+source's last finished sync are stored; when they change, every file of the kinds concerned is
+processed again, even if it did not change on disk, and the reuse above makes that cheap.
 
 Failure policy: a file that cannot be read, chunked or rendered, whatever the reason, is recorded
 in the report and skipped, so one bad file never costs the rest of the folder. Files that are
@@ -20,7 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import time
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -29,14 +37,15 @@ from PIL.Image import Image
 
 from agi_memory.chunking.common import ChunkingError
 from agi_memory.chunking.image import image_chunk, load_image
-from agi_memory.chunking.pdf import PdfPages, pdf_page_chunks, pdf_text_chunks
+from agi_memory.chunking.pdf import PdfPages, pages_as_pictures, pdf_page_chunks, pdf_text_chunks
 from agi_memory.chunking.text import NotTextError, chunk_text_document
+from agi_memory.chunking.video import Video, video_frame_chunks, video_identity, video_name_chunk
 from agi_memory.config import Settings
 from agi_memory.embedding.base import Embedder
 from agi_memory.sources.folder import ScannedFile, scan
 from agi_memory.sources.rules import Route
 from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, ChunkKind, FileRecord
+from agi_memory.types import LEGACY_OPTIONS, Chunk, ChunkKind, FileRecord, IndexOptions
 
 _TEXT_ROUTES = frozenset({Route.CODE, Route.MARKDOWN, Route.TEXT})
 MAX_CONSECUTIVE_FAILURES = 5
@@ -45,6 +54,18 @@ MAX_CONSECUTIVE_FAILURES = 5
 def _title(uri: str) -> str:
     """The file name: measured better as the embedding title than the whole path."""
     return uri.rsplit("/", 1)[-1]
+
+
+def _changed_routes(before: IndexOptions, now: IndexOptions) -> frozenset[Route]:
+    """The kinds of file whose chunks depend on an option that changed."""
+    changed = set()
+    if before.pdf_pages != now.pdf_pages:
+        changed.add(Route.PDF)
+    if before.photos != now.photos:
+        changed.add(Route.IMAGE)
+    if before.videos != now.videos:
+        changed.add(Route.VIDEO)
+    return frozenset(changed)
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +104,19 @@ class _PendingImage:
     image: Image
 
 
+@dataclass(slots=True)
+class _Run:
+    """What one sync works with: its options, the kinds to redo, and what waits to be embedded."""
+
+    source_id: str
+    options: IndexOptions
+    redo: frozenset[Route]  # kinds whose option changed: processed again even when unchanged
+    donors: dict[str, str]  # content hash -> uri of an indexed file to take picture vectors from
+    report: SyncReport
+    pending: list[_Pending] = field(default_factory=list)
+    images: list[_PendingImage] = field(default_factory=list)
+
+
 class Indexer:
     """Keeps one store in sync with folders, one `sync` call per source."""
 
@@ -105,14 +139,17 @@ class Indexer:
         root: Path,
         *,
         exclude: Collection[str] = (),
+        options: IndexOptions | None = None,
         on_progress: Callable[[int, int], None] | None = None,
     ) -> SyncReport:
         """Index new and changed files under `root`, drop vanished ones, return what happened.
 
         `exclude` lists folders below the root to leave out (and to drop from the index if they
-        were indexed before), as '/'-separated relative paths."""
+        were indexed before), as '/'-separated relative paths. `options` default to
+        `IndexOptions()`."""
         if not root.is_dir():
             raise FileNotFoundError(f"source root is not a folder: {root}")
+        options = options or IndexOptions()
         skipped = frozenset(f"{p.strip('/').lower()}/" for p in exclude if p.strip("/"))
         scanned = scan(root, self._settings, skipped)
         report = SyncReport(
@@ -124,21 +161,24 @@ class Indexer:
         report.errors.extend(FileError(uri, message) for uri, message in scanned.unreadable)
         self._store.register_source(source_id, str(root))
         known = self._store.file_records(source_id)
+        before = self._store.source_options(source_id) or LEGACY_OPTIONS
 
         on_disk = {file.uri for file in scanned.files}
         protected = tuple(prefix for prefix, _ in scanned.unreadable)  # could not look in there
         gone = [u for u in sorted(known) if u not in on_disk and not u.startswith(protected)]
-        donors = self._donors(known, gone, scanned.files)
+        run = _Run(
+            source_id,
+            options,
+            _changed_routes(before, options),
+            self._donors(known, gone, scanned.files),
+            report,
+        )
 
-        pending: list[_Pending] = []
-        images: list[_PendingImage] = []
         total = len(scanned.files)
         failures = 0  # files in a row that failed
         for number, file in enumerate(scanned.files, start=1):
             try:
-                self._index_file(
-                    source_id, file, known.get(file.uri), report, pending, images, donors
-                )
+                self._index_file(run, file, known.get(file.uri))
                 failures = 0
             except NotTextError:
                 report.unsupported += 1
@@ -151,17 +191,17 @@ class Indexer:
                 failures += 1
                 if failures >= MAX_CONSECUTIVE_FAILURES:
                     raise
-            if sum(len(item.chunks) for item in pending) >= self._settings.flush_chunks:
-                self._flush(pending, report)
-            if len(images) >= self._settings.image_batch_size:
-                self._flush_images(images, report)
+            if sum(len(item.chunks) for item in run.pending) >= self._settings.flush_chunks:
+                self._flush(run)
+            if len(run.images) >= self._settings.image_batch_size:
+                self._flush_images(run)
             if on_progress is not None:
                 on_progress(number, total)
-        self._flush(pending, report)
-        self._flush_images(images, report)
+        self._flush(run)
+        self._flush_images(run)
         # After the files above, so a moved file's old chunks were still there to take vectors from.
         report.removed = self._store.remove_files(source_id, gone)
-        self._store.mark_scanned(source_id, self._clock())
+        self._store.mark_scanned(source_id, self._clock(), options)
         return report
 
     @staticmethod
@@ -187,47 +227,59 @@ class Indexer:
 
     # --- per file -----------------------------------------------------------------------
 
-    def _index_file(
-        self,
-        source_id: str,
-        file: ScannedFile,
-        known: FileRecord | None,
-        report: SyncReport,
-        pending: list[_Pending],
-        images: list[_PendingImage],
-        donors: dict[str, str],
-    ) -> None:
-        if known is not None and known.size == file.size and known.mtime_ns == file.mtime_ns:
-            report.unchanged += 1
+    def _index_file(self, run: _Run, file: ScannedFile, known: FileRecord | None) -> None:
+        redo = file.route in run.redo
+        unchanged = known is not None and (known.size, known.mtime_ns) == (file.size, file.mtime_ns)
+        if unchanged and not redo:
+            run.report.unchanged += 1
             return
-        data = file.path.read_bytes()
-        digest = hashlib.sha256(data).hexdigest()
-        record = FileRecord(source_id, file.uri, file.size, file.mtime_ns, digest)
-        if known is not None and known.sha256 == digest:
+        if file.route is Route.VIDEO:
+            data, digest = b"", video_identity(file.path, file.size)  # never read whole
+        else:
+            data = file.path.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()
+        record = FileRecord(run.source_id, file.uri, file.size, file.mtime_ns, digest)
+        if known is not None and known.sha256 == digest and not redo:
             self._store.touch_file(record)  # same bytes, new mtime: nothing to embed
-            report.unchanged += 1
+            run.report.unchanged += 1
             return
         is_new = known is None
-        donor = donors.get(digest) if is_new else None  # moved, renamed or copied: same bytes
+        donor = run.donors.get(digest) if is_new else None  # moved, renamed or copied: same bytes
         if file.route in _TEXT_ROUTES:
             chunks = chunk_text_document(
-                source_id, file.uri, file.route, data, file.mtime_ns, self._settings
+                run.source_id, file.uri, file.route, data, file.mtime_ns, self._settings
             )
-            pending.append(_Pending(record, chunks, is_new))
+            run.pending.append(_Pending(record, chunks, is_new))
         elif file.route is Route.PDF:
-            self._index_pdf(record, data, file.mtime_ns, is_new, report, donor)
+            self._index_pdf(run, record, data, is_new, donor)
+        elif file.route is Route.VIDEO:
+            self._index_video(run, record, file.path, is_new, donor)
         else:
-            self._index_image(record, data, file.mtime_ns, is_new, report, donor, images)
+            self._index_image(run, record, data, is_new, donor)
 
-    def _flush_images(self, images: list[_PendingImage], report: SyncReport) -> None:
+    def _flush_images(self, run: _Run) -> None:
         """Embed the pending image files in one call (the embedder keeps two in flight), then
         store each one."""
-        if not images:
+        if not run.images:
             return
-        vectors = self._embedder.embed_images([item.image for item in images])
-        for item, vector in zip(images, vectors, strict=True):
-            self._commit(item.record, [item.chunk], vector[None, :], item.is_new, report)
-        images.clear()
+        vectors = self._embedder.embed_images([item.image for item in run.images])
+        for item, vector in zip(run.images, vectors, strict=True):
+            self._commit(run, item.record, [item.chunk], vector[None, :], item.is_new)
+        run.images.clear()
+
+    def _flush(self, run: _Run) -> None:
+        """Embed every pending text chunk in one call, then store each file atomically."""
+        if not run.pending:
+            return
+        vectors = self._text_vectors([chunk for item in run.pending for chunk in item.chunks])
+        offset = 0
+        for item in run.pending:
+            count = len(item.chunks)
+            self._commit(
+                run, item.record, item.chunks, vectors[offset : offset + count], item.is_new
+            )
+            offset += count
+        run.pending.clear()
 
     def _text_vectors(self, chunks: list[Chunk]) -> np.ndarray:
         """Vectors for text chunks, in order: stored ones are reused, the rest embedded in one
@@ -239,112 +291,137 @@ class Indexer:
                 [chunk.text for chunk in missing], [_title(chunk.uri) for chunk in missing]
             )
             vectors.update(zip((chunk.id for chunk in missing), fresh, strict=True))
-        return self._stacked(chunks, vectors)
-
-    def _stacked(self, chunks: list[Chunk], vectors: dict[str, np.ndarray]) -> np.ndarray:
         if not chunks:
             return np.zeros((0, self._embedder.dim), dtype=np.float32)
         return np.stack([vectors[chunk.id] for chunk in chunks])
 
-    def _flush(self, pending: list[_Pending], report: SyncReport) -> None:
-        """Embed every pending text chunk in one call, then store each file atomically."""
-        if not pending:
-            return
-        vectors = self._text_vectors([chunk for item in pending for chunk in item.chunks])
-        offset = 0
-        for item in pending:
-            count = len(item.chunks)
-            self._commit(
-                item.record, item.chunks, vectors[offset : offset + count], item.is_new, report
-            )
-            offset += count
-        pending.clear()
-
-    def _commit(
+    def _picture_vectors(
         self,
+        run: _Run,
         record: FileRecord,
         chunks: list[Chunk],
-        vectors: np.ndarray,
-        is_new: bool,
-        report: SyncReport,
+        donor: str | None,
+        kind: ChunkKind,
+        draw: Callable[[Sequence[int]], list[Image]],
+    ) -> np.ndarray:
+        """Vectors for picture chunks (PDF pages, video frames), in order. A picture's vector comes
+        from its pixels alone, so the file's own stored chunks and an identical file's (`donor`,
+        matched by locator) are reused; `draw` makes the pictures of the rest, a batch at a time,
+        so a long file never sits in memory as bitmaps."""
+        stored = self._store.vectors_for([chunk.id for chunk in chunks])
+        reuse = self._store.vectors_of(record.source_id, donor, (kind,)) if donor else {}
+        vectors = np.zeros((len(chunks), self._embedder.dim), dtype=np.float32)
+        missing = []
+        for index, chunk in enumerate(chunks):
+            if chunk.id in stored:
+                vectors[index] = stored[chunk.id]
+            elif chunk.locator in reuse:
+                vectors[index] = reuse[chunk.locator]
+            else:
+                missing.append(index)
+        if reuse:
+            run.report.reused += 1
+        step = self._settings.image_batch_size
+        for start in range(0, len(missing), step):
+            batch = missing[start : start + step]
+            vectors[batch] = self._embedder.embed_images(draw(batch))
+        return vectors
+
+    def _commit(
+        self, run: _Run, record: FileRecord, chunks: list[Chunk], vectors: np.ndarray, is_new: bool
     ) -> None:
         self._store.replace_file(record, chunks, vectors)
-        report.chunks_written += len(chunks)
+        run.report.chunks_written += len(chunks)
         if is_new:
-            report.added += 1
+            run.report.added += 1
         else:
-            report.updated += 1
+            run.report.updated += 1
 
     def _index_pdf(
-        self,
-        record: FileRecord,
-        data: bytes,
-        mtime_ns: int,
-        is_new: bool,
-        report: SyncReport,
-        donor: str | None,
+        self, run: _Run, record: FileRecord, data: bytes, is_new: bool, donor: str | None
     ) -> None:
         with PdfPages(data) as pdf:
             text_chunks = pdf_text_chunks(
-                record.source_id, record.uri, pdf, mtime_ns, self._settings
+                record.source_id, record.uri, pdf, record.mtime_ns, self._settings
             )
+            pages = pages_as_pictures(pdf, run.options.pdf_pages)
             page_chunks = pdf_page_chunks(
-                record.source_id, record.uri, record.sha256, len(pdf), mtime_ns
+                record.source_id, record.uri, record.sha256, pages, record.mtime_ns
             )
             text_vectors = self._text_vectors(text_chunks)
-            # A page's vector comes from its pixels alone, so the pages this file already has, or
-            # an identical file's (moved, renamed or copied), are reused; text chunks carry the
-            # path, so a moved file's text is embedded again.
-            stored = self._store.vectors_for([chunk.id for chunk in page_chunks])
-            reuse = (
-                self._store.vectors_of(record.source_id, donor, (ChunkKind.PDF_PAGE,))
-                if donor
-                else {}
+            scale = self._settings.pdf_render_scale
+            page_vectors = self._picture_vectors(
+                run,
+                record,
+                page_chunks,
+                donor,
+                ChunkKind.PDF_PAGE,
+                lambda batch: [pdf.render(pages[i] - 1, scale) for i in batch],
             )
-            page_vectors = np.zeros((len(page_chunks), self._embedder.dim), dtype=np.float32)
-            missing = []
-            for index, chunk in enumerate(page_chunks):
-                if chunk.id in stored:
-                    page_vectors[index] = stored[chunk.id]
-                elif chunk.locator in reuse:
-                    page_vectors[index] = reuse[chunk.locator]
-                else:
-                    missing.append(index)
-            if reuse:
-                report.reused += 1
-            step = self._settings.image_batch_size
-            for start in range(0, len(missing), step):
-                batch = missing[start : start + step]
-                images = [pdf.render(i, self._settings.pdf_render_scale) for i in batch]
-                page_vectors[batch] = self._embedder.embed_images(images)
         self._commit(
+            run,
             record,
             text_chunks + page_chunks,
             np.concatenate([text_vectors, page_vectors]),
             is_new,
-            report,
         )
 
     def _index_image(
-        self,
-        record: FileRecord,
-        data: bytes,
-        mtime_ns: int,
-        is_new: bool,
-        report: SyncReport,
-        donor: str | None,
-        images: list[_PendingImage],
+        self, run: _Run, record: FileRecord, data: bytes, is_new: bool, donor: str | None
     ) -> None:
-        chunk = image_chunk(record.source_id, record.uri, record.sha256, mtime_ns)
+        by_name = run.options.photos == "name"
+        chunk = image_chunk(
+            record.source_id, record.uri, record.sha256, record.mtime_ns, by_name=by_name
+        )
+        if by_name:  # embedded from its path, with the text files
+            run.pending.append(_Pending(record, [chunk], is_new))
+            return
         if known := self._store.vectors_for([chunk.id]):  # this very chunk is stored already
-            self._commit(record, [chunk], known[chunk.id][None, :], is_new, report)
+            self._commit(run, record, [chunk], known[chunk.id][None, :], is_new)
             return
         stored = (
             self._store.vectors_of(record.source_id, donor, (ChunkKind.IMAGE,)) if donor else {}
         )
         if chunk.locator in stored:  # the same picture: its vector is already known
-            report.reused += 1
-            self._commit(record, [chunk], stored[chunk.locator][None, :], is_new, report)
+            run.report.reused += 1
+            self._commit(run, record, [chunk], stored[chunk.locator][None, :], is_new)
             return
         image = load_image(data, self._settings.image_max_side)
-        images.append(_PendingImage(record, chunk, is_new, image))
+        run.images.append(_PendingImage(record, chunk, is_new, image))
+
+    def _index_video(
+        self, run: _Run, record: FileRecord, path: Path, is_new: bool, donor: str | None
+    ) -> None:
+        """A video is found by its name; with `videos = content` also by eight of its frames. A
+        video whose frames cannot be read keeps its name, and the problem is reported."""
+        name = video_name_chunk(record.source_id, record.uri, record.sha256, record.mtime_ns)
+        if run.options.videos == "name":
+            run.pending.append(_Pending(record, [name], is_new))
+            return
+        frames: list[Chunk] = []
+        frame_vectors = np.zeros((0, self._embedder.dim), dtype=np.float32)
+        try:
+            with Video(path) as video:
+                times = video.frame_times()
+                frames = video_frame_chunks(
+                    record.source_id, record.uri, record.sha256, times, record.mtime_ns
+                )
+                side = self._settings.image_max_side
+                frame_vectors = self._picture_vectors(
+                    run,
+                    record,
+                    frames,
+                    donor,
+                    ChunkKind.VIDEO_FRAME,
+                    lambda batch: [video.frame(times[i], side) for i in batch],
+                )
+        except ChunkingError as error:
+            run.report.errors.append(FileError(record.uri, f"{error}; found by its name only"))
+            frames, frame_vectors = [], frame_vectors[:0]
+        self._commit(
+            run,
+            record,
+            [name, *frames],
+            np.concatenate([self._text_vectors([name]), frame_vectors]),
+            is_new,
+        )

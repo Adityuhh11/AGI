@@ -33,6 +33,7 @@ from agi_memory.types import (
     ChunkKind,
     FileRecord,
     Filters,
+    IndexOptions,
     KeywordHit,
     SourceInfo,
     VectorHit,
@@ -320,9 +321,19 @@ class FlatStore:
         with self._lock:
             return self._catalog.sources()
 
-    def mark_scanned(self, source_id: str, scanned_ns: int) -> None:
+    def mark_scanned(
+        self, source_id: str, scanned_ns: int, options: IndexOptions | None = None
+    ) -> None:
+        """Record a finished sync, and the options it applied."""
         with self._lock:
             self._catalog.mark_scanned(source_id, scanned_ns)
+            if options is not None:
+                self._catalog.set_source_options(source_id, options)
+
+    def source_options(self, source_id: str) -> IndexOptions | None:
+        """The options of the source's last finished sync; None if none was recorded."""
+        with self._lock:
+            return self._catalog.source_options(source_id)
 
     def file_records(self, source_id: str) -> dict[str, FileRecord]:
         with self._lock:

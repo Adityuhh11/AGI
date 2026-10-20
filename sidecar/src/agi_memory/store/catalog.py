@@ -6,10 +6,12 @@ schedule beyond the explicit `with db:` blocks: `FlatStore` owns locking and ord
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import sqlite3
 from collections.abc import Sequence
 
-from agi_memory.types import FileRecord, SourceInfo
+from agi_memory.types import FileRecord, IndexOptions, SourceInfo
 
 
 class Catalog:
@@ -90,3 +92,18 @@ class Catalog:
         with self._db:
             self._db.execute("DELETE FROM files WHERE source_id = ?", (source_id,))
             self._db.execute("DELETE FROM sources WHERE id = ?", (source_id,))
+            self._db.execute("DELETE FROM source_options WHERE source_id = ?", (source_id,))
+
+    def source_options(self, source_id: str) -> IndexOptions | None:
+        row = self._db.execute(
+            "SELECT options FROM source_options WHERE source_id = ?", (source_id,)
+        ).fetchone()
+        return None if row is None else IndexOptions(**json.loads(row[0]))
+
+    def set_source_options(self, source_id: str, options: IndexOptions) -> None:
+        with self._db:
+            self._db.execute(
+                "INSERT INTO source_options (source_id, options) VALUES (?, ?) "
+                "ON CONFLICT(source_id) DO UPDATE SET options = excluded.options",
+                (source_id, json.dumps(dataclasses.asdict(options))),
+            )

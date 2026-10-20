@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS files (
     PRIMARY KEY (source_id, uri)
 );
 
+-- The index options of a source's last finished sync (JSON). Added without a schema version change:
+-- an index without it simply has no options recorded yet.
+CREATE TABLE IF NOT EXISTS source_options (
+    source_id TEXT PRIMARY KEY,
+    options   TEXT NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     text, identifiers, path_words,
     content='chunks', content_rowid='rid',

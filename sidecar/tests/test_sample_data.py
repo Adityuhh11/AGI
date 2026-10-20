@@ -9,7 +9,7 @@ from agi_memory.config import Settings
 from agi_memory.embedding import FakeEmbedder
 from agi_memory.indexer import Indexer
 from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind
+from agi_memory.types import ChunkKind, IndexOptions
 
 SAMPLE = Path(__file__).resolve().parents[2] / "Sample Data"
 pytestmark = pytest.mark.skipif(not SAMPLE.is_dir(), reason="Sample Data/ is not present")
@@ -55,10 +55,24 @@ def test_chunk_kinds_match_what_is_on_disk(indexed):
     store, _, _, _ = indexed
     ids = store._catalog.chunk_ids_for_source("sample")
     kinds = Counter(chunk.kind for chunk in store.get(ids).values())
-    assert kinds[ChunkKind.PDF_PAGE] == 20  # 9 + 11 pages
+    # `auto`: of the 9 + 11 pages, the 11 with a picture, a table or little text
+    assert kinds[ChunkKind.PDF_PAGE] == 11
     assert kinds[ChunkKind.IMAGE] == 26  # 3 PNGs in the repo + 23 pictures at the top level
     assert kinds[ChunkKind.CODE] > 100
     assert kinds[ChunkKind.MARKDOWN] >= 3
+
+
+def page_count(store):
+    chunks = store.get(store._catalog.chunk_ids_for_source("sample")).values()
+    return sum(chunk.kind is ChunkKind.PDF_PAGE for chunk in chunks)
+
+
+def test_changing_the_pdf_option_processes_only_the_pdfs_again(indexed):
+    store, indexer, _, _ = indexed
+    every = indexer.sync("sample", SAMPLE, options=IndexOptions(pdf_pages="all"))
+    assert page_count(store) == 20 and every.updated == 2
+    words = indexer.sync("sample", SAMPLE, options=IndexOptions(pdf_pages="text"))
+    assert page_count(store) == 0 and words.updated == 2
 
 
 def test_syncing_again_does_no_work(indexed):

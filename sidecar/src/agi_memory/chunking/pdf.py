@@ -12,11 +12,19 @@ from types import TracebackType
 from typing import Self
 
 import pypdfium2 as pdfium
+import pypdfium2.raw as pdfium_c
 from PIL.Image import Image
 
 from agi_memory.chunking.common import ChunkingError, locator_json, sha256_hex
 from agi_memory.config import Settings
 from agi_memory.types import Chunk, ChunkKind
+
+# The `auto` rule for which pages are also embedded as pictures, measured on 16,713 real pages:
+# a page with less text than this is a scan, a slide or a figure...
+_MIN_PLAIN_TEXT = 200  # characters
+# ...and one with more drawn shapes than this holds a table, a chart or a diagram (2,023 of the
+# 10,132 pages without a picture had more; most plain pages have a few rules and boxes).
+_MAX_PLAIN_SHAPES = 50
 
 
 class PdfPages:
@@ -27,6 +35,7 @@ class PdfPages:
             self._pdf = pdfium.PdfDocument(data)
         except pdfium.PdfiumError as error:
             raise ChunkingError(f"unreadable PDF: {error}") from error
+        self._texts: dict[int, str] = {}
 
     def __enter__(self) -> Self:
         return self
@@ -47,18 +56,37 @@ class PdfPages:
 
     def text(self, index: int) -> str:
         """Extracted text of page `index` (0-based); empty for scanned pages."""
+        if index not in self._texts:
+            try:
+                page = self._pdf[index]
+                try:
+                    textpage = page.get_textpage()
+                    try:
+                        self._texts[index] = textpage.get_text_range()
+                    finally:
+                        textpage.close()
+                finally:
+                    page.close()
+            except pdfium.PdfiumError as error:
+                raise ChunkingError(f"cannot read text of PDF page {index + 1}: {error}") from error
+        return self._texts[index]
+
+    def looks_visual(self, index: int) -> bool:
+        """Whether page `index` (0-based) says more as a picture than as its text: it holds a
+        picture, little text (a scan, a slide) or many drawn shapes (a table, a chart)."""
+        if len(self.text(index).strip()) < _MIN_PLAIN_TEXT:
+            return True
         try:
             page = self._pdf[index]
             try:
-                textpage = page.get_textpage()
-                try:
-                    return textpage.get_text_range()
-                finally:
-                    textpage.close()
+                if any(True for _ in page.get_objects([pdfium_c.FPDF_PAGEOBJ_IMAGE], max_depth=2)):
+                    return True
+                shapes = page.get_objects([pdfium_c.FPDF_PAGEOBJ_PATH], max_depth=2)
+                return sum(1 for _ in shapes) > _MAX_PLAIN_SHAPES
             finally:
                 page.close()
         except pdfium.PdfiumError as error:
-            raise ChunkingError(f"cannot read text of PDF page {index + 1}: {error}") from error
+            raise ChunkingError(f"cannot read PDF page {index + 1}: {error}") from error
 
     def render(self, index: int, scale: float) -> Image:
         """Page `index` (0-based) as an RGB image."""
@@ -98,10 +126,20 @@ def pdf_text_chunks(
     return chunks
 
 
+def pages_as_pictures(pdf: PdfPages, mode: str) -> list[int]:
+    """The 1-based pages to embed as pictures under the `pdf_pages` option."""
+    if mode == "all":
+        return list(range(1, len(pdf) + 1))
+    if mode == "text":
+        return []
+    return [page for page in range(1, len(pdf) + 1) if pdf.looks_visual(page - 1)]
+
+
 def pdf_page_chunks(
-    source_id: str, uri: str, file_sha256: str, page_count: int, mtime_ns: int
+    source_id: str, uri: str, file_sha256: str, pages: list[int], mtime_ns: int
 ) -> list[Chunk]:
-    """One `pdf_page` (image) chunk per page, identified by the file's hash and the page number."""
+    """One `pdf_page` (image) chunk per page given (1-based), identified by the file's hash and the
+    page number."""
     return [
         Chunk(
             source_id=source_id,
@@ -112,5 +150,5 @@ def pdf_page_chunks(
             mtime_ns=mtime_ns,
             text="",  # the page's words are already searchable through its pdf_text chunk
         )
-        for page in range(1, page_count + 1)
+        for page in pages
     ]

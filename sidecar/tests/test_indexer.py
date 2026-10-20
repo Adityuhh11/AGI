@@ -1,6 +1,7 @@
 import builtins
 import io
 import os
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -10,8 +11,9 @@ from agi_memory.config import Settings
 from agi_memory.embedding import FakeEmbedder
 from agi_memory.indexer import Indexer
 from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind
+from agi_memory.types import LEGACY_OPTIONS, ChunkKind, IndexOptions
 from pdf_fixture import make_text_pdf
+from video_fixture import make_video
 
 DIM = 16
 
@@ -471,3 +473,102 @@ def test_any_number_of_corrupt_files_in_a_row_never_aborts_the_sync(indexer, sto
     write(root, "z.txt", "fine")
     report = indexer.sync("s", root)
     assert (len(report.errors), report.added) == (8, 1)
+
+
+# --- index options ------------------------------------------------------------------------
+
+
+def write_png(path, colour="red"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    buffer = io.BytesIO()
+    Image.new("RGB", (64, 48), colour).save(buffer, format="PNG")
+    path.write_bytes(buffer.getvalue())
+
+
+def test_photos_by_name_are_embedded_from_their_name_not_their_pixels(
+    indexer, store, embedder, root
+):
+    write_png(root / "trips" / "beach.png")
+    indexer.sync("s", root, options=IndexOptions(photos="name"))
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text) == (ChunkKind.IMAGE, "trips/beach.png")
+    assert embedder.image_calls == 0 and embedder.titles == ["beach.png"]
+
+
+def test_changing_an_option_processes_that_kind_again_and_nothing_else(
+    indexer, store, embedder, root
+):
+    write_png(root / "beach.png")
+    write(root, "notes.md", "# Notes\nsome words")
+    indexer.sync("s", root, options=IndexOptions(photos="name"))
+    again = indexer.sync("s", root, options=IndexOptions(photos="name"))
+    assert (again.updated, again.unchanged) == (0, 2)  # the same options: nothing to do
+    switched = indexer.sync("s", root, options=IndexOptions(photos="content"))
+    assert (switched.updated, switched.unchanged) == (1, 1)  # the picture, not the notes
+    assert embedder.image_calls == 1
+    back = indexer.sync("s", root, options=IndexOptions(photos="name"))
+    assert back.updated == 1 and embedder.image_calls == 1
+    # the notes once; the name twice, because the switch to pixels removed its chunk
+    assert embedder.titles == ["beach.png", "notes.md", "beach.png"]
+
+
+def test_options_are_recorded_only_when_a_sync_finishes(indexer, store, root, monkeypatch):
+    write(root, "a.txt", "x")
+    assert store.source_options("s") is None
+    indexer.sync("s", root, options=IndexOptions(pdf_pages="text"))
+    assert store.source_options("s") == IndexOptions(pdf_pages="text")
+    import agi_memory.indexer as module
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("the GPU is gone")
+
+    write(root, "a.txt", "changed")
+    for number in range(6):
+        write(root, f"b{number}.txt", "x")
+    monkeypatch.setattr(module, "chunk_text_document", broken)
+    with pytest.raises(RuntimeError):
+        indexer.sync("s", root, options=IndexOptions(pdf_pages="all"))
+    assert store.source_options("s") == IndexOptions(pdf_pages="text")
+
+
+def test_an_index_from_before_the_options_drops_plain_pages_without_embedding_anything(
+    indexer, store, embedder, root
+):
+    prose = "plain words of a page of prose " * 10
+    (root / "paper.pdf").write_bytes(make_text_pdf([prose, "Figure 1"]))
+    indexer.sync("s", root, options=LEGACY_OPTIONS)
+    store._db.execute("DELETE FROM source_options")  # as an index built before them
+    images, documents = embedder.image_calls, embedder.document_calls
+    report = indexer.sync("s", root)  # the default, auto
+    pages = [c for c in all_chunks(store).values() if c.kind is ChunkKind.PDF_PAGE]
+    assert [p.locator for p in pages] == ['{"page":2}'] and report.updated == 1
+    assert (embedder.image_calls, embedder.document_calls) == (images, documents)
+
+
+def test_a_video_is_found_by_its_name_by_default(indexer, store, embedder, root):
+    make_video(root / "holiday.mp4")
+    indexer.sync("s", root)
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text) == (ChunkKind.VIDEO, "holiday.mp4")
+    assert embedder.image_calls == 0
+
+
+def test_a_video_by_content_has_its_name_and_eight_frames(indexer, store, embedder, root):
+    make_video(root / "holiday.mp4")
+    indexer.sync("s", root, options=IndexOptions(videos="content"))
+    kinds = Counter(c.kind for c in all_chunks(store).values())
+    assert kinds == {ChunkKind.VIDEO: 1, ChunkKind.VIDEO_FRAME: 8}
+    calls = embedder.image_calls
+    report = indexer.sync("s", root, options=IndexOptions(videos="name"))
+    assert report.updated == 1
+    assert Counter(c.kind for c in all_chunks(store).values()) == {ChunkKind.VIDEO: 1}
+    assert embedder.image_calls == calls
+
+
+def test_a_video_whose_frames_cannot_be_read_keeps_its_name(indexer, store, root):
+    (root / "broken.mp4").write_bytes(b"not a video" * 100)
+    report = indexer.sync("s", root, options=IndexOptions(videos="content"))
+    (chunk,) = all_chunks(store).values()
+    assert chunk.kind is ChunkKind.VIDEO
+    assert [e.uri for e in report.errors] == ["broken.mp4"]
+    assert "found by its name only" in report.errors[0].message

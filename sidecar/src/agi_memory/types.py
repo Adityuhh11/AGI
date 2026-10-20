@@ -16,6 +16,37 @@ class ChunkKind(enum.StrEnum):
     PDF_TEXT = "pdf_text"
     PDF_PAGE = "pdf_page"
     IMAGE = "image"
+    VIDEO = "video"  # a video found by its name: the text is its path
+    VIDEO_FRAME = "video_frame"  # one frame of a video, embedded as a picture
+
+
+@dataclass(frozen=True, slots=True)
+class IndexOptions:
+    """What a person chose to index, per kind of file (docs/superpowers/specs/
+    2026-10-20-indexing-choices-design.md).
+
+    `pdf_pages`: "auto" embeds a page's image when it looks visual, "all" every page, "text" none.
+    `photos`: "content" embeds the pixels, "name" only the file name. `videos`: "name" the file
+    name, "content" also eight frames.
+    """
+
+    pdf_pages: str = "auto"
+    photos: str = "content"
+    videos: str = "name"
+
+    def __post_init__(self) -> None:
+        for name, value, allowed in (
+            ("pdf_pages", self.pdf_pages, ("auto", "all", "text")),
+            ("photos", self.photos, ("content", "name")),
+            ("videos", self.videos, ("name", "content")),
+        ):
+            if value not in allowed:
+                raise ValueError(f"{name} must be one of {', '.join(allowed)}, got {value!r}")
+
+
+# What an index built before the options existed did: every PDF page, photos by what they show.
+# Videos were not indexed at all, so whatever is chosen for them only adds files.
+LEGACY_OPTIONS = IndexOptions(pdf_pages="all", photos="content", videos="name")
 
 
 def chunk_id(source_id: str, uri: str, locator: str, content_hash: str) -> str:
