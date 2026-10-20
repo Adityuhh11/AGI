@@ -28,6 +28,17 @@ def test_upsert_then_get_roundtrip(store):
     assert store.count() == 2
 
 
+def test_vectors_for_returns_the_stored_vectors_of_known_ids_only(store):
+    a, b = make_chunk("a"), make_chunk("b")
+    vectors = unit_vectors(2)
+    store.upsert([a, b], vectors)
+    got = store.vectors_for([b.id, "missing", a.id])
+    assert set(got) == {a.id, b.id}
+    assert np.allclose(got[a.id], vectors[0]) and np.allclose(got[b.id], vectors[1])
+    with pytest.raises(TypeError):
+        store.vectors_for(a.id)
+
+
 def test_new_store_is_empty(store):
     assert store.count() == 0
     assert store.get(["nope"]) == {}

@@ -119,6 +119,17 @@ def test_a_modified_file_is_reindexed_and_stale_chunks_disappear(indexer, store,
     assert "short now" in next(iter(all_chunks(store).values())).text
 
 
+def test_an_edit_embeds_only_the_chunks_it_changed(indexer, store, embedder, root):
+    lines = [f"line {n} of the notes" for n in range(100)]
+    write(root, "notes.txt", "\n".join(lines))
+    indexer.sync("s", root)
+    before = len(embedder.titles)
+    write(root, "notes.txt", "\n".join([*lines, "one more line at the end"]))
+    indexer.sync("s", root)
+    assert len(embedder.titles) - before == 1  # three windows are unchanged, one is new
+    assert len(all_chunks(store)) == 4
+
+
 def test_rewriting_identical_bytes_only_updates_the_record(indexer, store, embedder, root):
     path = write(root, "a.txt", "same content")
     indexer.sync("s", root)

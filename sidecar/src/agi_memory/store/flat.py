@@ -371,6 +371,16 @@ class FlatStore:
             ).fetchall()
             return {locator: self._vectors.read(row) for locator, row in rows}
 
+    def vectors_for(self, ids: Sequence[str]) -> dict[str, np.ndarray]:
+        """The stored vectors of the chunks among `ids` that exist, by id.
+
+        A chunk id is derived from everything its embedding is computed from, so a chunk that is
+        already stored never needs embedding again (an edited file, or a change of index options).
+        """
+        _reject_bare_string(ids)
+        with self._lock:
+            return {i: self._vectors.read(row) for i, row in self._rows_for(list(ids)).items()}
+
     def touch_file(self, record: FileRecord) -> None:
         """Update a file's remembered size/mtime/hash when its content is known to be unchanged."""
         with self._lock:

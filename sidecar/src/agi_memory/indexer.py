@@ -229,17 +229,28 @@ class Indexer:
             self._commit(item.record, [item.chunk], vector[None, :], item.is_new, report)
         images.clear()
 
+    def _text_vectors(self, chunks: list[Chunk]) -> np.ndarray:
+        """Vectors for text chunks, in order: stored ones are reused, the rest embedded in one
+        call."""
+        vectors = self._store.vectors_for([chunk.id for chunk in chunks])
+        missing = [chunk for chunk in chunks if chunk.id not in vectors]
+        if missing:
+            fresh = self._embedder.embed_documents(
+                [chunk.text for chunk in missing], [_title(chunk.uri) for chunk in missing]
+            )
+            vectors.update(zip((chunk.id for chunk in missing), fresh, strict=True))
+        return self._stacked(chunks, vectors)
+
+    def _stacked(self, chunks: list[Chunk], vectors: dict[str, np.ndarray]) -> np.ndarray:
+        if not chunks:
+            return np.zeros((0, self._embedder.dim), dtype=np.float32)
+        return np.stack([vectors[chunk.id] for chunk in chunks])
+
     def _flush(self, pending: list[_Pending], report: SyncReport) -> None:
         """Embed every pending text chunk in one call, then store each file atomically."""
         if not pending:
             return
-        texts = [chunk.text for item in pending for chunk in item.chunks]
-        titles = [_title(chunk.uri) for item in pending for chunk in item.chunks]
-        vectors = (
-            self._embedder.embed_documents(texts, titles)
-            if texts
-            else np.zeros((0, self._embedder.dim), dtype=np.float32)
-        )
+        vectors = self._text_vectors([chunk for item in pending for chunk in item.chunks])
         offset = 0
         for item in pending:
             count = len(item.chunks)
@@ -280,11 +291,11 @@ class Indexer:
             page_chunks = pdf_page_chunks(
                 record.source_id, record.uri, record.sha256, len(pdf), mtime_ns
             )
-            text_vectors = self._embedder.embed_documents(
-                [c.text for c in text_chunks], [_title(c.uri) for c in text_chunks]
-            )
-            # A page's vector comes from its pixels alone, so an identical file's pages are reused;
-            # the text chunks carry the path and are cheap, so they are embedded again.
+            text_vectors = self._text_vectors(text_chunks)
+            # A page's vector comes from its pixels alone, so the pages this file already has, or
+            # an identical file's (moved, renamed or copied), are reused; text chunks carry the
+            # path, so a moved file's text is embedded again.
+            stored = self._store.vectors_for([chunk.id for chunk in page_chunks])
             reuse = (
                 self._store.vectors_of(record.source_id, donor, (ChunkKind.PDF_PAGE,))
                 if donor
@@ -293,7 +304,9 @@ class Indexer:
             page_vectors = np.zeros((len(page_chunks), self._embedder.dim), dtype=np.float32)
             missing = []
             for index, chunk in enumerate(page_chunks):
-                if chunk.locator in reuse:
+                if chunk.id in stored:
+                    page_vectors[index] = stored[chunk.id]
+                elif chunk.locator in reuse:
                     page_vectors[index] = reuse[chunk.locator]
                 else:
                     missing.append(index)
@@ -323,6 +336,9 @@ class Indexer:
         images: list[_PendingImage],
     ) -> None:
         chunk = image_chunk(record.source_id, record.uri, record.sha256, mtime_ns)
+        if known := self._store.vectors_for([chunk.id]):  # this very chunk is stored already
+            self._commit(record, [chunk], known[chunk.id][None, :], is_new, report)
+            return
         stored = (
             self._store.vectors_of(record.source_id, donor, (ChunkKind.IMAGE,)) if donor else {}
         )
