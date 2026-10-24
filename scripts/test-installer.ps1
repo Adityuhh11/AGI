@@ -41,6 +41,8 @@ try {
     'keep' | Set-Content (Join-Path $local 'Other\keep.txt')
     $env:APPDATA = $roam
     $env:LOCALAPPDATA = $local
+    # A clean machine (a CI runner) may have no Run key at all; the person's own always does once a program starts at sign-in.
+    if (-not (Test-Path $runKey)) { New-Item -Path $runKey -Force | Out-Null }
     Set-ItemProperty $runKey -Name AGI -Value "`"$(Join-Path $app 'agi.exe')`"" -Type String
 
     Uninstall ''
