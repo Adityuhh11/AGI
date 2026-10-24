@@ -88,10 +88,17 @@ def test_results_survive_reopen(tmp_path):
     second.close()
 
 
-def test_ties_are_broken_by_id_whatever_the_insert_order(store):
+def test_ties_are_broken_by_id_whatever_the_insert_order(store, monkeypatch):
     chunks = [make_chunk(name) for name in ("zulu", "alpha", "mike")]
     same = np.repeat(unit_vectors(1), 3, axis=0)
     store.upsert(chunks, same)
+    # Identical rows are not always an exact tie: a matrix product may sum a row in another order
+    # depending on where it sits and on the processor (a CI runner differed in the last bit). The
+    # rule is about exact ties, so make them exact.
+    def exact(query, upto):
+        return np.ones(upto, dtype=np.float32)
+
+    monkeypatch.setattr(store._vectors, "scores", exact)
     hits = store.search_vectors(same[0], 3)
     assert [h.id for h in hits] == sorted(c.id for c in chunks)
     assert [h.id for h in store.search_vectors(same[0], 2)] == sorted(c.id for c in chunks)[:2]
