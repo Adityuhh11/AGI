@@ -1,6 +1,6 @@
 # Status
 
-Updated at the end of every phase. Last updated: 2026-10-19.
+Updated at the end of every phase. Last updated: 2026-10-24.
 
 | Phase | Scope | State |
 |---|---|---|
@@ -44,7 +44,26 @@ Updated at the end of every phase. Last updated: 2026-10-19.
 
 ## Next
 
-Released: `v0.2.0` (settings window, Alt+Space, start at login, update check, the llama.cpp engine) and `v0.3.0` (pins, clipboard history, snippets, the clipboard hotkey), both from `main` on 2026-10-19, and `v0.4.0` (one-click update); how versions are numbered and a release is cut is in `RELEASING.md`. Open: the settings layout tidy, a physical-keyboard check of a clipboard hotkey without Alt, and pasting into browsers, editors, Word and Windows Terminal (`eval/2026-10-19-paste.md`). The palette (apps, commands, browsing in Zen, tags, a decision model) is specified in `superpowers/specs/2026-10-17-palette-design.md` and planned, for phases P0 to P2, in `superpowers/plans/2026-10-17-palette-p0-p2.md`, on branch `feat/palette`. Launcher block H still has the acceptance list by hand. Then, in this order of value: the search-quality items found on the real index (search is now 16 ms p50; the vector scan and common-word keyword search are the largest parts), file-name search for types the engine does not read (Office files, videos, archives) and a power and idle policy for big syncs. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). 
+Released: `v0.2.0` to `v0.5.0` (settings window, llama.cpp engine, pins, clipboard, snippets, one-click update, indexing choices and videos);
+`v0.5.0` is running on the owner's machine and two friends' machines. How versions are numbered and a release is cut is in `RELEASING.md`.
+All feature branches are merged and deleted; `dev` and `main` are level.
+
+The goal now is a project that is stable enough to open up and announce slowly. In phases, each ending with `main` releasable:
+
+| Phase | Scope | State |
+|---|---|---|
+| S1 Docs and housekeeping | A real `README.md` (what it is, how it works, install, build), `PERFORMANCE.md` (with and without a graphics card), `DISTRIBUTION.md` (signing and Defender), architecture doc covers the launcher, merged branches deleted | done |
+| S2 File search flow | Choices before the first index (nothing indexes between "download" and "start"), and a "Save and re-index" step when a choice or a folder changes an existing index, with what it will cost; tidy the File search page. Spec first | next |
+| S3 Settings from the bar | Typing "settings" (and a page's name) in the bar opens Settings, like the Clipboard and Snippets rows | planned |
+| S4 Open-source readiness | Issue and PR templates, CONTRIBUTING, security policy, CI on every push (`go vet`, `go test`, `npm test`/`check`, `ruff`, `pytest`), version info in `agi.exe`, release built in CI with provenance. The licence and the project's name are parked by the owner's choice (the repo has no licence for now) | planned |
+| S5 Trusted install | Defender submission and VirusTotal per release, code signing (SignPath Foundation or Azure Artifact Signing), winget manifest. See `DISTRIBUTION.md` | parked by the owner's choice; needs a licence first |
+| S6 Stability pass | Clean-profile install on a second machine with another GPU vendor and with none, the paste targets in `eval/2026-10-19-paste.md`, engine restart after sleep, a hotkey without Alt from a physical keyboard, long-running soak (days) watching memory and handles | planned |
+
+After that, in order of value: the search-quality items found on the real index (search is 16 ms p50; the vector scan and common-word keyword
+search are the largest parts), file-name search for types the engine does not read (Office files, archives) and a power and idle policy for big
+syncs. With the launcher in use: collect real queries where the right result was not first, add them to the golden set, and only then consider a
+reranker, full-text trigram or tree-sitter chunking (ADR 0002 lists the triggers). Launcher block H still has its acceptance list by hand.
+The palette spec and plan (`superpowers/specs/2026-10-17-palette-design.md`) describe a decision model and command providers beyond what is built.
 
 
 ## Known gaps and deviations from the spec
