@@ -24,7 +24,7 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **Tags and pins** | `Ctrl+T` tags an app or file, `#work` lists everything tagged. `Ctrl+P` pins up to eight rows that show the moment the bar opens. |
 
 Keys: `Tab` switches between All / Apps / Files / Web, `Ctrl+K` shows what you can do with the selected row,
-`Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings, `Esc` closes.
+`Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings (so does typing `settings`, or `settings file` for one page), `Esc` closes.
 In file search, `code:` `img:` `pdf:` `doc:` `vid:` before a query limit it to one kind of file.
 
 ## Install
@@ -54,10 +54,12 @@ File search is the part that needs real resources, so it is a choice you make in
    engine (llama.cpp), its Python libraries (pinned, through `uv`) and the embedding model, about 0.9 GB from `github.com`,
    `pypi.org`, `files.pythonhosted.org` and `huggingface.co`. Every file is checked against a pinned SHA-256. It took about
    two minutes on a fast connection. Cancelling keeps what was downloaded.
-2. **Choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle). The defaults are
-   sensible; on a computer without a graphics card choose *Words only* for PDFs and *names* for photos.
-3. **Add folders.** Nothing is read until you do. After the first index only changes are processed: a new file is
-   searchable a few seconds after it appears, and a moved file is not computed again.
+2. **Add folders and choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle).
+   Nothing is read until you press **Start indexing**, so you choose first. The defaults are sensible; on a computer without a
+   graphics card choose *Words only* for PDFs and *names* for photos.
+3. **Later changes are saved, not instant.** Changing a choice on an index that exists shows what it will do and waits for
+   **Save and re-index**. Afterwards only changes are processed: a new file is searchable a few seconds after it appears, and a
+   moved file is not computed again.
 
 "Turn off" stops the engine and keeps everything. "Delete downloaded files" removes the engine and models and keeps your index.
 

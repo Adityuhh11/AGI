@@ -16,7 +16,7 @@
   let { entry, id, selected, onhover, onactivate, tags = [], pinned = false }: Props = $props();
 
   const glyph = $derived(
-    entry.Kind === "app" ? "app" : entry.Kind === "tag" ? "tag" : entry.Kind === "file" ? "file" : entry.Kind === "clip" || entry.ID === "cmd:clipboard" ? "clip" : entry.Kind === "snippet" || entry.Kind === "cmd" ? "snippet" : "web",
+    entry.Kind === "app" ? "app" : entry.Kind === "tag" ? "tag" : entry.Kind === "file" ? "file" : entry.ID.startsWith("cmd:settings:") ? "settings" : entry.Kind === "clip" || entry.ID === "cmd:clipboard" ? "clip" : entry.Kind === "snippet" || entry.Kind === "cmd" ? "snippet" : "web",
   );
 
   // An icon the launcher could not make (the handler answers 404) keeps the plain glyph.

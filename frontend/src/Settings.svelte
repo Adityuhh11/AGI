@@ -26,9 +26,17 @@
     view = await Settings.View();
   };
 
+  // The bar can open this window on a page while it is already open: the address changes and the page follows.
+  const follow = () => {
+    const next = SECTIONS.find((s) => s.id === location.hash.split("/")[1]);
+    if (next) section = next.id;
+  };
+
   onMount(() => {
     document.documentElement.dataset.surface = "settings";
     reload();
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
   });
 </script>
 

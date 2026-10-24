@@ -217,7 +217,7 @@ func withPins(app *application.App, p *panel.Panel, n int) {
 		}
 	}
 	catalog.Index.Set(list)
-	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, benchClips{}, benchSnippets{}, p.HideForLaunch)))
+	app.RegisterService(application.NewService(palette.New(catalog, history, benchBrowser{}, benchFiles{}, benchClips{}, benchSnippets{}, func(string) {}, p.HideForLaunch)))
 	app.RegisterService(application.NewService(panel.NewService(p)))
 }
 

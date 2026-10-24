@@ -78,6 +78,10 @@ type Clipboard struct {
 type Search struct {
 	// Enabled turns file search on: the engine runs and the folders in Roots are indexed.
 	Enabled bool `toml:"enabled"`
+	// HoldIndexing keeps the folders from being indexed until the person presses "Start indexing": set when file search
+	// is first downloaded, so the choices below are made before any picture is embedded. A file without the key (every
+	// install made before it existed) indexes as it always did.
+	HoldIndexing bool `toml:"hold_indexing,omitempty"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
 	// PDFPages, Photos and Videos say what each kind of file is searched by (docs/superpowers/specs/
