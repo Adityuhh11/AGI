@@ -278,6 +278,9 @@
     <span class="label">Indexing</span>
     {#if search.Enabled && search.EngineState === "ready" && !search.NeedsUpdate && !search.HoldIndexing}
       <p class="help">{search.Paused ? "Indexing is paused. Search still works on what is indexed." : search.IndexText}</p>
+      {#if search.IndexState === "indexing" && !search.Paused}
+        <p class="help">You can search already: results fill in as files are read, newest first.</p>
+      {/if}
       {#if search.IndexState === "indexing" && search.IndexTotal > 0}
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={search.IndexTotal} aria-valuenow={search.IndexDone} aria-label="Files indexed in this folder">
           <div class="fill" style:width="{Math.round((search.IndexDone / search.IndexTotal) * 100)}%"></div>

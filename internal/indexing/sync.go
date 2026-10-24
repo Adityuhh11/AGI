@@ -149,6 +149,8 @@ func (m *Manager) syncRoot(ctx context.Context, root string, exclude []string, o
 
 // follow reports the job's progress until it ends.
 func (m *Manager) follow(ctx context.Context, root, jobID string) error {
+	var worked time.Duration // time spent on the job while not paused, for the estimate
+	last := m.now()
 	for {
 		job, err := m.engine.Job(ctx, jobID)
 		if err != nil {
@@ -167,8 +169,14 @@ func (m *Manager) follow(ctx context.Context, root, jobID string) error {
 			}
 			return errors.New("the job failed")
 		}
-		m.setFolder(FolderStatus{Root: root, State: Indexing, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal})
-		m.set(Status{State: Indexing, Root: root, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal})
+		now := m.now()
+		if !m.isPaused() {
+			worked += now.Sub(last)
+		}
+		last = now
+		left := remaining(worked, job.FilesDone, job.FilesTotal)
+		m.setFolder(FolderStatus{Root: root, State: Indexing, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal, Remaining: left})
+		m.set(Status{State: Indexing, Root: root, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal, Remaining: left})
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

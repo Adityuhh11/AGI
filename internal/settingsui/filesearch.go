@@ -190,7 +190,7 @@ func (s *Service) folders(engineState string, hold bool) []FolderView {
 		case f.State == indexing.Indexing && f.FilesTotal == 0:
 			view.Text = "Looking at what is in it"
 		case f.State == indexing.Indexing:
-			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal)
+			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal) + indexing.LeftText(f.Remaining)
 		case f.State == indexing.UpToDate && f.Files == 0:
 			view.Text = "Nothing here AGI can read"
 			if now := s.movedTo(f.Root); now != "" {
