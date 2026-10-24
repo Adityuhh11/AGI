@@ -82,6 +82,9 @@ type Search struct {
 	// is first downloaded, so the choices below are made before any picture is embedded. A file without the key (every
 	// install made before it existed) indexes as it always did.
 	HoldIndexing bool `toml:"hold_indexing,omitempty"`
+	// DataDir is the folder the search engine, its models and the index are kept under (in engine and memory inside
+	// it), chosen before file search is first downloaded. Empty means %LOCALAPPDATA%\AGI.
+	DataDir string `toml:"data_dir,omitempty"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
 	// PDFPages, Photos and Videos say what each kind of file is searched by (docs/superpowers/specs/
@@ -186,6 +189,9 @@ func (c Config) Validate() error {
 			return fmt.Errorf("root %q repeats %q", root, other)
 		}
 		seen[id] = root
+	}
+	if c.Search.DataDir != "" && (!filepath.IsAbs(c.Search.DataDir) || strings.HasPrefix(filepath.VolumeName(c.Search.DataDir), `\\`)) {
+		return fmt.Errorf("data_dir %q must be an absolute path on a local drive", c.Search.DataDir)
 	}
 	if err := c.validateWeb(); err != nil {
 		return err

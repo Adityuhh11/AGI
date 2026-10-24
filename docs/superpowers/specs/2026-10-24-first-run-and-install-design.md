@@ -137,7 +137,7 @@ signing and the project's name stay parked at the owner's request.
 | U1 | Newest-first scan in the engine; live "time left" from throughput in the Indexing block and the tray; "search works while it indexes" line | Measure on `Sample Data` and the real index |
 | U2 | The guide's shell and steps 1, 2, 3, 6 (no estimates): first-run opens it, tray and About reopen it, `setup_done`, known-folder checklist and leave-out in step 4 | Reuses `settingsui` |
 | U3 | `internal/survey` (files and bytes by kind, same skip rules as the engine) and `estimate` (rates per device and pace, calibrated on `Sample Data` and the owner's index); folder rows and step 5 show times | Calibration is measured, in `docs/eval/` |
-| U4 | Installer (Inno Setup) and the release workflow; `data_dir` | Needs decision 1 and 2 |
+| U4 | Installer (Inno Setup) and the release workflow; `data_dir` | Built (STATUS.md). The updater is unchanged: it replaces `agi.exe` in the install folder, and the Apps and features version stays at the installed one until the next installer runs |
 
 ## 9. Tests
 

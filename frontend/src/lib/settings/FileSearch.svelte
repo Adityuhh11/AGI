@@ -123,6 +123,13 @@
         Turning it on downloads about {(search.DownloadMB / 1024).toFixed(1)} GB once: a search engine, its Python libraries and the models.
         Nothing is downloaded until you press the button, and nothing is sent anywhere. Afterwards you choose what to index before anything is.
       </p>
+      <p class="help">
+        Saved in <span class="mono">{search.Data.Engine}</span>; the index goes in <span class="mono">{search.Data.Index}</span>.
+        {#if search.Data.CanChange}
+          <button type="button" class="btn quiet" onclick={() => run(() => Settings.ChooseDataFolder())}>Change folder...</button>
+          {#if search.Data.Chosen}<button type="button" class="btn quiet" onclick={() => run(() => Settings.UseDefaultDataFolder())}>Use the usual place</button>{/if}
+        {/if}
+      </p>
       <p class="help mono">From {(search.Hosts ?? []).join(", ")}</p>
       {#if search.Error}<p class="error">The last attempt failed: {search.Error}</p>{/if}
       <div><button type="button" class="btn primary" onclick={() => run(() => Settings.TurnOn())}>Download and turn on</button></div>

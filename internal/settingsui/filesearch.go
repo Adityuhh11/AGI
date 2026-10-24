@@ -32,8 +32,8 @@ type SearchView struct {
 	// Hosts and DownloadMB are what the page tells a person before they agree to the download.
 	Hosts      []string
 	DownloadMB int
-	// EngineDir is where the download is saved.
-	EngineDir string
+	// Data says where the download and the index are saved and whether that can still be changed.
+	Data DataFolder
 	Pace       string
 	// HoldIndexing says the folders wait for StartIndexing; Indexed is how many files the index holds, which decides
 	// whether a change of choice is a draft the page keeps until it is saved.
@@ -75,7 +75,7 @@ func (s *Service) Search() SearchView {
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
 		Hosts: enginesetup.Hosts, DownloadMB: int(enginesetup.DownloadBytes() >> 20), Pace: cfg.Search.Pace,
 		PDFPages: cfg.Search.PDFPages, Photos: cfg.Search.Photos, Videos: cfg.Search.Videos,
-		Exclude: cfg.Exclude, EngineDir: s.o.EngineDir, HoldIndexing: cfg.Search.HoldIndexing, Indexed: s.indexed(), IndexDone: index.FilesDone, IndexTotal: index.FilesTotal,
+		Exclude: cfg.Exclude, Data: s.dataFolder(cfg), HoldIndexing: cfg.Search.HoldIndexing, Indexed: s.indexed(), IndexDone: index.FilesDone, IndexTotal: index.FilesTotal,
 	}
 }
 

@@ -27,14 +27,14 @@ transparency (reproducible builds, hashes, scans)**.
   After each release, download the published zip back and submit that exact file.
 - **Scan with VirusTotal** and link the result from the release notes, so a visitor can see 1 vendor out of 70 is a guess and
   not 20 of 70. Do not "fix" detections by packing or obfuscating the exe: it makes things worse.
-- **Build releases in public CI** (GitHub Actions on a tag), upload the zip from the runner and attach a build-provenance
+- **Build releases in public CI** (GitHub Actions on a tag), upload the files from the runner and attach a build-provenance
   attestation (`actions/attest-build-provenance`), so "this binary came from this commit" is checkable. This is also what code
-  signing services require.
+  signing services require. Done in U4 (`.github/workflows/release.yml`; `gh attestation verify <file> --repo Adityuhh11/AGI`).
 - Keep what is already right: SHA-256 of the asset on the release page, every downloaded component pinned by SHA-256, no packer,
   no telemetry, README table of every network call.
-- Embed Windows version information and an icon in `agi.exe` (company/product name, version, description; for example with
-  `go-winres`). Unlabelled executables score worse. Checked 2026-10-24: `bin\agi.exe` has none (company, product name,
-  description and version are all empty) and is `NotSigned`.
+- Embed Windows version information, an icon and a manifest in `agi.exe` (company, product, description, version; the manifest says it
+  runs as the user and is made for Windows 10 and 11). Unlabelled executables score worse. Done in U4: `scripts/build.ps1` generates
+  the resource from the version being built; before it, `bin\agi.exe` had none. It is still `NotSigned`.
 
 ### 2. Sign the exe (the single biggest improvement)
 

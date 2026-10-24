@@ -48,6 +48,13 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == removeDataFlag {
+		if err := runRemoveData(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	closeLog := setUpLog()
 	defer closeLog()
 	if err := run(finishUpdate()); err != nil {
@@ -178,7 +185,7 @@ func run(afterUpdate bool) error {
 		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status(), store.Get().Search.HoldIndexing))
 		icon.SetPaused(indexer.Status().Paused)
 	}
-	layout, err := enginesetup.Locate()
+	layout, err := enginesetup.Locate(cfg.Search.DataDir)
 	if err != nil {
 		return err
 	}
@@ -201,7 +208,11 @@ func run(afterUpdate bool) error {
 		}
 	})
 	engine, err = sidecar.New(sidecar.Options{
-		Dir: layout.App(), Python: layout.Python(), Env: layout.Env(),
+		// Asked at each start: the folder can still be chosen until file search is first downloaded.
+		Locate: func() (string, string, []string) {
+			l := setup.Layout()
+			return l.App(), l.Python(), l.Env()
+		},
 		Log: log.Writer(), OnChange: func(sidecar.Status) { refresh() },
 	})
 	if err != nil {
@@ -306,7 +317,7 @@ func run(afterUpdate bool) error {
 			SetAutostart: autostart.Set,
 			Engine:       engine.Status,
 			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
-			EngineDir:    layout.Root,
+			Place:        setup,
 			Version:      version,
 		})),
 	} {
@@ -316,7 +327,7 @@ func run(afterUpdate bool) error {
 	// The engine and the indexer report to the tray, which only exists once the app is running.
 	ctx, stop := context.WithCancel(context.Background())
 	engineSwitch := sidecar.NewSwitch(ctx, engine)
-	engineWanted := func(c config.Config) bool { return c.Search.Enabled && layout.Installed() }
+	engineWanted := func(c config.Config) bool { return c.Search.Enabled && setup.Installed() }
 
 	// The watcher follows the folders: it is started again whenever they change.
 	var watchMu sync.Mutex

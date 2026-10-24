@@ -75,7 +75,23 @@ type fakeSurveys struct{ results map[string]survey.Result }
 
 func (f *fakeSurveys) Results() map[string]survey.Result { return f.results }
 
+// fakePlace plays the install manager's folder: where file search lives, and a refusal to move it.
+type fakePlace struct {
+	layout enginesetup.Layout
+	refuse error
+}
+
+func (f *fakePlace) Layout() enginesetup.Layout { return f.layout }
+func (f *fakePlace) Move(to enginesetup.Layout) error {
+	if f.refuse != nil {
+		return f.refuse
+	}
+	f.layout = to
+	return nil
+}
+
 type harness struct {
+	place   *fakePlace
 	surveys *fakeSurveys
 	installer       *fakeInstaller
 	restarts        int
@@ -101,12 +117,13 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{surveys: &fakeSurveys{}, store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
+	h := &harness{place: &fakePlace{layout: enginesetup.Layout{Root: `C:\default\engine`, Memory: `C:\default\memory`}}, surveys: &fakeSurveys{}, store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
 		Indexing: h.index,
 		Surveys:  h.surveys,
+		Place:    h.place,
 		Rebind: func(a string) error {
 			h.hotkeys = append(h.hotkeys, a)
 			for _, r := range refuse {

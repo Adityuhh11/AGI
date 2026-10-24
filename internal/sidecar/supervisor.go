@@ -60,6 +60,9 @@ type Options struct {
 
 	// Python is the interpreter of the engine's environment.
 	Python string
+	// Locate, if set, says where the engine is each time it is started, instead of Dir, Python and Env: the folder it
+	// is kept in can be chosen before it is installed.
+	Locate func() (dir, python string, env []string)
 
 	// Start, Backoff, Poll and StartupTimeout default to the real thing; tests replace them.
 	Start          Starter
@@ -105,7 +108,7 @@ func New(opts Options) (*Supervisor, error) {
 	if opts.StartupTimeout <= 0 {
 		opts.StartupTimeout = defaultStartup
 	}
-	if opts.Python == "" {
+	if opts.Python == "" && opts.Locate == nil {
 		return nil, errors.New("the engine's python is not set")
 	}
 	if opts.Log == nil {
@@ -218,8 +221,12 @@ func (s *Supervisor) spec() Spec {
 		"PYTHONUTF8=1",
 		"PYTHONUNBUFFERED=1",
 	)
-	env = append(env, s.opts.Env...)
-	return Spec{Dir: s.opts.Dir, Exe: s.opts.Python, Args: []string{"-m", "agi_memory"}, Env: env}
+	dir, python, extra := s.opts.Dir, s.opts.Python, s.opts.Env
+	if s.opts.Locate != nil {
+		dir, python, extra = s.opts.Locate()
+	}
+	env = append(env, extra...)
+	return Spec{Dir: dir, Exe: python, Args: []string{"-m", "agi_memory"}, Env: env}
 }
 
 // runOnce starts the process and watches it until it ends, hangs, or ctx ends.
