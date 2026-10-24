@@ -46,7 +46,7 @@ from agi_memory.chunking.text import NotTextError, chunk_text_document
 from agi_memory.chunking.video import Video, video_frame_chunks, video_identity, video_name_chunk
 from agi_memory.config import Settings
 from agi_memory.embedding.base import Embedder
-from agi_memory.sources.folder import ScannedFile, scan
+from agi_memory.sources.folder import ScannedFile, excluded_folders, scan
 from agi_memory.sources.rules import Route
 from agi_memory.store import FlatStore
 from agi_memory.types import LEGACY_OPTIONS, Chunk, ChunkKind, FileRecord, IndexOptions
@@ -154,8 +154,7 @@ class Indexer:
         if not root.is_dir():
             raise FileNotFoundError(f"source root is not a folder: {root}")
         options = options or IndexOptions()
-        skipped = frozenset(f"{p.strip('/').lower()}/" for p in exclude if p.strip("/"))
-        scanned = scan(root, self._settings, skipped)
+        scanned = scan(root, self._settings, excluded_folders(exclude))
         report = SyncReport(
             denied=scanned.denied,
             ignored=scanned.ignored,

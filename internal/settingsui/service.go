@@ -62,6 +62,8 @@ type Options struct {
 	Store *settings.Store
 	// Indexing reports where each folder is and pauses and resumes indexing.
 	Indexing Indexing
+	// Surveys counts what the folders hold, for the estimates.
+	Surveys Surveys
 	// Setup installs, updates and removes the engine. When an install finishes well, whoever built it turns
 	// file search on (main does).
 	Setup Setup

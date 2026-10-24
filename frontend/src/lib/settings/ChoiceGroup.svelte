@@ -7,8 +7,10 @@
     options: Option[];
     value: string | undefined;
     onpick: (id: string) => void;
+    /** What each option would cost, by option id: "about 25 min". */
+    hints?: Record<string, string>;
   }
-  let { labelId, options, value, onpick }: Props = $props();
+  let { labelId, options, value, onpick, hints = {} }: Props = $props();
 </script>
 
 <div class="choices" style:--count={options.length} role="radiogroup" aria-labelledby={labelId}>
@@ -16,6 +18,7 @@
     <button type="button" role="radio" aria-checked={value === option.id} class="choice" class:on={value === option.id} onclick={() => onpick(option.id)}>
       <span class="name">{option.name}</span>
       <span class="how">{option.how}</span>
+      {#if hints[option.id]}<span class="hint">{hints[option.id]} for your folders</span>{/if}
     </button>
   {/each}
 </div>
@@ -57,5 +60,11 @@
     font-size: 11.5px;
     line-height: 1.45;
     color: var(--text-3);
+  }
+  .hint {
+    margin-top: auto;
+    padding-top: 4px;
+    font: 560 11.5px/1.3 var(--sans);
+    color: var(--text-2);
   }
 </style>

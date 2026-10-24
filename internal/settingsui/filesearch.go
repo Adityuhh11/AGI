@@ -47,6 +47,9 @@ type SearchView struct {
 	Folders               []FolderView
 	// Exclude are the folders inside the searched ones that are left out.
 	Exclude []string
+	// Surveys is what each folder holds and Estimate what indexing them will take on this computer.
+	Surveys  []FolderSurvey
+	Estimate Estimates
 }
 
 // FolderView is a folder with where it is, in words.
@@ -62,7 +65,9 @@ func (s *Service) Search() SearchView {
 	engine := s.o.Engine()
 	cfg := s.o.Store.Get()
 	index := s.o.Indexing.Status()
+	onCPU := engine.Device == "cpu"
 	return SearchView{
+		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
 		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
 		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
@@ -97,13 +102,18 @@ func (s *Service) SetIndexing(pdfPages, photos, videos string) string {
 }
 
 // TurnOn switches file search on. If the engine is not installed yet (or is out of date) the download
-// starts in the background, and file search is switched on when it finishes.
+// starts in the background, and file search is switched on when it finishes. Switching it on before any folder is
+// chosen, or downloading it for the first time, holds indexing until StartIndexing, so the choices come first.
 func (s *Service) TurnOn() string {
 	st := s.o.Setup.State()
+	chooseFirst := len(s.o.Store.Get().Roots) == 0
 	if st.Installed && !st.NeedsUpdate {
-		return reason(s.o.Store.Update(func(c *config.Config) { c.Search.Enabled = true }))
+		return reason(s.o.Store.Update(func(c *config.Config) {
+			c.Search.Enabled = true
+			c.Search.HoldIndexing = c.Search.HoldIndexing || chooseFirst
+		}))
 	}
-	return s.install(!st.Installed)
+	return s.install(!st.Installed || chooseFirst)
 }
 
 // Update installs the current engine over an installed one: it is stopped first, because its files are in use.

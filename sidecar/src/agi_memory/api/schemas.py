@@ -60,6 +60,14 @@ class IndexOptionsIn(_Request):
         return self
 
 
+def _relative_folders(folders: list[str]) -> list[str]:
+    for folder in folders:
+        parts = folder.replace("\\", "/").split("/")
+        if folder.startswith(("/", "\\")) or ":" in folder or ".." in parts:
+            raise ValueError(f"{folder!r} must be a relative folder inside the source")
+    return folders
+
+
 class AddSource(_Request):
     path: str = Field(min_length=1, max_length=1024)
     source_id: str = Field(pattern=SOURCE_ID_PATTERN)
@@ -72,11 +80,35 @@ class AddSource(_Request):
     @field_validator("exclude")
     @classmethod
     def _inside_the_root(cls, folders: list[str]) -> list[str]:
-        for folder in folders:
-            parts = folder.replace("\\", "/").split("/")
-            if folder.startswith(("/", "\\")) or ":" in folder or ".." in parts:
-                raise ValueError(f"{folder!r} must be a relative folder inside the source")
-        return folders
+        return _relative_folders(folders)
+
+
+class SurveyRequest(_Request):
+    path: str = Field(min_length=1, max_length=1024)
+    exclude: list[Annotated[str, Field(min_length=1, max_length=1024)]] = Field(
+        default_factory=list, max_length=500
+    )
+
+    @field_validator("exclude")
+    @classmethod
+    def _inside_the_root(cls, folders: list[str]) -> list[str]:
+        return _relative_folders(folders)
+
+
+class RouteCountOut(_Response):
+    files: int
+    bytes: int
+
+
+class SurveyOut(_Response):
+    """What indexing a folder would read, counted without opening any file."""
+
+    routes: dict[str, RouteCountOut]
+    denied: int
+    ignored: int
+    unsupported: int
+    too_large: int
+    unreadable: int
 
 
 class SourceAccepted(BaseModel):

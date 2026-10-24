@@ -36,6 +36,7 @@ import (
 	"agi/internal/sidecar"
 	"agi/internal/snippets"
 	"agi/internal/state"
+	"agi/internal/survey"
 	"agi/internal/status"
 	"agi/internal/tray"
 	"agi/internal/update"
@@ -210,6 +211,8 @@ func run(afterUpdate bool) error {
 		// A first download waits for "Start indexing" so the choices come before any picture is embedded.
 		func() bool { return engine.Status().State == sidecar.StateReady && !store.Get().Search.HoldIndexing },
 		func(indexing.Status) { refresh() })
+	surveys := survey.New(engine.Client(), func() bool { return engine.Status().State == sidecar.StateReady })
+	surveys.Set(cfg.Roots, cfg.Exclude)
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
 	indexer.SetOptions(indexOptions(cfg.Search))
@@ -275,6 +278,7 @@ func run(afterUpdate bool) error {
 			Store:    store,
 			Setup:    setup,
 			Indexing: indexer,
+			Surveys:  surveys,
 			Rebind:   bar.Rebind,
 			PickFolder: func() (string, error) {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
@@ -346,6 +350,7 @@ func run(afterUpdate bool) error {
 		}
 		if !slices.Equal(old.Roots, updated.Roots) || !slices.Equal(old.Exclude, updated.Exclude) {
 			indexer.SetFolders(updated.Roots, updated.Exclude)
+			surveys.Set(updated.Roots, updated.Exclude)
 			watchFolders(updated.Roots)
 		}
 		if want := engineWanted(updated); want != engineWanted(old) {
@@ -388,6 +393,7 @@ func run(afterUpdate bool) error {
 			}()
 		}
 		go indexer.Run(ctx)
+		go surveys.Run(ctx)
 		go clips.Run(ctx)
 		go checker.Run(ctx, func() bool { return store.Get().CheckUpdates })
 		// The list of installed apps is served from its cache at once and rebuilt in the background,

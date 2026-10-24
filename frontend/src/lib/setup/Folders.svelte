@@ -3,6 +3,7 @@
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { FolderChoice, SearchView } from "../../../bindings/agi/internal/settingsui";
   import { isInside } from "../path";
+  import { surveyLine } from "../settings/hints";
 
   interface Props {
     search: SearchView;
@@ -47,6 +48,7 @@
   }
 
   const leftOut = (row: FolderChoice) => (search.Exclude ?? []).filter((f) => isInside(row.Path, f));
+  const holds = (row: FolderChoice) => surveyLine((search.Surveys ?? []).find((s) => isInside(row.Path, s.Root) && isInside(s.Root, row.Path)));
 </script>
 
 <h2>What should AGI search?</h2>
@@ -64,6 +66,7 @@
           <span class="name">{row.Name}</span>
         </label>
         <span class="path mono" title={row.Path}>{row.Path}</span>
+        {#if row.Checked && holds(row)}<span class="holds">{holds(row)}</span>{/if}
         {#each leftOut(row) as folder (folder)}
           <span class="out">
             Left out: <span class="mono">{folder}</span>
@@ -116,6 +119,11 @@
     white-space: nowrap;
     color: var(--text-3);
     font-size: 11.5px;
+  }
+  .holds {
+    padding-left: 26px;
+    color: var(--text-2);
+    font-size: 12px;
   }
   .out {
     padding-left: 26px;
