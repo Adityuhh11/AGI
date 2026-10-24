@@ -281,6 +281,51 @@ func TestTurningOnWithoutTheEngineStartsTheDownloadAndLeavesSearchOffUntilItEnds
 	}
 }
 
+func TestAFirstDownloadHoldsIndexingUntilItIsStartedAndAnUpdateDoesNot(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.TurnOn(); msg != "" {
+		t.Fatal(msg)
+	}
+	if !h.store.Get().Search.HoldIndexing || !h.svc.Search().HoldIndexing {
+		t.Fatal("a first download must hold indexing, so the choices come first")
+	}
+	h.index.folders = []indexing.FolderStatus{{Root: `C:`, State: indexing.Waiting}}
+	h.setup.state = enginesetup.State{Installed: true}
+	enable(t, h)
+	if got := h.svc.Search().Folders; len(got) != 1 {
+		t.Fatalf("folders = %+v", got)
+	}
+	if msg := h.svc.StartIndexing(); msg != "" || h.store.Get().Search.HoldIndexing {
+		t.Fatalf("StartIndexing: %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
+	}
+
+	h = newHarness(t)
+	h.setup.state = enginesetup.State{Installed: true, NeedsUpdate: true}
+	if msg := h.svc.Update(); msg != "" || h.store.Get().Search.HoldIndexing {
+		t.Fatalf("an update must not hold indexing: %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
+	}
+}
+
+func TestWhileHeldTheFoldersSayTheyWaitForTheStartAndTheViewCountsTheIndex(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installed = true
+	h.index.folders = []indexing.FolderStatus{
+		{Root: `C:`, State: indexing.UpToDate, Files: 7},
+		{Root: `C:`, State: indexing.UpToDate, Files: 5},
+	}
+	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
+	if err := h.store.Update(func(c *config.Config) { c.Search.Enabled, c.Search.HoldIndexing = true, true }); err != nil {
+		t.Fatal(err)
+	}
+	view := h.svc.Search()
+	if view.Indexed != 12 {
+		t.Fatalf("Indexed = %d, want 12", view.Indexed)
+	}
+	if len(view.Folders) != 2 || view.Folders[0].Text != "Waits for you to start indexing" {
+		t.Fatalf("folders = %+v", view.Folders)
+	}
+}
+
 func TestUpdatingStopsTheEngineFirstBecauseItsFilesAreInUse(t *testing.T) {
 	h := newHarness(t)
 	h.setup.state = enginesetup.State{Installed: true, NeedsUpdate: true}

@@ -207,6 +207,31 @@ func TestLoadReadsTheSearchSettings(t *testing.T) {
 	}
 }
 
+func TestHoldIndexingIsOffForOlderFilesAndWrittenOnlyWhenOn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[search]\nenabled = true\n")
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Search.HoldIndexing {
+		t.Fatal("a file from before the hold must keep indexing")
+	}
+	if err := got.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	if saved, _ := os.ReadFile(path); strings.Contains(string(saved), "hold_indexing") {
+		t.Fatalf("an off hold was written:\n%s", saved)
+	}
+	got.Search.HoldIndexing = true
+	if err := got.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := Load(path); err != nil || !again.Search.HoldIndexing {
+		t.Fatalf("the hold did not survive a save: %+v, %v", again.Search, err)
+	}
+}
+
 func TestLoadReadsTheIndexingChoices(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	writeFile(t, path, "[search]\npace = 'fast'\npdf_pages = 'text'\nphotos = 'name'\nvideos = 'content'\n")

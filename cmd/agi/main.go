@@ -174,7 +174,7 @@ func run(afterUpdate bool) error {
 		engine  *sidecar.Supervisor
 	)
 	refresh := func() {
-		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status()))
+		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status(), store.Get().Search.HoldIndexing))
 		icon.SetPaused(indexer.Status().Paused)
 	}
 	layout, err := enginesetup.Locate()
@@ -206,7 +206,9 @@ func run(afterUpdate bool) error {
 	if err != nil {
 		return err
 	}
-	indexer = indexing.New(engine.Client(), cfg.Roots, func() bool { return engine.Status().State == sidecar.StateReady },
+	indexer = indexing.New(engine.Client(), cfg.Roots,
+		// A first download waits for "Start indexing" so the choices come before any picture is embedded.
+		func() bool { return engine.Status().State == sidecar.StateReady && !store.Get().Search.HoldIndexing },
 		func(indexing.Status) { refresh() })
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
@@ -332,6 +334,9 @@ func run(afterUpdate bool) error {
 		if old.Search.Pace != updated.Search.Pace {
 			indexer.SetPace(updated.Search.Pace)
 		}
+		if old.Search.HoldIndexing != updated.Search.HoldIndexing {
+			refresh() // the tray says whether file search waits to be started
+		}
 		if indexOptions(old.Search) != indexOptions(updated.Search) {
 			indexer.SetOptions(indexOptions(updated.Search))
 			indexer.Rescan() // the engine processes again only the kinds of file whose choice changed
@@ -408,7 +413,7 @@ func indexOptions(s config.Search) sidecar.IndexOptions {
 }
 
 // statusLine is the one sentence the tray shows about the launcher, most urgent problem first.
-func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status) string {
+func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status, held bool) string {
 	switch {
 	case hotkeyError != "":
 		return hotkeyError
@@ -418,6 +423,8 @@ func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status
 		return engine.Message
 	case engine.State != sidecar.StateReady:
 		return "Search is starting up..."
+	case held:
+		return "File search is ready. Open Settings to choose what to index."
 	}
 	return index.String()
 }

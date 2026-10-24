@@ -54,7 +54,9 @@ FILE SEARCH (optional, off until you turn it on)
     On a computer without a graphics card, "Words only" and names are the quick choices. Changing
     one later redoes only that kind of file, and nothing already indexed is computed again.
   - Add the folders you want searched, one at a time (Settings > File search > Add folder).
-    Nothing is read until you do.
+    Nothing is read until you do, and after the download nothing is indexed until you press "Start
+    indexing", so you can choose the folders and the options above first. Changing an option later
+    shows what it will do and waits for "Save and re-index".
   - Indexing runs in the background. Pick how hard it works: Fast, Balanced (the default, about
     twice as long) or Gentle (about six times as long, the computer stays free). Pause and Resume
     are there too, and in the menu of the notification-area icon. Searching works throughout, on
