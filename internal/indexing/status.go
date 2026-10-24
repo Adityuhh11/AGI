@@ -3,6 +3,7 @@ package indexing
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 )
 
 // FolderStatus is one configured folder as the settings window lists it.
@@ -13,6 +14,8 @@ type FolderStatus struct {
 	FilesDone, FilesTotal int
 	Files, Chunks         int
 	Message               string
+	// Remaining is the estimate of what is left of this folder's job, 0 while there is none.
+	Remaining time.Duration
 }
 
 // State is where the manager is.
@@ -36,6 +39,8 @@ type Status struct {
 	Root       string
 	FilesDone  int
 	FilesTotal int
+	// Remaining is the estimate of what is left of that job, rounded to the minute; 0 while there is none.
+	Remaining time.Duration
 	// Files and Chunks are what the configured roots hold once UpToDate.
 	Files, Chunks int
 	// Message is why a sync failed.
@@ -57,7 +62,7 @@ func (s Status) String() string {
 		if s.FilesTotal == 0 {
 			return "Scanning " + name
 		}
-		return fmt.Sprintf("Indexing %s: %d / %d files", name, s.FilesDone, s.FilesTotal)
+		return fmt.Sprintf("Indexing %s: %d / %d files%s", name, s.FilesDone, s.FilesTotal, LeftText(s.Remaining))
 	case UpToDate:
 		return fmt.Sprintf("Up to date: %d chunks in %d files", s.Chunks, s.Files)
 	default:
