@@ -17,11 +17,17 @@ without the `v` is what `scripts/release.ps1 -Version` takes, what the program r
 ## Cutting a release
 
 1. `dev` is merged into `main` by pull request (the owner merges), then `main` is the only source of a release.
-2. In a clean worktree of `origin/main`: `scripts\release.ps1 -Version X.Y.Z`. The zip is `dist\agi-X.Y.Z-windows-x64.zip`.
-3. Unzip it somewhere new and smoke-test it with a clean profile (`APPDATA` and `LOCALAPPDATA` pointed at an empty folder):
-   it starts, the hotkey opens the bar, Settings opens on About and says `X.Y.Z`.
-4. `gh release create vX.Y.Z <zip> --target <sha of main> --title "AGI X.Y.Z" --notes-file <notes>`. The notes say what a person
-   gets, not what changed in the code, and name anything that does not work yet.
-5. Download the published asset and compare its SHA-256 with the file that was uploaded. The one-click update installs only a
-   file that matches the digest GitHub shows for the asset, so a release without a digest cannot be installed from the program.
+2. Tag the merge commit and push the tag: `git tag vX.Y.Z <sha of main>` and `git push origin vX.Y.Z`. The Release workflow
+   (`.github/workflows/release.yml`) refuses a tag that is not on `main`, builds the zip and the installer on a clean Windows
+   machine with `scripts\release.ps1`, runs the installer for real (`scripts\test-installer.ps1`), attaches a build-provenance
+   attestation, and makes a **draft** release `AGI X.Y.Z` with both files, checking that GitHub's digest of each is the one built.
+   By hand (`gh workflow run release.yml`) it only uploads the files as an artifact. On a machine with Inno Setup,
+   `scripts\release.ps1 -Version X.Y.Z` makes the same two files in `dist\` (the zip alone if the compiler is missing).
+3. Smoke-test the files from the draft with a clean profile (`APPDATA` and `LOCALAPPDATA` pointed at an empty folder, and `AGI_INSTANCE=x`
+   to run beside the launcher in use): it starts, the setup guide opens, Settings > About says `X.Y.Z`.
+4. Write the notes in the draft (they say what a person gets, not what changed in the code, and name anything that does not work
+   yet) and publish it.
+5. Download the published zip and compare its SHA-256 with the digest GitHub shows. The one-click update installs only a file that
+   matches that digest, so a release without one cannot be installed from the program. (The update looks for the zip by name; the
+   installer is for people installing, and is never fetched by the program.)
 6. Bring `dev` up to date with `main`.

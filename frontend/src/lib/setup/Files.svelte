@@ -7,8 +7,11 @@
     error: string;
     onenable: () => void;
     onskip: () => void;
+    /** Pick another folder for the engine and the index, or go back to the usual one. */
+    onchoose: () => void;
+    onreset: () => void;
   }
-  let { search, error, onenable, onskip }: Props = $props();
+  let { search, error, onenable, onskip, onchoose, onreset }: Props = $props();
 
   const gb = $derived((search.DownloadMB / 1024).toFixed(1));
   // Installing, or installed and on. Installed and off still needs a button: turning it on starts the engine.
@@ -32,8 +35,14 @@
   <ul class="costs">
     <li><strong>A download of about {gb} GB, once</strong>: a search engine and its model. After that it works offline and sends nothing anywhere.</li>
     <li>
-      <strong>About 1.1 GB of disk</strong>, saved in <span class="mono where">{search.EngineDir}</span>. The index it builds is kept next to it, in
-      <span class="mono">%LOCALAPPDATA%\AGI\memory</span>.
+      <strong>About 1.1 GB of disk</strong>, saved in <span class="mono where">{search.Data.Engine}</span>. The index it builds goes in
+      <span class="mono where">{search.Data.Index}</span>.
+      {#if search.Data.CanChange}
+        <span class="folder">
+          <button type="button" class="btn quiet" onclick={onchoose}>Change folder...</button>
+          {#if search.Data.Chosen}<button type="button" class="btn quiet" onclick={onreset}>Use the usual place</button>{/if}
+        </span>
+      {/if}
     </li>
     <li>It uses your graphics card when it can. On the processor a picture takes about 5 seconds instead of a fraction of one; the guide says which you have, and nothing is indexed until you start it.</li>
   </ul>
@@ -76,6 +85,11 @@
   }
   .where {
     overflow-wrap: anywhere;
+  }
+  .folder {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 4px;
   }
   .actions {
     display: flex;

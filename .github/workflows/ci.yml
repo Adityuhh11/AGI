@@ -44,6 +44,17 @@ jobs:
         run: |
           npm test
           npm run check
+      # The zip and the installer are built and the installer is run for real, so what breaks them is found on the pull
+      # request and not on release day (the same steps as .github/workflows/release.yml).
+      - name: Inno Setup
+        shell: pwsh
+        run: ./scripts/install-inno.ps1
+      - name: Build the zip and the installer
+        shell: pwsh
+        run: ./scripts/release.ps1 -Version 0.0.0-ci -RequireInstaller
+      - name: Try the installer
+        shell: pwsh
+        run: ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
 
   engine:
     runs-on: windows-latest

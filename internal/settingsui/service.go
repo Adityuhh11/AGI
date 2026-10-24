@@ -62,6 +62,8 @@ type Options struct {
 	Store *settings.Store
 	// Indexing reports where each folder is and pauses and resumes indexing.
 	Indexing Indexing
+	// Place knows where the search engine and the index are, and moves where a first install goes.
+	Place Place
 	// Surveys counts what the folders hold, for the estimates.
 	Surveys Surveys
 	// Setup installs, updates and removes the engine. When an install finishes well, whoever built it turns
@@ -98,8 +100,6 @@ type Options struct {
 	Engine func() sidecar.Status
 	// LogDir is where agi.log is written. Version is the build's version.
 	LogDir, Version string
-	// EngineDir is where the search engine and its models are installed.
-	EngineDir string
 }
 
 // Service is bound to the frontend; its exported methods become TypeScript functions. Methods that

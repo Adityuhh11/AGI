@@ -54,6 +54,12 @@
     step = after("files", true);
   }
 
+  // Choosing where the download goes can be refused (a folder that cannot be written); the reason shows where the button is.
+  async function chooseFolder(change: () => Promise<string>) {
+    enableError = await change();
+    await refreshSearch();
+  }
+
   function skip() {
     files = false;
     step = "done";
@@ -85,7 +91,7 @@
       {:else if step === "keys"}
         <Keys {view} />
       {:else if step === "files"}
-        <Files {search} error={enableError} onenable={enable} onskip={skip} />
+        <Files {search} error={enableError} onenable={enable} onskip={skip} onchoose={() => chooseFolder(Settings.ChooseDataFolder)} onreset={() => chooseFolder(Settings.UseDefaultDataFolder)} />
       {:else if step === "folders"}
         <Folders {search} {refresh} />
       {:else if step === "options"}

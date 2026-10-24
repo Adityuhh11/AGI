@@ -329,3 +329,13 @@ func TestSnippetsRoundTripWithManyLinesAndNoneByDefault(t *testing.T) {
 		t.Fatal("Clone shares the snippets")
 	}
 }
+
+func TestDataDirMustBeAnAbsoluteLocalPath(t *testing.T) {
+	cfg := Default()
+	for dir, ok := range map[string]bool{"": true, `D:\Files\AGI`: true, `relative\AGI`: false, `\server\share\AGI`: false} {
+		cfg.Search.DataDir = dir
+		if err := cfg.Validate(); (err == nil) != ok {
+			t.Errorf("data_dir %q: err = %v, want ok=%v", dir, err, ok)
+		}
+	}
+}

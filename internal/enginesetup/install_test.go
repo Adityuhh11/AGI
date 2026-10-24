@@ -391,3 +391,25 @@ func TestRemovalWaitsForFilesThatAreStillHeldForAMoment(t *testing.T) {
 		t.Fatal("the file was deleted while it was still open, so the test did not test the wait")
 	}
 }
+
+func TestTheFolderCanChangeOnlyBeforeThereIsAnythingInIt(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", t.TempDir()) // the default index folder must not be this computer's
+	r := newRig(t)
+	m := NewManager(r.Installer, nil)
+	elsewhere := Layout{Root: filepath.Join(t.TempDir(), "engine"), Memory: filepath.Join(t.TempDir(), "memory")}
+	if err := m.Move(elsewhere); err != nil || m.Layout() != elsewhere {
+		t.Fatalf("a fresh install can be put anywhere: %v, layout %+v", err, m.Layout())
+	}
+	touch(t, filepath.Join(elsewhere.Memory, "meta.db"))
+	if err := m.Move(Layout{Root: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "index") {
+		t.Fatalf("an index would be left behind: %v", err)
+	}
+	if err := os.Remove(filepath.Join(elsewhere.Memory, "meta.db")); err != nil {
+		t.Fatal(err)
+	}
+	touch(t, elsewhere.Python())
+	touch(t, elsewhere.Manifest())
+	if err := m.Move(Layout{Root: t.TempDir()}); err == nil || !strings.Contains(err.Error(), "installed") {
+		t.Fatalf("an installed engine cannot be moved: %v", err)
+	}
+}

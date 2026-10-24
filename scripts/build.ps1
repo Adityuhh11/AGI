@@ -26,6 +26,20 @@ Push-Location frontend
 Run npm @('run', 'build', '--silent')
 Pop-Location
 
+# Windows version information, the icon and a manifest go into the exe as a resource (cmd\agi\rsrc_windows_amd64.syso,
+# not kept in git): an exe that says what it is and who ships it is trusted more by Windows and by scanners.
+$numeric = if ($Version -match '^(\d+)\.(\d+)\.(\d+)') { "$($Matches[1]).$($Matches[2]).$($Matches[3]).0" } else { '0.0.0.0' }
+$info = [ordered]@{
+    fixed = [ordered]@{ file_version = $numeric }
+    info  = [ordered]@{ '0409' = [ordered]@{
+        FileVersion = $numeric; ProductVersion = $Version; CompanyName = 'AGI'; FileDescription = 'AGI launcher'; ProductName = 'AGI'
+        Comments = 'https://github.com/Adityuhh11/AGI'
+    } }
+}
+$info | ConvertTo-Json -Depth 5 | Set-Content build\windows\info.json -Encoding ascii
+Run wails3 @('generate', 'syso', '-arch', 'amd64', '-info', 'build\windows\info.json', '-manifest', 'build\windows\agi.manifest',
+    '-icon', 'build\windows\agi.ico', '-out', 'cmd\agi\rsrc_windows_amd64.syso')
+
 $ldflags = if ($Console) { '-w -s' } else { '-w -s -H windowsgui' }
 $ldflags += " -X main.version=$Version"
 Run go @('build', '-tags', 'production', '-trimpath', '-ldflags', $ldflags, '-o', 'bin\agi.exe', './cmd/agi')

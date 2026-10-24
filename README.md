@@ -34,18 +34,21 @@ current driver (NVIDIA, AMD or Intel Arc, through Vulkan); without one it still 
 ([numbers](docs/PERFORMANCE.md#a-computer-without-a-graphics-card)). About 1.1 GB of disk and a one-time download of about 1 GB
 if you turn file search on; the launcher alone is a 13 MB file.
 
-1. Download `agi-<version>-windows-x64.zip` from the [latest release](https://github.com/Adityuhh11/AGI/releases/latest)
-   and unzip it anywhere you can write to.
-2. Run `agi.exe`. Windows may say **"Windows protected your PC"**, because the program is not code-signed yet
-   (see [signing](docs/DISTRIBUTION.md)): click **More info**, then **Run anyway**. You can check the download against the
-   SHA-256 shown next to it on the release page.
+1. Download `agi-<version>-windows-x64-setup.exe` from the [latest release](https://github.com/Adityuhh11/AGI/releases/latest) and run it.
+   It installs for you alone (no administrator rights) into `%LOCALAPPDATA%\Programs\AGI`, or the folder you choose, and adds a Start menu
+   entry. Prefer no installer? `agi-<version>-windows-x64.zip` holds the same `agi.exe`: unzip it anywhere you can write to.
+2. Windows may say **"Windows protected your PC"**, because the program is not code-signed yet (see [signing](docs/DISTRIBUTION.md)):
+   click **More info**, then **Run anyway**. You can check the download against the SHA-256 shown next to it on the release page, or
+   with `gh attestation verify <file> --repo Adityuhh11/AGI`, which proves it was built from this repository by its release workflow.
 3. There is no window of its own: AGI lives in the notification area (the arrow by the clock). The first start opens a short setup guide:
    what AGI is, your hotkey and the keys, and the optional file search with its folders and options (the tray menu shows it again).
 4. Press **Alt+Shift+Space**. Change the hotkey in Settings > General; it tells you if another program already owns it.
    "Start when I sign in" is there too.
 
-To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or replace `agi.exe` by hand.
-To remove everything: quit from the tray icon, delete the folder, then the folders under [Where things are](#where-things-are).
+To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
+To remove it: Settings > Apps > Installed apps > AGI > Uninstall. It asks whether to delete what AGI saved too (the engine and models,
+the index, clipboard history and settings, up to about 1.2 GB); your own files are never touched. For the zip, quit from the tray
+icon and delete the folder and the folders under [Where things are](#where-things-are).
 
 ### Turning on file search
 
@@ -149,7 +152,7 @@ videos   = 'name'        # name | content
 |---|---|
 | Settings | `%APPDATA%\AGI\config.toml` |
 | Log (Settings > About opens it) | `%LOCALAPPDATA%\AGI\logs\agi.log` |
-| Search engine and models | `%LOCALAPPDATA%\AGI\engine` (only after you turn file search on) |
+| Search engine and models | `%LOCALAPPDATA%\AGI\engine` (only after you turn file search on); the setup guide can put it and the index on another drive |
 | The index | `%LOCALAPPDATA%\AGI\memory` |
 | Clipboard history | `%LOCALAPPDATA%\AGI\clipboard.json` (only if switched on) |
 | What you launched, tags, pins | `%APPDATA%\AGI\state.json` |

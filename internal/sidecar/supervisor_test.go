@@ -442,3 +442,21 @@ func TestTailKeepsTheLastLinesAndTheLineInProgress(t *testing.T) {
 		t.Fatalf("tail = %q", got)
 	}
 }
+
+func TestWhereTheEngineIsIsAskedAtEachStartSoItCanMoveBeforeItIsInstalled(t *testing.T) {
+	where := filepath.Join("D:", "elsewhere", "engine")
+	h := startHarness(t, func(o *Options) {
+		o.Dir, o.Python, o.Env = "", "", nil
+		o.Locate = func() (string, string, []string) {
+			return filepath.Join(where, "app"), filepath.Join(where, "venv", "Scripts", "python.exe"), []string{"AGI_MEMORY_DIR=D:/elsewhere/memory"}
+		}
+	}, script{})
+	h.waitForState(StateReady)
+	spec := h.engine.specs[0]
+	if spec.Dir != filepath.Join(where, "app") || spec.Exe != filepath.Join(where, "venv", "Scripts", "python.exe") {
+		t.Errorf("started in %q with %q", spec.Dir, spec.Exe)
+	}
+	if envValue(spec.Env, "AGI_MEMORY_DIR") != "D:/elsewhere/memory" {
+		t.Errorf("the index folder did not reach the engine: %v", spec.Env)
+	}
+}

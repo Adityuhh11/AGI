@@ -9,20 +9,49 @@ import (
 	"path/filepath"
 )
 
-// Layout is the engine folder and the paths inside it.
-type Layout struct{ Root string }
+// Layout is the engine folder and the paths inside it, and where the index is kept.
+type Layout struct {
+	Root string
+	// Memory is the folder of the index; empty means the engine's own default, %LOCALAPPDATA%\AGI\memory.
+	Memory string
+}
 
-// Locate returns the engine folder: %LOCALAPPDATA%\AGI\engine, or the folder in AGI_ENGINE_DIR
-// (for developers who keep an engine somewhere else).
-func Locate() (Layout, error) {
+// Locate returns where the engine and the index live: under dataDir (the engine in dataDir\engine, the index in
+// dataDir\memory) when the person chose a folder for them, else %LOCALAPPDATA%\AGI\engine and \memory. The folder in
+// AGI_ENGINE_DIR (for developers who keep an engine somewhere else) wins over both.
+func Locate(dataDir string) (Layout, error) {
 	if dir := os.Getenv("AGI_ENGINE_DIR"); dir != "" {
 		return Layout{Root: dir}, nil
+	}
+	if dataDir != "" {
+		return Layout{Root: filepath.Join(dataDir, "engine"), Memory: filepath.Join(dataDir, "memory")}, nil
 	}
 	cache, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
 	if err != nil {
 		return Layout{}, fmt.Errorf("locate the engine folder: %w", err)
 	}
 	return Layout{Root: filepath.Join(cache, "AGI", "engine")}, nil
+}
+
+// Index is the folder the engine keeps its index in.
+func (l Layout) Index() string {
+	if l.Memory != "" {
+		return l.Memory
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(cache, "AGI", "memory")
+}
+
+// HasIndex reports whether an index has been built in Index.
+func (l Layout) HasIndex() bool {
+	if l.Index() == "" {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(l.Index(), "meta.db"))
+	return err == nil
 }
 
 // App is the engine's source, and the folder it runs in.
@@ -53,7 +82,12 @@ func (l Layout) Installed() bool {
 	return true
 }
 
-// Env is what the engine process needs to find its llama.cpp server and its models.
+// Env is what the engine process needs to find its llama.cpp server and its models, and the index when it is kept
+// somewhere other than the default.
 func (l Layout) Env() []string {
-	return []string{"AGI_LLAMA_SERVER=" + l.LlamaServer(), "AGI_MODEL_DIR=" + l.Models()}
+	env := []string{"AGI_LLAMA_SERVER=" + l.LlamaServer(), "AGI_MODEL_DIR=" + l.Models()}
+	if l.Memory != "" {
+		env = append(env, "AGI_MEMORY_DIR="+l.Memory)
+	}
+	return env
 }
