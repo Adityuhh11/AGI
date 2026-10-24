@@ -14,6 +14,27 @@ They talk over authenticated localhost HTTP. The GPU hosts only the embedding mo
 engine owns (about 1.1 GB of VRAM); index storage and search run on the CPU. The engine is installed under
 `%LOCALAPPDATA%\AGI\engine\` and is optional: the launcher works without it (see `superpowers/specs/2026-10-18-packaging-design.md`).
 
+## Launcher packages (`cmd/agi`, `internal/`)
+
+`cmd/agi/main.go` is the only place that wires packages together: it loads the settings, builds each service, registers them
+with Wails (the Svelte page calls them as bound methods) and subscribes to settings changes. Everything else is one package, one
+job. The hotkey to panel path touches none of the slow parts: apps, tags, pins and the web are answered in-process, files come from
+the engine only after the page asks.
+
+| Package | Job |
+|---|---|
+| `panel` | The search bar window: global hotkey, cloaked (not hidden) window, keyboard hand-back to the previous program |
+| `palette`, `rank`, `apps`, `web`, `state`, `snippets`, `clipboard` | What the bar answers instantly: ranking (`rank`), the Start Menu list and launching (`apps`), web and quicklinks (`web`), launch history, tags and pins (`state`), pasted text (`snippets`, `clipboard`); `palette` decides which rows show and what Enter does |
+| `search`, `files` | File search from the launcher's side: ask the engine, place each hit on disk, open or reveal it (only inside indexed folders), thumbnails |
+| `indexing`, `watcher` | Keep the engine's index in step with the folders: sync every root when the engine is ready and on Rescan, sync just the changed root after the watcher's debounce, speed and pause |
+| `sidecar`, `enginesetup` | Run the engine (supervised process tree, typed HTTP client, on/off switch) and install it (pinned downloads, resumable, manifest written last) |
+| `config`, `settings`, `settingsui` | `config.toml` (validated, unknown keys are errors), the live store that notifies subscribers, and the Settings window's service |
+| `update`, `autostart`, `tray`, `status` | Release check and one-click update, start at sign-in, the notification-area icon, the status line |
+
+Settings changes flow one way: the page calls a `settingsui` method, which validates and saves through `settings.Store`, whose
+subscribers in `main.go` apply it (rebinding the hotkey is the exception: it registers first and saves only if that worked).
+Where each one-time and recurring network call happens is listed in the README's privacy table.
+
 ## Memory engine modules (`sidecar/src/agi_memory/`)
 
 Dependencies point downward only. Status is `planned` or `built`.
