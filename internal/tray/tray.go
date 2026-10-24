@@ -21,13 +21,14 @@ type Tray struct {
 }
 
 // New adds the icon. Clicking it calls open; the menu offers open, settings, rescan, pausing indexing and quit.
-func New(app *application.App, open, settings, rescan, togglePause func()) *Tray {
+func New(app *application.App, open, settings, setup, rescan, togglePause func()) *Tray {
 	menu := application.NewMenu()
 	status := menu.Add("Starting...")
 	status.SetEnabled(false)
 	menu.AddSeparator()
 	menu.Add("Open search").OnClick(func(*application.Context) { open() })
 	menu.Add("Settings").OnClick(func(*application.Context) { settings() })
+	menu.Add("Set up AGI...").OnClick(func(*application.Context) { setup() })
 	update := menu.Add("Update available")
 	update.SetHidden(true)
 	update.OnClick(func(*application.Context) { settings() })

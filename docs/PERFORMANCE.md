@@ -52,7 +52,7 @@ File search is optional. Without it the launcher is the 270 MB row and nothing e
 | File search while indexing at Fast | p50 93 ms; at Balanced 41 ms; at Gentle 36 ms | `eval/2026-10-18-pace.md` |
 | Search at 100,000 chunks | p50 about 26 ms with the machine idle | `eval/perf.md` |
 | Engine ready after start | 6.3 s (the bar works while it loads) | `eval/2026-10-18-llamacpp-embedder.md` |
-| Turn file search on: button to working search | 2 min 2 s to 2 min 6 s, 0.9 GB download | `eval/2026-10-18-engine-install.md` |
+| Turn file search on: button to working search | 2 min 2 s to 2 min 6 s, about 1 GB download | `eval/2026-10-18-engine-install.md` |
 | A new file appears, then is searchable | about 3.5 s; a deleted file is gone after 4.5 s | `STATUS.md` 7k |
 | A file moved or renamed | 0.3 s, no model call (identical content is recognised) | `STATUS.md` 7j |
 | The sample folder, from empty | 16.5 s (defaults), 15.9 s (Fast, after the throughput pass), 8.0 s (cheapest) | `eval/2026-10-20-indexing-choices.md` |

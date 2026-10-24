@@ -1,6 +1,7 @@
 package settingsui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,24 @@ var userFolders = map[string]*windows.KNOWNFOLDERID{
 	"Pictures":  windows.FOLDERID_Pictures,
 	"Videos":    windows.FOLDERID_Videos,
 	"Music":     windows.FOLDERID_Music,
+}
+
+// knownFolder is where Windows keeps a user folder now: Documents, Pictures, Videos, Desktop or Downloads.
+func knownFolder(name string) (string, error) {
+	id, ok := guideFolders[name]
+	if !ok {
+		return "", fmt.Errorf("no known folder %q", name)
+	}
+	return windows.KnownFolderPath(id, 0)
+}
+
+// guideFolders are the folders the setup guide offers; the first four can be the moved ones.
+var guideFolders = map[string]*windows.KNOWNFOLDERID{
+	"Documents": windows.FOLDERID_Documents,
+	"Desktop":   windows.FOLDERID_Desktop,
+	"Pictures":  windows.FOLDERID_Pictures,
+	"Videos":    windows.FOLDERID_Videos,
+	"Downloads": windows.FOLDERID_Downloads,
 }
 
 // movedTo is where Windows keeps the user folder that root is the old place of (C:\Users\me\Documents, after OneDrive

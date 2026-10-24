@@ -8,7 +8,9 @@ STARTING IT
      Windows may say "Windows protected your PC", because the program is not signed yet.
      Click "More info", then "Run anyway".
   2. There is no window of its own. The program sits in the notification area (the little arrow
-     by the clock). The first time it starts it opens Settings so you can see the hotkey.
+     by the clock). The first time it starts it opens a short setup guide: what AGI is, the hotkey and
+     the keys, and the optional file search (Settings > About > "Open the guide", or the
+     tray menu, shows it again).
   3. Press Alt+Shift+Space to open the bar. Settings > General changes the hotkey, and says
      so if another program already owns the one you pick.
   4. Settings > General > "Start when I sign in" makes it start with Windows. It remembers where

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Events } from "@wailsio/runtime";
   import { capture } from "../accelerator";
+  import { keycaps } from "../keycaps";
 
   interface Props {
     /** The hotkey as it is now; "" means there is none. */
@@ -78,7 +79,7 @@
       <span class="none">Not set</span>
       <span class="change">Set</span>
     {:else}
-      {#each shown.split("+") as part (part)}<kbd>{part}</kbd>{/each}
+      {#each keycaps(shown) as part (part)}<kbd>{part}</kbd>{/each}
       <span class="change">Change</span>
     {/if}
   </button>

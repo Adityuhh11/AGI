@@ -8,10 +8,23 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-// Window opens the settings window. It is built the first time it is asked for, so the hotkey path
-// never pays for it, and a second request brings the open one forward.
+// windowSpec is what tells the settings window from the setup guide: both are the same page host.
+type windowSpec struct {
+	name, title, route  string
+	width, height       int
+	minWidth, minHeight int
+}
+
+var (
+	settingsSpec = windowSpec{"settings", "AGI Settings", "settings", 860, 620, 680, 480}
+	setupSpec    = windowSpec{"setup", "Set up AGI", "setup", 760, 700, 640, 560}
+)
+
+// Window opens the settings window or the setup guide. It is built the first time it is asked for, so the hotkey
+// path never pays for it, and a second request brings the open one forward.
 type Window struct {
-	app *application.App
+	app  *application.App
+	spec windowSpec
 
 	mu    sync.Mutex
 	win   *application.WebviewWindow
@@ -19,7 +32,10 @@ type Window struct {
 }
 
 // NewWindow returns a Window for app.
-func NewWindow(app *application.App) *Window { return &Window{app: app} }
+func NewWindow(app *application.App) *Window { return &Window{app: app, spec: settingsSpec} }
+
+// NewSetupWindow returns the Window of the first-run guide.
+func NewSetupWindow(app *application.App) *Window { return &Window{app: app, spec: setupSpec} }
 
 // Open shows the settings window.
 func (w *Window) Open() { w.OpenAt("") }
@@ -34,22 +50,22 @@ func (w *Window) OpenAt(section string) {
 		w.win.UnMinimise()
 		w.win.Focus()
 		if section != "" {
-			w.win.ExecJS(fmt.Sprintf("location.hash = %q", "#settings/"+section))
+			w.win.ExecJS(fmt.Sprintf("location.hash = %q", "#"+w.spec.route+"/"+section))
 		}
 		return
 	}
 	w.count++
-	url := "/#settings"
+	url := "/#" + w.spec.route
 	if section != "" {
 		url += "/" + section
 	}
 	win := w.app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             fmt.Sprintf("settings-%d", w.count),
-		Title:            "AGI Settings",
-		Width:            860,
-		Height:           620,
-		MinWidth:         680,
-		MinHeight:        480,
+		Name:             fmt.Sprintf("%s-%d", w.spec.name, w.count),
+		Title:            w.spec.title,
+		Width:            w.spec.width,
+		Height:           w.spec.height,
+		MinWidth:         w.spec.minWidth,
+		MinHeight:        w.spec.minHeight,
 		URL:              url,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 255),
 		Windows:          application.WindowsWindow{Theme: application.Dark},

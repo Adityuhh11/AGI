@@ -157,7 +157,7 @@ func run(afterUpdate bool) error {
 			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
 		})},
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID:               "com.adityuhh11.agi.launcher",
+			UniqueID:               instanceID(),
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
 		},
 	})
@@ -251,6 +251,7 @@ func run(afterUpdate bool) error {
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
+	setupWindow := settingsui.NewSetupWindow(app)
 	var checker *update.Checker
 	checker = update.NewChecker(version, func() {
 		release, _ := checker.Found()
@@ -263,7 +264,7 @@ func run(afterUpdate bool) error {
 			indexer.Pause()
 		}
 	}
-	icon = tray.New(app, bar.Show, settingsWindow.Open, indexer.Rescan, togglePause)
+	icon = tray.New(app, bar.Show, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
@@ -296,10 +297,12 @@ func run(afterUpdate bool) error {
 			},
 			OpenURL:      browser.Open,
 			Open:         settingsWindow.Open,
+			OpenSetup:    setupWindow.Open,
 			Autostart:    autostart.Enabled,
 			SetAutostart: autostart.Set,
 			Engine:       engine.Status,
 			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
+			EngineDir:    layout.Root,
 			Version:      version,
 		})),
 	} {
@@ -356,11 +359,11 @@ func run(afterUpdate bool) error {
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		if firstRun {
-			// The launcher has no window of its own, so a first start would show nothing at all: open the
-			// settings, where the hotkey is.
+			// The launcher has no window of its own, so a first start would show nothing at all: open the setup
+			// guide, which says what this is and where the hotkey is.
 			go func() {
 				time.Sleep(time.Second)
-				settingsWindow.Open()
+				setupWindow.Open()
 			}()
 		} else if afterUpdate {
 			// The window the update was started from went with the old launcher: show the new version on its About page.
@@ -427,4 +430,14 @@ func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status
 		return "File search is ready. Open Settings to choose what to index."
 	}
 	return index.String()
+}
+
+// instanceID is what makes a second launcher hand over to the first one. AGI_INSTANCE (for checks in a clean profile,
+// beside the launcher in use, with APPDATA and LOCALAPPDATA pointed at an empty folder) gives the second its own.
+func instanceID() string {
+	id := "com.adityuhh11.agi.launcher"
+	if other := os.Getenv("AGI_INSTANCE"); other != "" {
+		id += "." + other
+	}
+	return id
 }

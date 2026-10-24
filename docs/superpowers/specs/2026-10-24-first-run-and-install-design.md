@@ -89,8 +89,9 @@ Steps, each one screen with Back and Continue, progress shown in a footer (downl
 6. **You're set.** **Start indexing** (or, if skipped, "Open Settings > File search any time"). Then progress with time left, "you can search
    right away, results fill in newest first", "AGI lives in the tray, closing this window does not stop it". **Done** closes the guide.
 
-State of the guide is written to `config.toml` as the person goes (folders, choices, hotkey), so closing it half-way loses nothing; the only new
-key is `setup_done` (set at step 6 or when the guide is dismissed, so it does not open again).
+State of the guide is written to `config.toml` as the person goes (folders, choices, hotkey), so closing it half-way loses nothing. There is no
+`setup_done` key: the guide opens on the first start because there is no `config.toml` yet, which that start creates. Built in U2 with the engine
+folder shown (not yet changeable: `data_dir` is U4) and no time estimates (U3).
 
 ## 5. Installing it
 

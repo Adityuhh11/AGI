@@ -31,7 +31,7 @@ In file search, `code:` `img:` `pdf:` `doc:` `vid:` before a query limit it to o
 
 **Requirements:** Windows 11 (64-bit). WebView2 is part of Windows 11. For fast file search, a graphics card with a
 current driver (NVIDIA, AMD or Intel Arc, through Vulkan); without one it still works, only slower
-([numbers](docs/PERFORMANCE.md#a-computer-without-a-graphics-card)). About 1.1 GB of disk and a 0.9 GB one-time download
+([numbers](docs/PERFORMANCE.md#a-computer-without-a-graphics-card)). About 1.1 GB of disk and a one-time download of about 1 GB
 if you turn file search on; the launcher alone is a 13 MB file.
 
 1. Download `agi-<version>-windows-x64.zip` from the [latest release](https://github.com/Adityuhh11/AGI/releases/latest)
@@ -39,7 +39,8 @@ if you turn file search on; the launcher alone is a 13 MB file.
 2. Run `agi.exe`. Windows may say **"Windows protected your PC"**, because the program is not code-signed yet
    (see [signing](docs/DISTRIBUTION.md)): click **More info**, then **Run anyway**. You can check the download against the
    SHA-256 shown next to it on the release page.
-3. There is no window of its own: AGI lives in the notification area (the arrow by the clock). The first start opens Settings.
+3. There is no window of its own: AGI lives in the notification area (the arrow by the clock). The first start opens a short setup guide:
+   what AGI is, your hotkey and the keys, and the optional file search with its folders and options (the tray menu shows it again).
 4. Press **Alt+Shift+Space**. Change the hotkey in Settings > General; it tells you if another program already owns it.
    "Start when I sign in" is there too.
 
@@ -51,7 +52,7 @@ To remove everything: quit from the tray icon, delete the folder, then the folde
 File search is the part that needs real resources, so it is a choice you make in **Settings > File search**.
 
 1. **Download and turn on.** The page says what it will download and from where before you press the button: a search
-   engine (llama.cpp), its Python libraries (pinned, through `uv`) and the embedding model, about 0.9 GB from `github.com`,
+   engine (llama.cpp), its Python libraries (pinned, through `uv`) and the embedding model, about 1 GB from `github.com`,
    `pypi.org`, `files.pythonhosted.org` and `huggingface.co`. Every file is checked against a pinned SHA-256. It took about
    two minutes on a fast connection. Cancelling keeps what was downloaded.
 2. **Add folders and choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle).
