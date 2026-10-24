@@ -152,6 +152,7 @@ func TestCacheRoundTripAndMissingAndCorrupt(t *testing.T) {
 func newCatalog(t *testing.T, list func(context.Context) ([]byte, error)) *Catalog {
 	c := NewCatalog(filepath.Join(t.TempDir(), "apps.json"), "")
 	c.list = list
+	c.alive = func(apps []App) []App { return apps } // whether 7-Zip is installed is not what these tests are about
 	c.now = func() time.Time { return now }
 	return c
 }

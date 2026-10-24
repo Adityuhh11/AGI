@@ -195,8 +195,9 @@ uv run python -m agi_memory.eval                              # retrieval qualit
 
 ## Contributing
 
-Not open to pull requests yet while the project is being made ready for others; issues and bug reports are welcome. The working
-rules (small focused commits, measure before deciding, no speculative code) are in [`AGENTS.md`](AGENTS.md).
+Not open to pull requests yet while the project is being made ready for others; issues and bug reports are welcome. How it will work is
+in [`CONTRIBUTING.md`](CONTRIBUTING.md), the working rules (small focused commits, measure before deciding, no speculative code) in
+[`AGENTS.md`](AGENTS.md), and vulnerabilities go through [`SECURITY.md`](SECURITY.md).
 Where the project stands and what is next: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## License

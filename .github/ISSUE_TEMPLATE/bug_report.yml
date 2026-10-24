@@ -1,0 +1,41 @@
+name: Bug report
+description: Something does not work the way it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report. A few details save a round of questions.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did (or typed in the bar), what AGI did, and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AGI version and Windows version
+      description: Settings > About shows the version; "Copy diagnostics" there fills in more.
+      placeholder: "0.5.0, Windows 11 24H2"
+    validations:
+      required: true
+  - type: input
+    id: machine
+    attributes:
+      label: Computer
+      description: Processor, graphics card and memory. File search behaves very differently with and without a graphics card.
+      placeholder: "i5-13420H, RTX 4050 6 GB, 16 GB"
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options: [The bar (apps, web, tags, pins), File search, Clipboard or snippets, Settings, Install or update, Something else]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: |
+        `%LOCALAPPDATA%\AGI\logs\agi.log` (Settings > About opens the folder). It can contain file names and what you
+        searched for, so look through it before you paste.
+      render: text
