@@ -24,7 +24,7 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **Tags and pins** | `Ctrl+T` tags an app or file, `#work` lists everything tagged. `Ctrl+P` pins up to eight rows that show the moment the bar opens. |
 
 Keys: `Tab` switches between All / Apps / Files / Web, `Ctrl+K` shows what you can do with the selected row,
-`Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings, `Esc` closes.
+`Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings (so does typing `settings`, or `settings file` for one page), `Esc` closes.
 In file search, `code:` `img:` `pdf:` `doc:` `vid:` before a query limit it to one kind of file.
 
 ## Install

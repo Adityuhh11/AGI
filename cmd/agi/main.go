@@ -269,7 +269,7 @@ func run(afterUpdate bool) error {
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
-		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch)),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,

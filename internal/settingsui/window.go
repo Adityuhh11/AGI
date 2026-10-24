@@ -24,7 +24,8 @@ func NewWindow(app *application.App) *Window { return &Window{app: app} }
 // Open shows the settings window.
 func (w *Window) Open() { w.OpenAt("") }
 
-// OpenAt shows the settings window; a new window starts on the section with this id ("about"), the first one if it is empty.
+// OpenAt shows the settings window on the section with this id ("about"), the first one if it is empty. An open window
+// switches to it through its address (the page listens for the change), so a page opened from the bar is never the wrong one.
 func (w *Window) OpenAt(section string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -32,6 +33,9 @@ func (w *Window) OpenAt(section string) {
 		w.win.Show()
 		w.win.UnMinimise()
 		w.win.Focus()
+		if section != "" {
+			w.win.ExecJS(fmt.Sprintf("location.hash = %q", "#settings/"+section))
+		}
 		return
 	}
 	w.count++
