@@ -3,6 +3,8 @@
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { SearchView, View } from "../../../bindings/agi/internal/settingsui";
   import { changes, effects, type Choices, type Kind } from "../indexingPlan";
+  import { CHOICES, SPEEDS } from "./choices";
+  import ChoiceGroup from "./ChoiceGroup.svelte";
   import { draft } from "./draft";
 
   let { view, reload }: { view: View; reload: () => Promise<void> } = $props();
@@ -13,44 +15,7 @@
   let removingFiles = $state(false);
   const roots = $derived(view.Roots ?? []);
 
-  // The words are the measurements in docs/eval/2026-10-18-pace.md: 17.6 s, 33.4 s and 103.5 s to index the same
-  // folder, with the graphics card busy 65%, 27% and 16% of the time.
-  const SPEEDS = [
-    { id: "fast", name: "Fast", how: "Finishes soonest. The graphics card works hard, and other things may slow down meanwhile." },
-    { id: "balanced", name: "Balanced", how: "Takes about twice as long. The graphics card is busy about a third of the time." },
-    { id: "gentle", name: "Gentle", how: "Takes about six times as long. Your computer stays free and search stays quick." },
-  ];
   const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
-
-  // What each kind of file is searched by (docs/superpowers/specs/2026-10-20-indexing-choices-design.md). Pictures are
-  // what indexing time goes on: about 0.16 s each on a graphics card, about 5 s on a processor alone.
-  const CHOICES: { kind: Kind; label: string; options: { id: string; name: string; how: string }[] }[] = [
-    {
-      kind: "PDFPages",
-      label: "PDF pages",
-      options: [
-        { id: "auto", name: "Pages that need it", how: "Scans, slides and pages with pictures or tables are also found by how they look. Every page is found by its words." },
-        { id: "all", name: "Every page", how: "Any page can be found by how it looks. The slowest: every page is a picture to index." },
-        { id: "text", name: "Words only", how: "Pages are found by their words. The fastest, and the choice for a computer without a graphics card." },
-      ],
-    },
-    {
-      kind: "Photos",
-      label: "Photos",
-      options: [
-        { id: "content", name: "What they show", how: "Find a photo by describing it: “dog on a beach”." },
-        { id: "name", name: "Their names", how: "Only the file name is searched. Much faster without a graphics card." },
-      ],
-    },
-    {
-      kind: "Videos",
-      label: "Videos",
-      options: [
-        { id: "name", name: "Their names", how: "Videos are found by their file names." },
-        { id: "content", name: "What is in them", how: "Eight frames of each video are searched too; a video costs as much as eight photos." },
-      ],
-    },
-  ];
 
   // On an index that exists a click only changes the draft; "Save and re-index" is what starts the work. Before anything
   // is indexed (right after the download, or with no folders yet) there is nothing to protect, so a click applies at once.
@@ -238,21 +203,7 @@
     {/if}
     {#each CHOICES as choice (choice.kind)}
       <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
-      <div class="speeds" style:--count={choice.options.length} role="radiogroup" aria-labelledby="{choice.kind}-label">
-        {#each choice.options as option (option.id)}
-          <button
-            type="button"
-            role="radio"
-            aria-checked={shown?.[choice.kind] === option.id}
-            class="speed"
-            class:on={shown?.[choice.kind] === option.id}
-            onclick={() => choose(choice.kind, option.id)}
-          >
-            <span class="name">{option.name}</span>
-            <span class="how">{option.how}</span>
-          </button>
-        {/each}
-      </div>
+      <ChoiceGroup labelId="{choice.kind}-label" options={choice.options} value={shown?.[choice.kind]} onpick={(id) => choose(choice.kind, id)} />
     {/each}
     {#if plan.length > 0}
       <div class="draft" role="status">
@@ -295,21 +246,7 @@
       <p class="help">Nothing is being indexed.</p>
     {/if}
     <span class="sublabel" id="speed-label">How hard it works</span>
-    <div class="speeds" role="radiogroup" aria-labelledby="speed-label">
-      {#each SPEEDS as speed (speed.id)}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={search.Pace === speed.id}
-          class="speed"
-          class:on={search.Pace === speed.id}
-          onclick={() => run(() => Settings.SetPace(speed.id))}
-        >
-          <span class="name">{speed.name}</span>
-          <span class="how">{speed.how}</span>
-        </button>
-      {/each}
-    </div>
+    <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} />
     <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
   </div>
 {/if}
@@ -389,11 +326,6 @@
     color: var(--text-3);
     font-size: 11.5px;
   }
-  .speeds {
-    display: grid;
-    grid-template-columns: repeat(var(--count, 3), minmax(0, 1fr));
-    gap: 8px;
-  }
   .sublabel {
     margin-top: 6px;
     color: var(--text-2);
@@ -401,38 +333,6 @@
   }
   .warn {
     color: var(--danger);
-  }
-  .speed {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-2);
-    text-align: left;
-    cursor: pointer;
-  }
-  .speed:hover {
-    background: var(--tile);
-  }
-  .speed.on {
-    border-color: rgba(230, 232, 236, 0.45);
-    background: var(--lift);
-    color: var(--text);
-  }
-  .speed:focus-visible {
-    outline: 1px solid var(--chrome);
-    outline-offset: 2px;
-  }
-  .name {
-    font: 620 13px/1.2 var(--sans);
-  }
-  .how {
-    font-size: 11.5px;
-    line-height: 1.45;
-    color: var(--text-3);
   }
   .path {
     min-width: 0;

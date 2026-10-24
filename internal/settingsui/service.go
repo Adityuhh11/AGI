@@ -89,12 +89,15 @@ type Options struct {
 	Installer Installer
 	ExePath   string
 	Restart   func() error
-	// Open opens (or brings forward) the settings window.
-	Open func()
+	// Open opens (or brings forward) the settings window; OpenSetup the first-run guide.
+	Open      func()
+	OpenSetup func()
 	// Engine reports the file-search engine's state, why it is in it, and where its model runs.
 	Engine func() sidecar.Status
 	// LogDir is where agi.log is written. Version is the build's version.
 	LogDir, Version string
+	// EngineDir is where the search engine and its models are installed.
+	EngineDir string
 }
 
 // Service is bound to the frontend; its exported methods become TypeScript functions. Methods that
@@ -104,13 +107,15 @@ type Service struct {
 
 	// movedTo says where Windows keeps a user folder that a configured folder is the old place of; tests replace it.
 	movedTo func(root string) string
+	// known is where Windows keeps a user folder ("Documents", "Downloads"); tests replace it.
+	known func(name string) (string, error)
 
 	mu         sync.Mutex
 	restartErr string // why the launcher could not restart itself after an update, if it could not
 }
 
 // New returns the service.
-func New(o Options) *Service { return &Service{o: o, movedTo: movedTo} }
+func New(o Options) *Service { return &Service{o: o, movedTo: movedTo, known: knownFolder} }
 
 // View is everything the window shows.
 type View struct {
@@ -147,6 +152,9 @@ func (s *Service) View() View {
 
 // Open opens the settings window (the bar and the tray call it).
 func (s *Service) Open() { s.o.Open() }
+
+// OpenSetup opens the first-run guide again (the About page and the tray call it).
+func (s *Service) OpenSetup() { s.o.OpenSetup() }
 
 // Browsers lists the installed browsers by name.
 func (s *Service) Browsers() []string { return s.o.Browsers() }

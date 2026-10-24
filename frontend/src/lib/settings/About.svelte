@@ -100,6 +100,12 @@
 </div>
 
 <div class="field">
+  <span class="label">Setup guide</span>
+  <p class="help">The short tour of the hotkey and the bar, and the file search set-up, again.</p>
+  <div><button type="button" class="btn" onclick={() => Settings.OpenSetup()}>Open the guide</button></div>
+</div>
+
+<div class="field">
   <span class="label">Settings file</span>
   <p class="help mono">{view.ConfigPath}</p>
   <div><button type="button" class="btn" onclick={async () => (error = await Settings.OpenFolder("config"))}>Open folder</button></div>

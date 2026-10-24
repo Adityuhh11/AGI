@@ -1,0 +1,134 @@
+/* The look of a form page (a settings section, a setup step): shared by Settings.svelte and Setup.svelte. */
+main h2 {
+  margin: 0 0 4px;
+  font: 620 20px/1.25 var(--sans);
+  letter-spacing: -0.015em;
+}
+main .lede {
+  margin: 0 0 24px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+main .field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 22px;
+}
+main .field > .label {
+  color: var(--text);
+  font: 560 13px/1.2 var(--sans);
+}
+main .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font: 560 13px/1.2 var(--sans);
+  cursor: pointer;
+}
+main .check input {
+  accent-color: var(--text-2);
+}
+main .help {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+main .error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+main .ok {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+main input[type="text"],
+main select {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--tile);
+  color: var(--text);
+  font: 450 13.5px/1 var(--sans);
+}
+main select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-3) 50%), linear-gradient(135deg, var(--text-3) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 15px, calc(100% - 12px) 15px;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+main select option {
+  background: #111;
+  color: var(--text);
+}
+main input[type="text"]:focus,
+main select:focus {
+  outline: none;
+  border-color: rgba(230, 232, 236, 0.45);
+}
+main input::placeholder {
+  color: var(--text-3);
+}
+main .mono {
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+main .btn {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--tile);
+  color: var(--text);
+  font: 560 13px/1 var(--sans);
+  cursor: pointer;
+}
+main .btn:hover:not(:disabled) {
+  background: var(--lift);
+}
+main .btn:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+main .btn.primary {
+  border-color: transparent;
+  background: var(--chrome);
+  color: #000;
+  font-weight: 620;
+}
+main .btn.primary:disabled {
+  background: var(--tile);
+  color: var(--text-3);
+}
+main .btn.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-2);
+}
+main .btn.danger {
+  color: var(--danger);
+}
+main .btn:focus-visible,
+main .keys:focus-visible {
+  outline: 1px solid var(--chrome);
+  outline-offset: 2px;
+}
+main kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: var(--tile);
+  color: var(--text);
+  font: 500 12px/1.2 var(--mono);
+  text-align: center;
+}
