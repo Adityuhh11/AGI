@@ -3,6 +3,7 @@
   import type { SearchView } from "../../../bindings/agi/internal/settingsui";
   import ChoiceGroup from "../settings/ChoiceGroup.svelte";
   import { CHOICES, SPEEDS } from "../settings/choices";
+  import { choiceHints, paceHints } from "../settings/hints";
 
   interface Props {
     search: SearchView;
@@ -46,7 +47,7 @@
   {#each CHOICES as choice (choice.kind)}
     <div class="field">
       <span class="label" id="setup-{choice.kind}">{choice.label}</span>
-      <ChoiceGroup labelId="setup-{choice.kind}" options={choice.options} value={search[choice.kind]} onpick={(id) => choose(choice.kind, id)} />
+      <ChoiceGroup labelId="setup-{choice.kind}" options={choice.options} value={search[choice.kind]} onpick={(id) => choose(choice.kind, id)} hints={choiceHints(choice.kind, choice.options.map((o) => o.id), search.Estimate)} />
     </div>
   {/each}
 
@@ -56,6 +57,7 @@
       labelId="setup-pace"
       options={SPEEDS}
       value={search.Pace}
+      hints={paceHints(search.Estimate)}
       onpick={async (id) => {
         error = await Settings.SetPace(id);
         await refresh();

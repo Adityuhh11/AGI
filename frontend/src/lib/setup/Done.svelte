@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { SearchView, View } from "../../../bindings/agi/internal/settingsui";
+  import { duration } from "../format";
   import { keycaps } from "../keycaps";
 
   interface Props {
@@ -68,6 +69,14 @@
         {(view.Roots ?? []).length} folder{(view.Roots ?? []).length === 1 ? "" : "s"} will be read, newest files first, and you can search while it
         works. {search.Device === "cpu" ? "On the processor it takes a while; Gentle keeps the computer free." : ""}
       </p>
+      {#if search.Estimate.Complete}
+        <p class="help">
+          Indexing everything takes {duration(search.Estimate.Seconds)} at this speed ({duration(search.Estimate.ByPace?.fast ?? 0)} at Fast,
+          {duration(search.Estimate.ByPace?.gentle ?? 0)} at Gentle). The time left shows once it is running.
+        </p>
+      {:else}
+        <p class="help">Counting what is in your folders to say how long it will take...</p>
+      {/if}
       <div><button type="button" class="btn primary" onclick={start}>Start indexing</button></div>
     {:else}
       <p class="help">No folder is chosen yet.</p>

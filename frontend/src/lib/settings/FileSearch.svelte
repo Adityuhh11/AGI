@@ -4,6 +4,7 @@
   import type { SearchView, View } from "../../../bindings/agi/internal/settingsui";
   import { changes, effects, type Choices, type Kind } from "../indexingPlan";
   import { CHOICES, SPEEDS } from "./choices";
+  import { choiceHints, paceHints, surveyLine } from "./hints";
   import ChoiceGroup from "./ChoiceGroup.svelte";
   import { draft } from "./draft";
 
@@ -16,6 +17,7 @@
   const roots = $derived(view.Roots ?? []);
 
   const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
+  const holds = $derived(Object.fromEntries((search?.Surveys ?? []).map((f) => [f.Root, surveyLine(f)])));
 
   // On an index that exists a click only changes the draft; "Save and re-index" is what starts the work. Before anything
   // is indexed (right after the download, or with no folders yet) there is nothing to protect, so a click applies at once.
@@ -173,6 +175,7 @@
           <span class="where">
             <span class="path mono" title={root}>{root}</span>
             {#if folderText[root]}<span class="state">{folderText[root]}</span>{/if}
+            {#if holds[root]}<span class="state">{holds[root]}</span>{/if}
           </span>
           {#if confirming === root}
             <span class="confirm">
@@ -203,7 +206,7 @@
     {/if}
     {#each CHOICES as choice (choice.kind)}
       <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
-      <ChoiceGroup labelId="{choice.kind}-label" options={choice.options} value={shown?.[choice.kind]} onpick={(id) => choose(choice.kind, id)} />
+      <ChoiceGroup labelId="{choice.kind}-label" options={choice.options} value={shown?.[choice.kind]} onpick={(id) => choose(choice.kind, id)} hints={choiceHints(choice.kind, choice.options.map((o) => o.id), search.Estimate)} />
     {/each}
     {#if plan.length > 0}
       <div class="draft" role="status">
@@ -246,7 +249,7 @@
       <p class="help">Nothing is being indexed.</p>
     {/if}
     <span class="sublabel" id="speed-label">How hard it works</span>
-    <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} />
+    <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} hints={paceHints(search.Estimate)} />
     <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
   </div>
 {/if}

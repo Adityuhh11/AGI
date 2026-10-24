@@ -56,7 +56,8 @@ File search is the part that needs real resources, so it is a choice you make in
    `pypi.org`, `files.pythonhosted.org` and `huggingface.co`. Every file is checked against a pinned SHA-256. It took about
    two minutes on a fast connection. Cancelling keeps what was downloaded.
 2. **Add folders and choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle).
-   Nothing is read until you press **Start indexing**, so you choose first. The defaults are sensible; on a computer without a
+   Nothing is read until you press **Start indexing**, so you choose first. Each folder shows how many files and how much it holds, and each
+   option says how long indexing will take on this computer (within about a quarter; the time left takes over once it runs). The defaults are sensible; on a computer without a
    graphics card choose *Words only* for PDFs and *names* for photos.
 3. **Later changes are saved, not instant.** Changing a choice on an index that exists shows what it will do and waits for
    **Save and re-index**. Afterwards only changes are processed: a new file is searchable a few seconds after it appears, and a

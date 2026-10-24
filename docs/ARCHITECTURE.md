@@ -26,6 +26,7 @@ the engine only after the page asks.
 | `panel` | The search bar window: global hotkey, cloaked (not hidden) window, keyboard hand-back to the previous program |
 | `palette`, `rank`, `apps`, `web`, `state`, `snippets`, `clipboard` | What the bar answers instantly: ranking (`rank`), the Start Menu list and launching (`apps`), web and quicklinks (`web`), launch history, tags and pins (`state`), pasted text (`snippets`, `clipboard`); `palette` decides which rows show and what Enter does |
 | `search`, `files` | File search from the launcher's side: ask the engine, place each hit on disk, open or reveal it (only inside indexed folders), thumbnails |
+| `survey`, `estimate` | Count what the folders hold (the engine's `POST /survey`, in the background) and say how long indexing them will take on this computer, per folder, per choice and per speed |
 | `indexing`, `watcher` | Keep the engine's index in step with the folders: sync every root when the engine is ready and on Rescan, sync just the changed root after the watcher's debounce, speed and pause |
 | `sidecar`, `enginesetup` | Run the engine (supervised process tree, typed HTTP client, on/off switch) and install it (pinned downloads, resumable, manifest written last) |
 | `config`, `settings`, `settingsui` | `config.toml` (validated, unknown keys are errors), the live store that notifies subscribers, and the Settings window's service |
@@ -51,7 +52,7 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
 | `search/` | `Searcher`: vector, bm25 and path search (the last two while the query is embedded) blended into one score (`fusion.py`), `confident` flag against a noise ceiling the index measures itself (`calibration.py`), filters | built |
 | `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
-| `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search`; see `api.md` | built |
+| `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search` `/survey`; see `api.md` | built |
 | `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
 
 ## Data flow

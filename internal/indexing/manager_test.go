@@ -422,13 +422,13 @@ func TestTheSpeedsAreMeasuredDutiesAndAnUnknownOneIsBalanced(t *testing.T) {
 func TestPausingAndResumingTellTheEngineAndReportInTheStatus(t *testing.T) {
 	fake := newFake()
 	var changes int
-	m := New(fake, []string{`C:`}, func() bool { return true }, func(Status) { changes++ })
+	m := New(fake, []string{`C:\a`}, func() bool { return true }, func(Status) { changes++ })
 	m.Pause()
 	m.Pause() // asking again changes nothing
 	if !m.Status().Paused || !fake.paused || fake.pauseCalls != 1 || changes != 1 {
 		t.Fatalf("paused %v, engine paused %v, %d pause calls, %d changes", m.Status().Paused, fake.paused, fake.pauseCalls, changes)
 	}
-	if got := (Status{State: Indexing, Root: `C:`, FilesTotal: 3, Paused: true}).String(); got != "Indexing paused" {
+	if got := (Status{State: Indexing, Root: `C:\a`, FilesTotal: 3, Paused: true}).String(); got != "Indexing paused" {
 		t.Fatalf("status line = %q", got)
 	}
 	m.Resume()
@@ -440,7 +440,7 @@ func TestPausingAndResumingTellTheEngineAndReportInTheStatus(t *testing.T) {
 func TestAnEngineThatIsNotUpYetIsToldTheSpeedAndThePauseWhenTheSyncStarts(t *testing.T) {
 	fake := newFake()
 	up := false
-	m := New(fake, []string{`C:`}, func() bool { return up }, nil)
+	m := New(fake, []string{`C:\a`}, func() bool { return up }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	m.SetPace("gentle")
@@ -459,8 +459,8 @@ func TestAnEngineThatIsNotUpYetIsToldTheSpeedAndThePauseWhenTheSyncStarts(t *tes
 
 func TestEachFolderSaysWhereItIs(t *testing.T) {
 	fake := newFake()
-	fake.failRoot = `C:ad`
-	m := New(fake, []string{`C:\good`, `C:ad`}, func() bool { return true }, nil)
+	fake.failRoot = `C:\bad`
+	m := New(fake, []string{`C:\good`, `C:\bad`}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	before := m.Folders()
@@ -472,7 +472,7 @@ func TestEachFolderSaysWhereItIs(t *testing.T) {
 	if got[0].Root != `C:\good` || got[0].State != UpToDate || got[0].Files != 3 || got[0].Chunks != 10 {
 		t.Errorf("the good folder: %+v", got[0])
 	}
-	if got[1].Root != `C:ad` || got[1].State != Failed || got[1].Message == "" {
+	if got[1].Root != `C:\bad` || got[1].State != Failed || got[1].Message == "" {
 		t.Errorf("the failing folder: %+v", got[1])
 	}
 	m.SetFolders([]string{`C:\good`}, nil)
