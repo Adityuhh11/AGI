@@ -94,6 +94,19 @@ func (c *Client) AddSource(ctx context.Context, root, id string, exclude []strin
 	return out.JobID, nil
 }
 
+// Survey counts what indexing root would read, by kind of file, leaving out the folders in exclude (relative to the
+// root, '/'-separated). It answers while the model is still loading. An engine installed by an earlier launcher has
+// no such route and answers 404 (an *APIError).
+func (c *Client) Survey(ctx context.Context, root string, exclude []string) (Survey, error) {
+	body := map[string]any{"path": root}
+	if len(exclude) > 0 {
+		body["exclude"] = exclude
+	}
+	var out Survey
+	err := c.do(ctx, http.MethodPost, "/survey", body, &out)
+	return out, err
+}
+
 // Job returns the state of an index job.
 func (c *Client) Job(ctx context.Context, id string) (Job, error) {
 	var out Job

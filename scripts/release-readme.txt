@@ -8,7 +8,9 @@ STARTING IT
      Windows may say "Windows protected your PC", because the program is not signed yet.
      Click "More info", then "Run anyway".
   2. There is no window of its own. The program sits in the notification area (the little arrow
-     by the clock). The first time it starts it opens Settings so you can see the hotkey.
+     by the clock). The first time it starts it opens a short setup guide: what AGI is, the hotkey and
+     the keys, and the optional file search (Settings > About > "Open the guide", or the
+     tray menu, shows it again).
   3. Press Alt+Shift+Space to open the bar. Settings > General changes the hotkey, and says
      so if another program already owns the one you pick.
   4. Settings > General > "Start when I sign in" makes it start with Windows. It remembers where
@@ -30,7 +32,8 @@ WHAT TO TRY
     Type "snip:" and pick one, or type its keyword. Clipboard history and Snippets start out pinned.
   - Ctrl+P pins a row (an app, a file, a quicklink; up to eight). The bar is listing your pins
     the moment it opens, and every time you open it again it starts empty, with the pins.
-  - Ctrl+K opens what can be done with the selected row. Ctrl+, opens Settings.
+  - Ctrl+K opens what can be done with the selected row. Ctrl+, opens Settings, and so does typing
+    "settings" in the bar: "settings file" goes straight to the File search page.
 
 FILE SEARCH (optional, off until you turn it on)
 
@@ -54,7 +57,9 @@ FILE SEARCH (optional, off until you turn it on)
     On a computer without a graphics card, "Words only" and names are the quick choices. Changing
     one later redoes only that kind of file, and nothing already indexed is computed again.
   - Add the folders you want searched, one at a time (Settings > File search > Add folder).
-    Nothing is read until you do.
+    Nothing is read until you do, and after the download nothing is indexed until you press "Start
+    indexing", so you can choose the folders and the options above first. Changing an option later
+    shows what it will do and waits for "Save and re-index".
   - Indexing runs in the background. Pick how hard it works: Fast, Balanced (the default, about
     twice as long) or Gentle (about six times as long, the computer stays free). Pause and Resume
     are there too, and in the menu of the notification-area icon. Searching works throughout, on

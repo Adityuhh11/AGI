@@ -46,7 +46,7 @@ from agi_memory.chunking.text import NotTextError, chunk_text_document
 from agi_memory.chunking.video import Video, video_frame_chunks, video_identity, video_name_chunk
 from agi_memory.config import Settings
 from agi_memory.embedding.base import Embedder
-from agi_memory.sources.folder import ScannedFile, scan
+from agi_memory.sources.folder import ScannedFile, excluded_folders, scan
 from agi_memory.sources.rules import Route
 from agi_memory.store import FlatStore
 from agi_memory.types import LEGACY_OPTIONS, Chunk, ChunkKind, FileRecord, IndexOptions
@@ -154,8 +154,7 @@ class Indexer:
         if not root.is_dir():
             raise FileNotFoundError(f"source root is not a folder: {root}")
         options = options or IndexOptions()
-        skipped = frozenset(f"{p.strip('/').lower()}/" for p in exclude if p.strip("/"))
-        scanned = scan(root, self._settings, skipped)
+        scanned = scan(root, self._settings, excluded_folders(exclude))
         report = SyncReport(
             denied=scanned.denied,
             ignored=scanned.ignored,
@@ -176,9 +175,13 @@ class Indexer:
         gone = [u for u in sorted(known) if u not in on_disk and not u.startswith(protected)]
         run = _Run(source_id, options, redo, self._donors(known, gone, scanned.files), report)
 
-        total = len(scanned.files)
+        # Newest first, so what a person worked on last is searchable first: "search works while it
+        # indexes" then holds for what they are most likely to look for. The uri makes the order
+        # deterministic.
+        order = sorted(scanned.files, key=lambda f: (-f.mtime_ns, f.uri))
+        total = len(order)
         failures = 0  # files in a row that failed
-        for number, file in enumerate(scanned.files, start=1):
+        for number, file in enumerate(order, start=1):
             try:
                 self._index_file(run, file, known.get(file.uri))
                 failures = 0

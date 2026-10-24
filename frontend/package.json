@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build --mode production",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "node --test src/lib/flatten.test.ts src/lib/highlight.test.ts src/lib/path.test.ts src/lib/palettes.test.ts src/lib/actions.test.ts src/lib/modes.test.ts src/lib/accelerator.test.ts src/lib/notes.test.ts src/lib/tags.test.ts src/lib/keys.test.ts"
+    "test": "node --test src/lib/flatten.test.ts src/lib/highlight.test.ts src/lib/path.test.ts src/lib/palettes.test.ts src/lib/actions.test.ts src/lib/modes.test.ts src/lib/accelerator.test.ts src/lib/notes.test.ts src/lib/tags.test.ts src/lib/keys.test.ts src/lib/indexingPlan.test.ts src/lib/keycaps.test.ts src/lib/setup/flow.test.ts src/lib/format.test.ts src/lib/settings/hints.test.ts"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",

@@ -2,6 +2,11 @@
   import { onMount } from "svelte";
   import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
   import type { SearchView, View } from "../../../bindings/agi/internal/settingsui";
+  import { changes, effects, type Choices, type Kind } from "../indexingPlan";
+  import { CHOICES, SPEEDS } from "./choices";
+  import { choiceHints, paceHints, surveyLine } from "./hints";
+  import ChoiceGroup from "./ChoiceGroup.svelte";
+  import { draft } from "./draft";
 
   let { view, reload }: { view: View; reload: () => Promise<void> } = $props();
 
@@ -11,49 +16,30 @@
   let removingFiles = $state(false);
   const roots = $derived(view.Roots ?? []);
 
-  // The words are the measurements in docs/eval/2026-10-18-pace.md: 17.6 s, 33.4 s and 103.5 s to index the same
-  // folder, with the graphics card busy 65%, 27% and 16% of the time.
-  const SPEEDS = [
-    { id: "fast", name: "Fast", how: "Finishes soonest. The graphics card works hard, and other things may slow down meanwhile." },
-    { id: "balanced", name: "Balanced", how: "Takes about twice as long. The graphics card is busy about a third of the time." },
-    { id: "gentle", name: "Gentle", how: "Takes about six times as long. Your computer stays free and search stays quick." },
-  ];
   const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
+  const holds = $derived(Object.fromEntries((search?.Surveys ?? []).map((f) => [f.Root, surveyLine(f)])));
 
-  // What each kind of file is searched by (docs/superpowers/specs/2026-10-20-indexing-choices-design.md). Pictures are
-  // what indexing time goes on: about 0.16 s each on a graphics card, about 5 s on a processor alone.
-  type Kind = "PDFPages" | "Photos" | "Videos";
-  const CHOICES: { kind: Kind; label: string; options: { id: string; name: string; how: string }[] }[] = [
-    {
-      kind: "PDFPages",
-      label: "PDF pages",
-      options: [
-        { id: "auto", name: "Pages that need it", how: "Scans, slides and pages with pictures or tables are also found by how they look. Every page is found by its words." },
-        { id: "all", name: "Every page", how: "Any page can be found by how it looks. The slowest: every page is a picture to index." },
-        { id: "text", name: "Words only", how: "Pages are found by their words. The fastest, and the choice for a computer without a graphics card." },
-      ],
-    },
-    {
-      kind: "Photos",
-      label: "Photos",
-      options: [
-        { id: "content", name: "What they show", how: "Find a photo by describing it: “dog on a beach”." },
-        { id: "name", name: "Their names", how: "Only the file name is searched. Much faster without a graphics card." },
-      ],
-    },
-    {
-      kind: "Videos",
-      label: "Videos",
-      options: [
-        { id: "name", name: "Their names", how: "Videos are found by their file names." },
-        { id: "content", name: "What is in them", how: "Eight frames of each video are searched too; a video costs as much as eight photos." },
-      ],
-    },
-  ];
+  // On an index that exists a click only changes the draft; "Save and re-index" is what starts the work. Before anything
+  // is indexed (right after the download, or with no folders yet) there is nothing to protect, so a click applies at once.
+  const staged = $derived(!!search && search.Indexed > 0 && !search.HoldIndexing);
+  const saved = $derived<Choices | null>(search ? { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos } : null);
+  const shown = $derived($draft ?? saved);
+  const plan = $derived(saved && $draft ? changes(saved, $draft) : []);
 
   async function choose(kind: Kind, id: string) {
-    if (!search) return;
-    const next = { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos, [kind]: id };
+    if (!saved) return;
+    const next = { ...(shown ?? saved), [kind]: id };
+    if (!staged) {
+      await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos));
+      return;
+    }
+    $draft = changes(saved, next).length > 0 ? next : null;
+  }
+
+  async function saveDraft() {
+    if (!$draft) return;
+    const next = $draft;
+    $draft = null;
     await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos));
   }
 
@@ -116,7 +102,7 @@
 
 {#if search}
   <div class="field">
-    <span class="label">Status</span>
+    <span class="label">Search engine</span>
 
     {#if search.Installing}
       <p class="help">
@@ -131,11 +117,18 @@
         <p class="help mono">{search.Message}</p>
       {/if}
       <div><button type="button" class="btn" onclick={() => Settings.CancelInstall().then(refresh)}>Cancel</button></div>
-      <p class="help">You can close this window; the download goes on. Cancelling keeps what was downloaded.</p>
+      <p class="help">You can close this window; the download goes on. Cancelling keeps what was downloaded. Nothing is indexed until you start it.</p>
     {:else if !search.Installed}
       <p class="help">
         Turning it on downloads about {(search.DownloadMB / 1024).toFixed(1)} GB once: a search engine, its Python libraries and the models.
-        Nothing is downloaded until you press the button, and nothing is sent anywhere.
+        Nothing is downloaded until you press the button, and nothing is sent anywhere. Afterwards you choose what to index before anything is.
+      </p>
+      <p class="help">
+        Saved in <span class="mono">{search.Data.Engine}</span>; the index goes in <span class="mono">{search.Data.Index}</span>.
+        {#if search.Data.CanChange}
+          <button type="button" class="btn quiet" onclick={() => run(() => Settings.ChooseDataFolder())}>Change folder...</button>
+          {#if search.Data.Chosen}<button type="button" class="btn quiet" onclick={() => run(() => Settings.UseDefaultDataFolder())}>Use the usual place</button>{/if}
+        {/if}
       </p>
       <p class="help mono">From {(search.Hosts ?? []).join(", ")}</p>
       {#if search.Error}<p class="error">The last attempt failed: {search.Error}</p>{/if}
@@ -153,14 +146,6 @@
     {/if}
 
     {#if search.Installed && !search.Installing}
-      {#if search.Enabled && search.EngineState === "ready" && !search.NeedsUpdate}
-        <p class="help">{search.Paused ? "Indexing is paused. Search still works on what is indexed." : search.IndexText}</p>
-        <div>
-          <button type="button" class="btn" onclick={() => (search?.Paused ? Settings.ResumeIndexing() : Settings.PauseIndexing()).then(refresh)}>
-            {search.Paused ? "Resume indexing" : "Pause indexing"}
-          </button>
-        </div>
-      {/if}
       <div class="files">
         {#if removingFiles}
           <span class="help">Delete the downloaded engine and models? Your index stays.</span>
@@ -172,57 +157,20 @@
       </div>
     {/if}
   </div>
-{/if}
 
-{#if search?.Installed}
-  <div class="field">
-    <span class="label" id="speed-label">How hard indexing works</span>
-    <div class="speeds" role="radiogroup" aria-labelledby="speed-label">
-      {#each SPEEDS as speed (speed.id)}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={search.Pace === speed.id}
-          class="speed"
-          class:on={search.Pace === speed.id}
-          onclick={() => run(() => Settings.SetPace(speed.id))}
-        >
-          <span class="name">{speed.name}</span>
-          <span class="how">{speed.how}</span>
-        </button>
-      {/each}
-    </div>
-    <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
-  </div>
-
-  <div class="field">
-    <span class="label">What to index</span>
-    {#if search.Device === "cpu"}
-      <p class="help warn">
-        This computer has no graphics card file search can use, so it runs on the processor: each picture takes about 5 seconds to
-        index. Words only and names are the quick choices here.
+  {#if search.Enabled && search.EngineState === "ready" && search.HoldIndexing && !search.NeedsUpdate}
+    <div class="start" role="status">
+      <p class="label">Ready. Nothing is indexed yet.</p>
+      <p class="help">
+        {search.Device === "cpu" ? "It runs on the processor here, so pictures are slow." : "It runs on the graphics card."}
+        Add the folders you want and choose what to index below, then start.
       </p>
-    {/if}
-    {#each CHOICES as choice (choice.kind)}
-      <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
-      <div class="speeds" style:--count={choice.options.length} role="radiogroup" aria-labelledby="{choice.kind}-label">
-        {#each choice.options as option (option.id)}
-          <button
-            type="button"
-            role="radio"
-            aria-checked={search[choice.kind] === option.id}
-            class="speed"
-            class:on={search[choice.kind] === option.id}
-            onclick={() => choose(choice.kind, option.id)}
-          >
-            <span class="name">{option.name}</span>
-            <span class="how">{option.how}</span>
-          </button>
-        {/each}
+      <div>
+        <button type="button" class="btn primary" disabled={roots.length === 0} onclick={() => run(() => Settings.StartIndexing())}>Start indexing</button>
+        {#if roots.length === 0}<span class="help">Add a folder first.</span>{/if}
       </div>
-    {/each}
-    <p class="help">A change applies at the next sync, to that kind of file only; nothing already indexed is computed again.</p>
-  </div>
+    </div>
+  {/if}
 {/if}
 
 <div class="field">
@@ -234,6 +182,7 @@
           <span class="where">
             <span class="path mono" title={root}>{root}</span>
             {#if folderText[root]}<span class="state">{folderText[root]}</span>{/if}
+            {#if holds[root]}<span class="state">{holds[root]}</span>{/if}
           </span>
           {#if confirming === root}
             <span class="confirm">
@@ -253,6 +202,65 @@
   {#if error}<p class="error">{error}</p>{/if}
 </div>
 
+{#if search?.Installed}
+  <div class="field">
+    <span class="label">What to index</span>
+    {#if search.Device === "cpu"}
+      <p class="help warn">
+        This computer has no graphics card file search can use, so it runs on the processor: each picture takes about 5 seconds to
+        index. Words only and names are the quick choices here.
+      </p>
+    {/if}
+    {#each CHOICES as choice (choice.kind)}
+      <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
+      <ChoiceGroup labelId="{choice.kind}-label" options={choice.options} value={shown?.[choice.kind]} onpick={(id) => choose(choice.kind, id)} hints={choiceHints(choice.kind, choice.options.map((o) => o.id), search.Estimate)} />
+    {/each}
+    {#if plan.length > 0}
+      <div class="draft" role="status">
+        <p class="label">Not saved yet</p>
+        <ul>
+          {#each effects(plan, search.Device) as line (line)}<li>{line}</li>{/each}
+        </ul>
+        <div>
+          <button type="button" class="btn primary" onclick={saveDraft}>Save and re-index</button>
+          <button type="button" class="btn quiet" onclick={() => ($draft = null)}>Discard</button>
+        </div>
+      </div>
+    {:else}
+      <p class="help">
+        {staged
+          ? "A change is saved with a button, and then only that kind of file is looked at again; nothing already indexed is computed again."
+          : "Choose before you start: changing these later re-indexes the files they concern."}
+      </p>
+    {/if}
+  </div>
+
+  <div class="field">
+    <span class="label">Indexing</span>
+    {#if search.Enabled && search.EngineState === "ready" && !search.NeedsUpdate && !search.HoldIndexing}
+      <p class="help">{search.Paused ? "Indexing is paused. Search still works on what is indexed." : search.IndexText}</p>
+      {#if search.IndexState === "indexing" && !search.Paused}
+        <p class="help">You can search already: results fill in as files are read, newest first.</p>
+      {/if}
+      {#if search.IndexState === "indexing" && search.IndexTotal > 0}
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={search.IndexTotal} aria-valuenow={search.IndexDone} aria-label="Files indexed in this folder">
+          <div class="fill" style:width="{Math.round((search.IndexDone / search.IndexTotal) * 100)}%"></div>
+        </div>
+      {/if}
+      <div>
+        <button type="button" class="btn" onclick={() => (search?.Paused ? Settings.ResumeIndexing() : Settings.PauseIndexing()).then(refresh)}>
+          {search.Paused ? "Resume indexing" : "Pause indexing"}
+        </button>
+      </div>
+    {:else}
+      <p class="help">Nothing is being indexed.</p>
+    {/if}
+    <span class="sublabel" id="speed-label">How hard it works</span>
+    <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} hints={paceHints(search.Estimate)} />
+    <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
+  </div>
+{/if}
+
 <style>
   .bar {
     height: 6px;
@@ -265,6 +273,33 @@
     border-radius: 3px;
     background: var(--chrome);
     transition: width 0.4s var(--ease);
+  }
+  .start,
+  .draft {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0 0 22px;
+    padding: 14px;
+    border: 1px solid rgba(230, 232, 236, 0.45);
+    border-radius: 10px;
+    background: var(--lift);
+  }
+  .draft {
+    margin: 6px 0 0;
+  }
+  .start .label,
+  .draft .label {
+    margin: 0;
+    color: var(--text);
+    font: 560 13px/1.2 var(--sans);
+  }
+  .draft ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.5;
   }
   .files {
     display: flex;
@@ -301,11 +336,6 @@
     color: var(--text-3);
     font-size: 11.5px;
   }
-  .speeds {
-    display: grid;
-    grid-template-columns: repeat(var(--count, 3), minmax(0, 1fr));
-    gap: 8px;
-  }
   .sublabel {
     margin-top: 6px;
     color: var(--text-2);
@@ -313,38 +343,6 @@
   }
   .warn {
     color: var(--danger);
-  }
-  .speed {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: transparent;
-    color: var(--text-2);
-    text-align: left;
-    cursor: pointer;
-  }
-  .speed:hover {
-    background: var(--tile);
-  }
-  .speed.on {
-    border-color: rgba(230, 232, 236, 0.45);
-    background: var(--lift);
-    color: var(--text);
-  }
-  .speed:focus-visible {
-    outline: 1px solid var(--chrome);
-    outline-offset: 2px;
-  }
-  .name {
-    font: 620 13px/1.2 var(--sans);
-  }
-  .how {
-    font-size: 11.5px;
-    line-height: 1.45;
-    color: var(--text-3);
   }
   .path {
     min-width: 0;

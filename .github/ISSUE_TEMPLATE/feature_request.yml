@@ -1,0 +1,24 @@
+name: Feature request
+description: Something you would like AGI to do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. Please open the issue before writing code: it gets you a clear "yes", "not now" or "here is how it
+        should fit" first (see CONTRIBUTING.md). Not every feature fits where the project is going, and that is said
+        early rather than after the work.
+  - type: textarea
+    id: what
+    attributes:
+      label: What you would like
+      description: What it would do, and where in AGI.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What you are trying to find or do that does not work today.
+    validations:
+      required: true

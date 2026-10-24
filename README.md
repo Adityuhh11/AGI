@@ -24,40 +24,47 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **Tags and pins** | `Ctrl+T` tags an app or file, `#work` lists everything tagged. `Ctrl+P` pins up to eight rows that show the moment the bar opens. |
 
 Keys: `Tab` switches between All / Apps / Files / Web, `Ctrl+K` shows what you can do with the selected row,
-`Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings, `Esc` closes.
+`Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings (so does typing `settings`, or `settings file` for one page), `Esc` closes.
 In file search, `code:` `img:` `pdf:` `doc:` `vid:` before a query limit it to one kind of file.
 
 ## Install
 
 **Requirements:** Windows 11 (64-bit). WebView2 is part of Windows 11. For fast file search, a graphics card with a
 current driver (NVIDIA, AMD or Intel Arc, through Vulkan); without one it still works, only slower
-([numbers](docs/PERFORMANCE.md#a-computer-without-a-graphics-card)). About 1.1 GB of disk and a 0.9 GB one-time download
+([numbers](docs/PERFORMANCE.md#a-computer-without-a-graphics-card)). About 1.1 GB of disk and a one-time download of about 1 GB
 if you turn file search on; the launcher alone is a 13 MB file.
 
-1. Download `agi-<version>-windows-x64.zip` from the [latest release](https://github.com/Adityuhh11/AGI/releases/latest)
-   and unzip it anywhere you can write to.
-2. Run `agi.exe`. Windows may say **"Windows protected your PC"**, because the program is not code-signed yet
-   (see [signing](docs/DISTRIBUTION.md)): click **More info**, then **Run anyway**. You can check the download against the
-   SHA-256 shown next to it on the release page.
-3. There is no window of its own: AGI lives in the notification area (the arrow by the clock). The first start opens Settings.
+1. Download `agi-<version>-windows-x64-setup.exe` from the [latest release](https://github.com/Adityuhh11/AGI/releases/latest) and run it.
+   It installs for you alone (no administrator rights) into `%LOCALAPPDATA%\Programs\AGI`, or the folder you choose, and adds a Start menu
+   entry. Prefer no installer? `agi-<version>-windows-x64.zip` holds the same `agi.exe`: unzip it anywhere you can write to.
+2. Windows may say **"Windows protected your PC"**, because the program is not code-signed yet (see [signing](docs/DISTRIBUTION.md)):
+   click **More info**, then **Run anyway**. You can check the download against the SHA-256 shown next to it on the release page, or
+   with `gh attestation verify <file> --repo Adityuhh11/AGI`, which proves it was built from this repository by its release workflow.
+3. There is no window of its own: AGI lives in the notification area (the arrow by the clock). The first start opens a short setup guide:
+   what AGI is, your hotkey and the keys, and the optional file search with its folders and options (the tray menu shows it again).
 4. Press **Alt+Shift+Space**. Change the hotkey in Settings > General; it tells you if another program already owns it.
    "Start when I sign in" is there too.
 
-To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or replace `agi.exe` by hand.
-To remove everything: quit from the tray icon, delete the folder, then the folders under [Where things are](#where-things-are).
+To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
+To remove it: Settings > Apps > Installed apps > AGI > Uninstall. It asks whether to delete what AGI saved too (the engine and models,
+the index, clipboard history and settings, up to about 1.2 GB); your own files are never touched. For the zip, quit from the tray
+icon and delete the folder and the folders under [Where things are](#where-things-are).
 
 ### Turning on file search
 
 File search is the part that needs real resources, so it is a choice you make in **Settings > File search**.
 
 1. **Download and turn on.** The page says what it will download and from where before you press the button: a search
-   engine (llama.cpp), its Python libraries (pinned, through `uv`) and the embedding model, about 0.9 GB from `github.com`,
+   engine (llama.cpp), its Python libraries (pinned, through `uv`) and the embedding model, about 1 GB from `github.com`,
    `pypi.org`, `files.pythonhosted.org` and `huggingface.co`. Every file is checked against a pinned SHA-256. It took about
    two minutes on a fast connection. Cancelling keeps what was downloaded.
-2. **Choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle). The defaults are
-   sensible; on a computer without a graphics card choose *Words only* for PDFs and *names* for photos.
-3. **Add folders.** Nothing is read until you do. After the first index only changes are processed: a new file is
-   searchable a few seconds after it appears, and a moved file is not computed again.
+2. **Add folders and choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle).
+   Nothing is read until you press **Start indexing**, so you choose first. Each folder shows how many files and how much it holds, and each
+   option says how long indexing will take on this computer (within about a quarter; the time left takes over once it runs). The defaults are sensible; on a computer without a
+   graphics card choose *Words only* for PDFs and *names* for photos.
+3. **Later changes are saved, not instant.** Changing a choice on an index that exists shows what it will do and waits for
+   **Save and re-index**. Afterwards only changes are processed: a new file is searchable a few seconds after it appears, and a
+   moved file is not computed again.
 
 "Turn off" stops the engine and keeps everything. "Delete downloaded files" removes the engine and models and keeps your index.
 
@@ -145,7 +152,7 @@ videos   = 'name'        # name | content
 |---|---|
 | Settings | `%APPDATA%\AGI\config.toml` |
 | Log (Settings > About opens it) | `%LOCALAPPDATA%\AGI\logs\agi.log` |
-| Search engine and models | `%LOCALAPPDATA%\AGI\engine` (only after you turn file search on) |
+| Search engine and models | `%LOCALAPPDATA%\AGI\engine` (only after you turn file search on); the setup guide can put it and the index on another drive |
 | The index | `%LOCALAPPDATA%\AGI\memory` |
 | Clipboard history | `%LOCALAPPDATA%\AGI\clipboard.json` (only if switched on) |
 | What you launched, tags, pins | `%APPDATA%\AGI\state.json` |
@@ -193,8 +200,9 @@ uv run python -m agi_memory.eval                              # retrieval qualit
 
 ## Contributing
 
-Not open to pull requests yet while the project is being made ready for others; issues and bug reports are welcome. The working
-rules (small focused commits, measure before deciding, no speculative code) are in [`AGENTS.md`](AGENTS.md).
+Not open to pull requests yet while the project is being made ready for others; issues and bug reports are welcome. How it will work is
+in [`CONTRIBUTING.md`](CONTRIBUTING.md), the working rules (small focused commits, measure before deciding, no speculative code) in
+[`AGENTS.md`](AGENTS.md), and vulnerabilities go through [`SECURITY.md`](SECURITY.md).
 Where the project stands and what is next: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## License

@@ -12,6 +12,7 @@ import (
 	"agi/internal/indexing"
 	"agi/internal/settings"
 	"agi/internal/sidecar"
+	"agi/internal/survey"
 	"agi/internal/update"
 )
 
@@ -69,7 +70,29 @@ func (f *fakeHistory) Len() int     { return f.count }
 func (f *fakeHistory) Path() string { return "C:/cache/clipboard.json" }
 func (f *fakeHistory) Clear() error { f.count = 0; f.cleared++; return nil }
 
+// fakeSurveys plays the survey manager.
+type fakeSurveys struct{ results map[string]survey.Result }
+
+func (f *fakeSurveys) Results() map[string]survey.Result { return f.results }
+
+// fakePlace plays the install manager's folder: where file search lives, and a refusal to move it.
+type fakePlace struct {
+	layout enginesetup.Layout
+	refuse error
+}
+
+func (f *fakePlace) Layout() enginesetup.Layout { return f.layout }
+func (f *fakePlace) Move(to enginesetup.Layout) error {
+	if f.refuse != nil {
+		return f.refuse
+	}
+	f.layout = to
+	return nil
+}
+
 type harness struct {
+	place   *fakePlace
+	surveys *fakeSurveys
 	installer       *fakeInstaller
 	restarts        int
 	restartErr      error
@@ -94,11 +117,13 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
+	h := &harness{place: &fakePlace{layout: enginesetup.Layout{Root: `C:\default\engine`, Memory: `C:\default\memory`}}, surveys: &fakeSurveys{}, store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
 		Indexing: h.index,
+		Surveys:  h.surveys,
+		Place:    h.place,
 		Rebind: func(a string) error {
 			h.hotkeys = append(h.hotkeys, a)
 			for _, r := range refuse {
@@ -268,6 +293,20 @@ func TestTurningOnWithTheEngineInstalledSwitchesItOnAtOnce(t *testing.T) {
 	}
 }
 
+func TestTurningOnBeforeAnyFolderIsChosenHoldsIndexingAndAfterwardsDoesNot(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installed = true
+	if msg := h.svc.TurnOn(); msg != "" || !h.store.Get().Search.HoldIndexing {
+		t.Fatalf("no folders yet: %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
+	}
+	h = newHarness(t)
+	h.setup.state.Installed = true
+	_ = h.svc.SetRoots([]string{`C:\a`})
+	if msg := h.svc.TurnOn(); msg != "" || h.store.Get().Search.HoldIndexing {
+		t.Fatalf("folders already chosen (file search was switched off): %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
+	}
+}
+
 func TestTurningOnWithoutTheEngineStartsTheDownloadAndLeavesSearchOffUntilItEnds(t *testing.T) {
 	h := newHarness(t)
 	if msg := h.svc.TurnOn(); msg != "" {
@@ -278,6 +317,51 @@ func TestTurningOnWithoutTheEngineStartsTheDownloadAndLeavesSearchOffUntilItEnds
 	}
 	if msg := h.svc.TurnOn(); !strings.Contains(msg, "already being installed") || h.setup.started != 1 {
 		t.Fatalf("a second TurnOn during the install: %q, installs started %d", msg, h.setup.started)
+	}
+}
+
+func TestAFirstDownloadHoldsIndexingUntilItIsStartedAndAnUpdateDoesNot(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.TurnOn(); msg != "" {
+		t.Fatal(msg)
+	}
+	if !h.store.Get().Search.HoldIndexing || !h.svc.Search().HoldIndexing {
+		t.Fatal("a first download must hold indexing, so the choices come first")
+	}
+	h.index.folders = []indexing.FolderStatus{{Root: `C:\a`, State: indexing.Waiting}}
+	h.setup.state = enginesetup.State{Installed: true}
+	enable(t, h)
+	if got := h.svc.Search().Folders; len(got) != 1 {
+		t.Fatalf("folders = %+v", got)
+	}
+	if msg := h.svc.StartIndexing(); msg != "" || h.store.Get().Search.HoldIndexing {
+		t.Fatalf("StartIndexing: %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
+	}
+
+	h = newHarness(t)
+	h.setup.state = enginesetup.State{Installed: true, NeedsUpdate: true}
+	if msg := h.svc.Update(); msg != "" || h.store.Get().Search.HoldIndexing {
+		t.Fatalf("an update must not hold indexing: %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
+	}
+}
+
+func TestWhileHeldTheFoldersSayTheyWaitForTheStartAndTheViewCountsTheIndex(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installed = true
+	h.index.folders = []indexing.FolderStatus{
+		{Root: `C:\a`, State: indexing.UpToDate, Files: 7},
+		{Root: `C:\b`, State: indexing.UpToDate, Files: 5},
+	}
+	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
+	if err := h.store.Update(func(c *config.Config) { c.Search.Enabled, c.Search.HoldIndexing = true, true }); err != nil {
+		t.Fatal(err)
+	}
+	view := h.svc.Search()
+	if view.Indexed != 12 {
+		t.Fatalf("Indexed = %d, want 12", view.Indexed)
+	}
+	if len(view.Folders) != 2 || view.Folders[0].Text != "Waits for you to start indexing" {
+		t.Fatalf("folders = %+v", view.Folders)
 	}
 }
 
@@ -331,8 +415,8 @@ func TestCancelPassesThroughAndSearchReportsTheInstallAndTheEngine(t *testing.T)
 func TestFoldersAreDescribedInWordsForEachState(t *testing.T) {
 	h := newHarness(t)
 	h.index.folders = []indexing.FolderStatus{
-		{Root: `C:`, State: indexing.Indexing, FilesDone: 40, FilesTotal: 96},
-		{Root: `C:`, State: indexing.Indexing},
+		{Root: `C:\a`, State: indexing.Indexing, FilesDone: 40, FilesTotal: 96},
+		{Root: `C:\b`, State: indexing.Indexing},
 		{Root: `C:\c`, State: indexing.UpToDate, Files: 12, Chunks: 300},
 		{Root: `C:\d`, State: indexing.Failed, Message: "disk on fire"},
 		{Root: `C:\e`, State: indexing.Waiting},
@@ -553,5 +637,36 @@ func TestARefusedSaveGivesTheOldClipboardHotkeyBack(t *testing.T) {
 	}
 	if got := h.store.Get().Clipboard.Hotkey; got != "Ctrl+Shift+V" {
 		t.Fatalf("saved %q", got)
+	}
+}
+
+func TestTheViewSaysWhatEachFolderHoldsAndWhatEachChoiceWouldCost(t *testing.T) {
+	h := newHarness(t)
+	_ = h.svc.SetRoots([]string{`C:\a`, `C:\b`})
+	pdfs := sidecar.Survey{Routes: map[string]sidecar.RouteCount{"pdf": {Files: 10, Bytes: 100 << 20}, "image": {Files: 50, Bytes: 1 << 30}}}
+	h.surveys.results = map[string]survey.Result{
+		`C:\a`: {State: survey.Done, Survey: pdfs},
+		`C:\b`: {State: survey.Running},
+	}
+	view := h.svc.Search()
+	if len(view.Surveys) != 2 || view.Surveys[0].Files != 60 || view.Surveys[0].Seconds == 0 || view.Surveys[1].State != "running" || view.Surveys[1].Seconds != 0 {
+		t.Fatalf("surveys = %+v", view.Surveys)
+	}
+	if view.Estimate.Complete || view.Estimate.Seconds == 0 {
+		t.Fatalf("with one folder still being counted the total is partial: %+v", view.Estimate)
+	}
+	est := view.Estimate
+	if !(est.ByChoice["PDFPages:all"] > est.ByChoice["PDFPages:auto"] && est.ByChoice["PDFPages:auto"] > est.ByChoice["PDFPages:text"]) {
+		t.Errorf("PDF choices: %v", est.ByChoice)
+	}
+	if est.ByChoice["Photos:content"] <= est.ByChoice["Photos:name"] {
+		t.Errorf("photo choices: %v", est.ByChoice)
+	}
+	if !(est.ByPace["gentle"] > est.ByPace["balanced"] && est.ByPace["balanced"] > est.ByPace["fast"]) {
+		t.Errorf("paces: %v", est.ByPace)
+	}
+	h.surveys.results[`C:\b`] = survey.Result{State: survey.Done, Survey: pdfs}
+	if !h.svc.Search().Estimate.Complete {
+		t.Error("every folder counted: the estimate is complete")
 	}
 }

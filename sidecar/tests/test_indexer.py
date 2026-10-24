@@ -99,6 +99,23 @@ def test_searching_finds_what_was_indexed(indexer, store, embedder, root):
     assert store.get([hit.id])[hit.id].uri == "a.js"
 
 
+def test_the_newest_files_are_indexed_first(indexer, root, monkeypatch):
+    for name, age in (("old.txt", 300), ("newest.txt", 0), ("middle.txt", 100)):
+        path = write(root, name, name)
+        stamp = path.stat().st_mtime - age
+        os.utime(path, (stamp, stamp))
+    seen = []
+    original = Indexer._index_file
+
+    def spy(self, run, file, known):
+        seen.append(file.uri)
+        return original(self, run, file, known)
+
+    monkeypatch.setattr(Indexer, "_index_file", spy)
+    indexer.sync("s", root)
+    assert seen == ["newest.txt", "middle.txt", "old.txt"]
+
+
 def test_an_unchanged_folder_costs_no_embedding_work(indexer, store, embedder, root):
     write(root, "a.js", "one")
     write(root, "b.md", "two")
@@ -511,7 +528,7 @@ def test_changing_an_option_processes_that_kind_again_and_nothing_else(
     back = indexer.sync("s", root, options=IndexOptions(photos="name"))
     assert back.updated == 1 and embedder.image_calls == 1
     # the notes once; the name twice, because the switch to pixels removed its chunk
-    assert embedder.titles == ["beach.png", "notes.md", "beach.png"]
+    assert sorted(embedder.titles) == ["beach.png", "beach.png", "notes.md"]
 
 
 class RefusingEmbedder(CountingEmbedder):

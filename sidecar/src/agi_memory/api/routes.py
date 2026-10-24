@@ -20,6 +20,7 @@ from agi_memory.api.schemas import (
     JobOut,
     PaceOut,
     RemovedOut,
+    RouteCountOut,
     SearchFilters,
     SearchHitOut,
     SearchRequest,
@@ -27,8 +28,11 @@ from agi_memory.api.schemas import (
     SetPace,
     SourceAccepted,
     SourceOut,
+    SurveyOut,
+    SurveyRequest,
 )
 from agi_memory.jobs import Job, JobBusyError
+from agi_memory.sources.folder import excluded_folders, scan
 from agi_memory.store import FlatStore
 from agi_memory.types import Filters, IndexOptions, SourceInfo
 
@@ -76,6 +80,16 @@ def resume(engine: Annotated[Engine, Depends(get_engine)]) -> PaceOut:
     return get_pace(engine)
 
 
+def _local_folder(path: str) -> Path:
+    root = Path(path)
+    # A UNC path would make Windows contact another machine, so refuse it before is_dir().
+    if not root.is_absolute() or root.drive.startswith("\\\\") or not root.is_dir():
+        raise HTTPException(
+            status_code=400, detail="path must be an absolute local path to an existing folder"
+        )
+    return root
+
+
 @router.get("/sources", response_model=list[SourceOut])
 def list_sources(store: Annotated[FlatStore, Depends(get_store)]) -> list[SourceInfo]:
     return store.sources()
@@ -87,12 +101,7 @@ def add_source(
     engine: Annotated[Engine, Depends(get_engine)],
     store: Annotated[FlatStore, Depends(get_store)],
 ) -> SourceAccepted:
-    root = Path(body.path)
-    # A UNC path would make Windows contact another machine, so refuse it before is_dir().
-    if not root.is_absolute() or root.drive.startswith("\\\\") or not root.is_dir():
-        raise HTTPException(
-            status_code=400, detail="path must be an absolute local path to an existing folder"
-        )
+    root = _local_folder(body.path)
     indexed_from = store.source_root(body.source_id)
     if indexed_from is not None and os.path.normcase(indexed_from) != os.path.normcase(str(root)):
         raise HTTPException(
@@ -111,6 +120,27 @@ def add_source(
             status_code=409, detail={"message": str(busy), "job_id": busy.job_id}
         ) from busy
     return SourceAccepted(job_id=job.id)
+
+
+@router.post("/survey")
+def survey(body: SurveyRequest, request: Request) -> SurveyOut:
+    """Count what indexing a folder would read, by kind, without opening any file (so a cloud-only
+    file is never fetched). It needs no model, so it answers while the model is still loading."""
+    root = _local_folder(body.path)
+    scanned = scan(root, request.app.state.settings, excluded_folders(body.exclude))
+    routes: dict[str, RouteCountOut] = {}
+    for file in scanned.files:
+        count = routes.setdefault(str(file.route), RouteCountOut(files=0, bytes=0))
+        count.files += 1
+        count.bytes += file.size
+    return SurveyOut(
+        routes=routes,
+        denied=scanned.denied,
+        ignored=scanned.ignored,
+        unsupported=scanned.unsupported,
+        too_large=scanned.too_large,
+        unreadable=len(scanned.unreadable),
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobOut)

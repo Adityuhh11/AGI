@@ -32,11 +32,24 @@ type SearchView struct {
 	// Hosts and DownloadMB are what the page tells a person before they agree to the download.
 	Hosts      []string
 	DownloadMB int
+	// Data says where the download and the index are saved and whether that can still be changed.
+	Data DataFolder
 	Pace       string
+	// HoldIndexing says the folders wait for StartIndexing; Indexed is how many files the index holds, which decides
+	// whether a change of choice is a draft the page keeps until it is saved.
+	HoldIndexing bool
+	Indexed      int
+	// IndexDone and IndexTotal are the files of the folder being indexed (the total is 0 while it is scanned).
+	IndexDone, IndexTotal int
 	// IndexState is waiting, indexing, uptodate or failed; IndexText is its sentence; Paused says indexing is stopped.
 	IndexState, IndexText string
 	Paused                bool
 	Folders               []FolderView
+	// Exclude are the folders inside the searched ones that are left out.
+	Exclude []string
+	// Surveys is what each folder holds and Estimate what indexing them will take on this computer.
+	Surveys  []FolderSurvey
+	Estimate Estimates
 }
 
 // FolderView is a folder with where it is, in words.
@@ -52,15 +65,32 @@ func (s *Service) Search() SearchView {
 	engine := s.o.Engine()
 	cfg := s.o.Store.Get()
 	index := s.o.Indexing.Status()
+	onCPU := engine.Device == "cpu"
 	return SearchView{
-		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State)),
+		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
+		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
 		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
 		Hosts: enginesetup.Hosts, DownloadMB: int(enginesetup.DownloadBytes() >> 20), Pace: cfg.Search.Pace,
 		PDFPages: cfg.Search.PDFPages, Photos: cfg.Search.Photos, Videos: cfg.Search.Videos,
+		Exclude: cfg.Exclude, Data: s.dataFolder(cfg), HoldIndexing: cfg.Search.HoldIndexing, Indexed: s.indexed(), IndexDone: index.FilesDone, IndexTotal: index.FilesTotal,
 	}
+}
+
+// indexed counts the files the index holds, folder by folder.
+func (s *Service) indexed() int {
+	n := 0
+	for _, f := range s.o.Indexing.Folders() {
+		n += f.Files
+	}
+	return n
+}
+
+// StartIndexing lets the folders be indexed after a first download, with the choices the person made meanwhile.
+func (s *Service) StartIndexing() string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.HoldIndexing = false }))
 }
 
 // SetIndexing sets what PDF pages, photos and videos are searched by. The next sync processes again only the kinds of
@@ -72,23 +102,33 @@ func (s *Service) SetIndexing(pdfPages, photos, videos string) string {
 }
 
 // TurnOn switches file search on. If the engine is not installed yet (or is out of date) the download
-// starts in the background, and file search is switched on when it finishes.
+// starts in the background, and file search is switched on when it finishes. Switching it on before any folder is
+// chosen, or downloading it for the first time, holds indexing until StartIndexing, so the choices come first.
 func (s *Service) TurnOn() string {
 	st := s.o.Setup.State()
+	chooseFirst := len(s.o.Store.Get().Roots) == 0
 	if st.Installed && !st.NeedsUpdate {
-		return reason(s.o.Store.Update(func(c *config.Config) { c.Search.Enabled = true }))
+		return reason(s.o.Store.Update(func(c *config.Config) {
+			c.Search.Enabled = true
+			c.Search.HoldIndexing = c.Search.HoldIndexing || chooseFirst
+		}))
 	}
-	return s.install()
+	return s.install(!st.Installed || chooseFirst)
 }
 
 // Update installs the current engine over an installed one: it is stopped first, because its files are in use.
-func (s *Service) Update() string { return s.install() }
+func (s *Service) Update() string { return s.install(false) }
 
-func (s *Service) install() string {
+// install downloads the engine. A first download (first) holds indexing, so the choices are made before any picture is
+// embedded; an update of an installed engine does not, because the person has already chosen.
+func (s *Service) install(first bool) string {
 	if st := s.o.Setup.State(); st.Installing {
 		return "file search is already being installed"
 	}
-	if msg := reason(s.o.Store.Update(func(c *config.Config) { c.Search.Enabled = false })); msg != "" {
+	if msg := reason(s.o.Store.Update(func(c *config.Config) {
+		c.Search.Enabled = false
+		c.Search.HoldIndexing = c.Search.HoldIndexing || first
+	})); msg != "" {
 		return msg
 	}
 	return reason(s.o.Setup.Start())
@@ -152,17 +192,19 @@ func (s *Service) SetPace(pace string) string {
 
 // folders describes each configured folder. While the engine is not running nothing is indexed, and the page
 // says what the folder is waiting for.
-func (s *Service) folders(engineState string) []FolderView {
+func (s *Service) folders(engineState string, hold bool) []FolderView {
 	var out []FolderView
 	for _, f := range s.o.Indexing.Folders() {
 		view := FolderView{Root: f.Root, State: string(f.State)}
 		switch {
 		case engineState == "off":
 			view.State, view.Text = "waiting", "Waits for file search to be turned on"
+		case hold:
+			view.State, view.Text = "waiting", "Waits for you to start indexing"
 		case f.State == indexing.Indexing && f.FilesTotal == 0:
 			view.Text = "Looking at what is in it"
 		case f.State == indexing.Indexing:
-			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal)
+			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal) + indexing.LeftText(f.Remaining)
 		case f.State == indexing.UpToDate && f.Files == 0:
 			view.Text = "Nothing here AGI can read"
 			if now := s.movedTo(f.Root); now != "" {

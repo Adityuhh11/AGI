@@ -28,6 +28,23 @@ type IndexOptions struct {
 // DefaultIndexOptions are what the engine does when a request carries no options (docs/api.md).
 var DefaultIndexOptions = IndexOptions{PDFPages: "auto", Photos: "content", Videos: "name"}
 
+// RouteCount is how many files of one kind a survey found and how many bytes they hold.
+type RouteCount struct {
+	Files int   `json:"files"`
+	Bytes int64 `json:"bytes"`
+}
+
+// Survey is the answer of POST /survey: what indexing a folder would read, by kind ("code", "markdown", "text",
+// "pdf", "image", "video"), counted without opening any file, and what it would skip.
+type Survey struct {
+	Routes      map[string]RouteCount `json:"routes"`
+	Denied      int                   `json:"denied"`
+	Ignored     int                   `json:"ignored"`
+	Unsupported int                   `json:"unsupported"`
+	TooLarge    int                   `json:"too_large"`
+	Unreadable  int                   `json:"unreadable"`
+}
+
 // Source is one indexed folder (GET /sources).
 type Source struct {
 	ID         string `json:"id"`

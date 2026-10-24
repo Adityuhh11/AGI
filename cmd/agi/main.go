@@ -36,6 +36,7 @@ import (
 	"agi/internal/sidecar"
 	"agi/internal/snippets"
 	"agi/internal/state"
+	"agi/internal/survey"
 	"agi/internal/status"
 	"agi/internal/tray"
 	"agi/internal/update"
@@ -47,6 +48,13 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == removeDataFlag {
+		if err := runRemoveData(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	closeLog := setUpLog()
 	defer closeLog()
 	if err := run(finishUpdate()); err != nil {
@@ -157,7 +165,7 @@ func run(afterUpdate bool) error {
 			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
 		})},
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID:               "com.adityuhh11.agi.launcher",
+			UniqueID:               instanceID(),
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
 		},
 	})
@@ -174,10 +182,10 @@ func run(afterUpdate bool) error {
 		engine  *sidecar.Supervisor
 	)
 	refresh := func() {
-		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status()))
+		icon.SetStatus(statusLine(bar.HotkeyError(), engine.Status(), indexer.Status(), store.Get().Search.HoldIndexing))
 		icon.SetPaused(indexer.Status().Paused)
 	}
-	layout, err := enginesetup.Locate()
+	layout, err := enginesetup.Locate(cfg.Search.DataDir)
 	if err != nil {
 		return err
 	}
@@ -200,14 +208,22 @@ func run(afterUpdate bool) error {
 		}
 	})
 	engine, err = sidecar.New(sidecar.Options{
-		Dir: layout.App(), Python: layout.Python(), Env: layout.Env(),
+		// Asked at each start: the folder can still be chosen until file search is first downloaded.
+		Locate: func() (string, string, []string) {
+			l := setup.Layout()
+			return l.App(), l.Python(), l.Env()
+		},
 		Log: log.Writer(), OnChange: func(sidecar.Status) { refresh() },
 	})
 	if err != nil {
 		return err
 	}
-	indexer = indexing.New(engine.Client(), cfg.Roots, func() bool { return engine.Status().State == sidecar.StateReady },
+	indexer = indexing.New(engine.Client(), cfg.Roots,
+		// A first download waits for "Start indexing" so the choices come before any picture is embedded.
+		func() bool { return engine.Status().State == sidecar.StateReady && !store.Get().Search.HoldIndexing },
 		func(indexing.Status) { refresh() })
+	surveys := survey.New(engine.Client(), func() bool { return engine.Status().State == sidecar.StateReady })
+	surveys.Set(cfg.Roots, cfg.Exclude)
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
 	indexer.SetOptions(indexOptions(cfg.Search))
@@ -249,6 +265,7 @@ func run(afterUpdate bool) error {
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
+	setupWindow := settingsui.NewSetupWindow(app)
 	var checker *update.Checker
 	checker = update.NewChecker(version, func() {
 		release, _ := checker.Found()
@@ -261,17 +278,18 @@ func run(afterUpdate bool) error {
 			indexer.Pause()
 		}
 	}
-	icon = tray.New(app, bar.Show, settingsWindow.Open, indexer.Rescan, togglePause)
+	icon = tray.New(app, bar.Show, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
-		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch)),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,
 			Indexing: indexer,
+			Surveys:  surveys,
 			Rebind:   bar.Rebind,
 			PickFolder: func() (string, error) {
 				return app.Dialog.OpenFile().CanChooseDirectories(true).CanChooseFiles(false).
@@ -294,10 +312,12 @@ func run(afterUpdate bool) error {
 			},
 			OpenURL:      browser.Open,
 			Open:         settingsWindow.Open,
+			OpenSetup:    setupWindow.Open,
 			Autostart:    autostart.Enabled,
 			SetAutostart: autostart.Set,
 			Engine:       engine.Status,
 			LogDir:       filepath.Join(cacheDir, "AGI", "logs"),
+			Place:        setup,
 			Version:      version,
 		})),
 	} {
@@ -307,7 +327,7 @@ func run(afterUpdate bool) error {
 	// The engine and the indexer report to the tray, which only exists once the app is running.
 	ctx, stop := context.WithCancel(context.Background())
 	engineSwitch := sidecar.NewSwitch(ctx, engine)
-	engineWanted := func(c config.Config) bool { return c.Search.Enabled && layout.Installed() }
+	engineWanted := func(c config.Config) bool { return c.Search.Enabled && setup.Installed() }
 
 	// The watcher follows the folders: it is started again whenever they change.
 	var watchMu sync.Mutex
@@ -332,12 +352,16 @@ func run(afterUpdate bool) error {
 		if old.Search.Pace != updated.Search.Pace {
 			indexer.SetPace(updated.Search.Pace)
 		}
+		if old.Search.HoldIndexing != updated.Search.HoldIndexing {
+			refresh() // the tray says whether file search waits to be started
+		}
 		if indexOptions(old.Search) != indexOptions(updated.Search) {
 			indexer.SetOptions(indexOptions(updated.Search))
 			indexer.Rescan() // the engine processes again only the kinds of file whose choice changed
 		}
 		if !slices.Equal(old.Roots, updated.Roots) || !slices.Equal(old.Exclude, updated.Exclude) {
 			indexer.SetFolders(updated.Roots, updated.Exclude)
+			surveys.Set(updated.Roots, updated.Exclude)
 			watchFolders(updated.Roots)
 		}
 		if want := engineWanted(updated); want != engineWanted(old) {
@@ -351,11 +375,11 @@ func run(afterUpdate bool) error {
 
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		if firstRun {
-			// The launcher has no window of its own, so a first start would show nothing at all: open the
-			// settings, where the hotkey is.
+			// The launcher has no window of its own, so a first start would show nothing at all: open the setup
+			// guide, which says what this is and where the hotkey is.
 			go func() {
 				time.Sleep(time.Second)
-				settingsWindow.Open()
+				setupWindow.Open()
 			}()
 		} else if afterUpdate {
 			// The window the update was started from went with the old launcher: show the new version on its About page.
@@ -380,6 +404,7 @@ func run(afterUpdate bool) error {
 			}()
 		}
 		go indexer.Run(ctx)
+		go surveys.Run(ctx)
 		go clips.Run(ctx)
 		go checker.Run(ctx, func() bool { return store.Get().CheckUpdates })
 		// The list of installed apps is served from its cache at once and rebuilt in the background,
@@ -408,7 +433,7 @@ func indexOptions(s config.Search) sidecar.IndexOptions {
 }
 
 // statusLine is the one sentence the tray shows about the launcher, most urgent problem first.
-func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status) string {
+func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status, held bool) string {
 	switch {
 	case hotkeyError != "":
 		return hotkeyError
@@ -418,6 +443,18 @@ func statusLine(hotkeyError string, engine sidecar.Status, index indexing.Status
 		return engine.Message
 	case engine.State != sidecar.StateReady:
 		return "Search is starting up..."
+	case held:
+		return "File search is ready. Open Settings to choose what to index."
 	}
 	return index.String()
+}
+
+// instanceID is what makes a second launcher hand over to the first one. AGI_INSTANCE (for checks in a clean profile,
+// beside the launcher in use, with APPDATA and LOCALAPPDATA pointed at an empty folder) gives the second its own.
+func instanceID() string {
+	id := "com.adityuhh11.agi.launcher"
+	if other := os.Getenv("AGI_INSTANCE"); other != "" {
+		id += "." + other
+	}
+	return id
 }

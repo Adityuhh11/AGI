@@ -22,7 +22,7 @@ uv run python -m agi_memory
 - A corrupt or mismatched index (wrong model or dimension) makes the process exit with a traceback instead of
   answering `/health`: the launcher should treat an early exit as fatal and offer a reindex.
 - The Go launcher does not use `uv run`: it starts the interpreter of the installed engine
-  (`%LOCALAPPDATA%\AGI\engineenv\Scripts\python.exe -m agi_memory`) directly, sets `PYTHONUTF8=1` and
+  (`%LOCALAPPDATA%\AGI\engine\venv\Scripts\python.exe -m agi_memory`) directly, sets `PYTHONUTF8=1` and
   `PYTHONUNBUFFERED=1` and the two variables above, and kills the whole process tree to stop it (a venv's `python.exe`
   is a launcher that runs the real interpreter as a child). Measured start: port open after about 1.6 s, model ready
   after about 6 s, so a client must not assume a fixed bound. The engine is installed from the launcher
@@ -103,6 +103,27 @@ What is indexed: `200` a list, ordered by `id` (empty when nothing is indexed):
 `root` is the folder as it was submitted to `POST /sources`, `last_scan_ns` is `0` until the first sync of that source has
 finished, `files` and `chunks` count what the index holds now. This route only reads the index, so unlike the others it
 answers while the model is still loading.
+
+### `POST /survey`
+
+Counts what indexing a folder would read, by kind, without opening any file (a file that lives only in the cloud is
+not fetched to be counted). It runs the same scan as indexing, so it knows what indexing would skip, `.gitignore`
+included. It needs no model, so it answers while the model is still loading.
+
+Body: `{"path": "C:\\Users\\me\\Documents", "exclude": ["vendor/skills"]}` (`exclude` as in `POST /sources`).
+
+`200`:
+
+```json
+{"routes": {"code": {"files": 133, "bytes": 1618788}, "pdf": {"files": 120, "bytes": 103372735}},
+ "denied": 4, "ignored": 0, "unsupported": 320, "too_large": 0, "unreadable": 0}
+```
+
+`routes` is keyed by kind (`code`, `markdown`, `text`, `pdf`, `image`, `video`); a kind with no file is absent. The
+launcher turns it into a time with the rates in `docs/eval/2026-10-24-estimate.md`.
+
+- `400` the path is not an absolute local folder (as for `POST /sources`).
+- An engine installed before this route existed answers `404`.
 
 ### `GET /jobs/{job_id}`
 

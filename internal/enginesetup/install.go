@@ -343,7 +343,36 @@ func NewManager(i *Installer, onDone func(error)) *Manager {
 }
 
 // Installed reports whether a finished install is there.
-func (m *Manager) Installed() bool { return m.installer.Layout.Installed() }
+func (m *Manager) Installed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installer.Layout.Installed()
+}
+
+// Layout is where the engine and the index are now.
+func (m *Manager) Layout() Layout {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.installer.Layout
+}
+
+// Move says that the engine and the index are to live somewhere else. It refuses once there is something to leave
+// behind (an install running, an engine installed, an index built): moving what exists is not done, only choosing where
+// a first install goes.
+func (m *Manager) Move(to Layout) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	switch {
+	case m.running:
+		return errors.New("file search is being installed; the folder cannot change meanwhile")
+	case m.installer.Layout.Installed():
+		return errors.New("file search is already installed in " + m.installer.Layout.Root + "; delete its files first to put it elsewhere")
+	case m.installer.Layout.HasIndex():
+		return errors.New("an index is already built in " + m.installer.Layout.Index() + "; it would be left behind")
+	}
+	m.installer.Layout = to
+	return nil
+}
 
 // Start begins an install (or a repair or update, which is the same thing) in the background.
 func (m *Manager) Start() error {

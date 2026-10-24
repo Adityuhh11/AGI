@@ -124,14 +124,16 @@ type Service struct {
 	files   Files
 	clips   Clips
 	snips   Snippets
-	dismiss func()
+	// openSettings shows the Settings window on a page (settingsui.Window.OpenAt).
+	openSettings func(section string)
+	dismiss      func()
 	now     func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the
 // keyboard back (the program started owns it now).
-func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, clips Clips, snips Snippets, dismiss func()) *Service {
-	return &Service{catalog: catalog, history: history, browser: browser, files: files, clips: clips, snips: snips, dismiss: dismiss, now: time.Now}
+func New(catalog *apps.Catalog, history *state.Store, browser Browser, files Files, clips Clips, snips Snippets, openSettings func(section string), dismiss func()) *Service {
+	return &Service{catalog: catalog, history: history, browser: browser, files: files, clips: clips, snips: snips, openSettings: openSettings, dismiss: dismiss, now: time.Now}
 }
 
 // Query answers raw (what is in the input) in the mode the page is in.
@@ -169,6 +171,7 @@ func (s *Service) Query(raw, mode string) Answer {
 	}
 	if mode == ModeAll {
 		answer.Items = append(answer.Items, commandItems(text)...)
+		answer.Items = append(answer.Items, settingsItems(text)...)
 	}
 	if (mode == ModeAll || mode == ModeWeb) && utf8.RuneCountInString(text) >= webMinLength {
 		answer.Items = append(answer.Items, Item{ID: "web:" + text, Kind: "web", Title: "Search the web for “" + text + "”", Subtitle: "Web"})
@@ -259,6 +262,9 @@ func (s *Service) Do(id, action, typed string) error {
 	}
 	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
 		return s.doSnippet(name, action)
+	}
+	if page, ok := settingsPageFor(id); ok {
+		return s.doSettings(page, action)
 	}
 	if path, ok := strings.CutPrefix(id, "file:"); ok {
 		switch action {
@@ -382,6 +388,9 @@ func (s *Service) itemFor(id string) (Item, bool) {
 	if c, ok := commandFor(id); ok {
 		return c.item(), true
 	}
+	if p, ok := settingsPageFor(id); ok {
+		return p.item(), true
+	}
 	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
 		for _, snippet := range s.snips.List() {
 			if snippet.Name == name {
@@ -466,7 +475,9 @@ func (s *Service) TogglePin(id string) (bool, error) {
 		trigger, _, _ := strings.Cut(strings.TrimPrefix(id, "quicklink:"), ":")
 		id = "quicklink:" + trigger + ":"
 	default:
-		if _, ok := commandFor(id); !ok {
+		_, command := commandFor(id)
+		_, page := settingsPageFor(id)
+		if !command && !page {
 			return false, fmt.Errorf("%q cannot be pinned", id)
 		}
 	}

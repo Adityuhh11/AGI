@@ -29,6 +29,7 @@ type Manager struct {
 	ready    func() bool
 	onChange func(Status)
 
+	now   func() time.Time
 	poll  time.Duration // between job progress checks and readiness checks
 	retry time.Duration // the pause after a first failed sync; it doubles with each failure in a row
 
@@ -54,7 +55,7 @@ type Manager struct {
 func New(engine Engine, roots []string, ready func() bool, onChange func(Status)) *Manager {
 	return &Manager{
 		engine: engine, roots: slices.Clone(roots), ready: ready, onChange: onChange,
-		poll: 500 * time.Millisecond, retry: time.Minute, deleted: wasDeleted,
+		now: time.Now, poll: 500 * time.Millisecond, retry: time.Minute, deleted: wasDeleted,
 		rescan: make(chan struct{}, 1),
 		wake:   make(chan struct{}, 1),
 		dirty:  map[string]bool{},
@@ -76,6 +77,12 @@ func (m *Manager) Folders() []FolderStatus {
 		out = append(out, f)
 	}
 	return out
+}
+
+func (m *Manager) isPaused() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.paused
 }
 
 func (m *Manager) failed(root string) bool {

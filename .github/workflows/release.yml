@@ -1,0 +1,96 @@
+# Builds a release on a clean Windows machine, from the tag, so the zip and the installer people download are what the
+# source makes and can be traced to it (a build-provenance attestation). It makes a DRAFT release: the person who owns
+# the project writes the notes, looks at the files and presses publish (docs/RELEASING.md).
+#
+#   git tag v0.6.0 <commit on main> && git push origin v0.6.0
+#
+# Run by hand ("Run workflow") it builds and uploads the files as a workflow artifact and makes no release.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Version and branch
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $v = $env:GITHUB_REF_NAME.TrimStart('v')
+            # A release comes from main (docs/RELEASING.md), and a release candidate or odd tag is a mistake to catch here.
+            if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "the tag $env:GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH" }
+            git fetch origin main
+            git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+            if ($LASTEXITCODE -ne 0) { throw "the tag is not on main: merge dev into main first" }
+          } else {
+            $v = ''
+          }
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Inno Setup
+        shell: pwsh
+        run: ./scripts/install-inno.ps1
+      - name: Build the zip and the installer
+        shell: pwsh
+        run: ./scripts/release.ps1 -Version '${{ steps.version.outputs.version }}' -RequireInstaller
+      - name: Try the installer
+        shell: pwsh
+        run: ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
+      - name: Files
+        id: files
+        shell: pwsh
+        run: |
+          $zip = (Get-ChildItem dist/agi-*-windows-x64.zip).FullName
+          $setup = (Get-ChildItem dist/agi-*-windows-x64-setup.exe).FullName
+          "zip=$zip" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "setup=$setup" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.setup }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agi-windows-x64
+          path: |
+            ${{ steps.files.outputs.zip }}
+            ${{ steps.files.outputs.setup }}
+      - name: Draft release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $notes = "Notes to write: what a person gets, and what does not work yet (docs/RELEASING.md). Built from $env:GITHUB_SHA by the Release workflow; the files carry a build-provenance attestation (``gh attestation verify <file> --repo $env:GITHUB_REPOSITORY``)."
+          gh release create $tag '${{ steps.files.outputs.zip }}' '${{ steps.files.outputs.setup }}' --draft --target $env:GITHUB_SHA --title "AGI $($tag.TrimStart('v'))" --notes $notes
+          # The one-click update installs only a file whose digest GitHub published, so check it is there and is ours.
+          foreach ($file in '${{ steps.files.outputs.zip }}', '${{ steps.files.outputs.setup }}') {
+            $name = Split-Path $file -Leaf
+            $local = 'sha256:' + (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+            $remote = gh release view $tag --json assets --jq ".assets[] | select(.name==`"$name`") | .digest"
+            if ($remote -ne $local) { throw "$name has digest '$remote' on GitHub, not $local" }
+            Write-Host "$name $local"
+          }

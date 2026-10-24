@@ -26,6 +26,7 @@ the engine only after the page asks.
 | `panel` | The search bar window: global hotkey, cloaked (not hidden) window, keyboard hand-back to the previous program |
 | `palette`, `rank`, `apps`, `web`, `state`, `snippets`, `clipboard` | What the bar answers instantly: ranking (`rank`), the Start Menu list and launching (`apps`), web and quicklinks (`web`), launch history, tags and pins (`state`), pasted text (`snippets`, `clipboard`); `palette` decides which rows show and what Enter does |
 | `search`, `files` | File search from the launcher's side: ask the engine, place each hit on disk, open or reveal it (only inside indexed folders), thumbnails |
+| `survey`, `estimate` | Count what the folders hold (the engine's `POST /survey`, in the background) and say how long indexing them will take on this computer, per folder, per choice and per speed |
 | `indexing`, `watcher` | Keep the engine's index in step with the folders: sync every root when the engine is ready and on Rescan, sync just the changed root after the watcher's debounce, speed and pause |
 | `sidecar`, `enginesetup` | Run the engine (supervised process tree, typed HTTP client, on/off switch) and install it (pinned downloads, resumable, manifest written last) |
 | `config`, `settings`, `settingsui` | `config.toml` (validated, unknown keys are errors), the live store that notifies subscribers, and the Settings window's service |
@@ -47,11 +48,11 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `store/` | `FlatStore`: metadata + keyword index (SQLite) and exact vector search (memory-mapped file) | built |
 | `sources/` | `rules` (secret deny list, file routing), `folder` (gitignore-aware scanner, never follows links) | built |
 | `chunking/` | Line-window and Markdown-section chunks, PDF pages (text, and a picture when the `pdf_pages` choice says so), images, videos (`video.py`: a name chunk, and eight frames by seeking with PyAV) | built |
-| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store; embeds only what changed: a chunk already stored keeps its vector, and a moved, renamed or copied file takes its picture vectors (images, PDF pages, video frames) from the identical file already indexed. Takes `IndexOptions` (PDF pages, photos, videos); a change of options re-processes only the kinds concerned | built |
+| `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store, newest files first; embeds only what changed: a chunk already stored keeps its vector, and a moved, renamed or copied file takes its picture vectors (images, PDF pages, video frames) from the identical file already indexed. Takes `IndexOptions` (PDF pages, photos, videos); a change of options re-processes only the kinds concerned | built |
 | `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
 | `search/` | `Searcher`: vector, bm25 and path search (the last two while the query is embedded) blended into one score (`fusion.py`), `confident` flag against a noise ceiling the index measures itself (`calibration.py`), filters | built |
 | `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
-| `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search`; see `api.md` | built |
+| `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search` `/survey`; see `api.md` | built |
 | `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
 
 ## Data flow
@@ -90,7 +91,7 @@ Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sourc
 
 ## Invariants
 
-1. **Determinism.** Chunk ids are content-derived; every ranked list breaks ties by chunk id; tests never depend on the GPU or the real model unless marked `model`.
+1. **Determinism.** Chunk ids are content-derived; every ranked list breaks *exact* ties by chunk id (two chunks with identical vectors may differ by one float32 step on some processors, so their order follows their position in the vector file, not their id); tests never depend on the GPU or the real model unless marked `model`.
 2. **Privacy.** Nothing leaves the machine. `.env*`, keys and similar files are never read (deny list in `sources/rules.py`).
 3. **SQLite is the source of truth** for what exists in the index; vector rows without a metadata entry are garbage.
 4. **GPU = models only.** Index and search live on the CPU.

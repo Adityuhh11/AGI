@@ -8,6 +8,7 @@ in `unreadable` so the caller can avoid treating their files as deleted.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -54,6 +55,11 @@ def scan(root: Path, settings: Settings, exclude: frozenset[str] = frozenset()) 
     result = ScanResult()
     _visit(root, "", (), settings, exclude, result)
     return result
+
+
+def excluded_folders(exclude: Iterable[str]) -> frozenset[str]:
+    """The folders to leave out ('/'-separated, relative to the root) in the form `scan` takes."""
+    return frozenset(f"{p.strip('/').lower()}/" for p in exclude if p.strip("/"))
 
 
 def _with_local_gitignore(directory: Path, prefix: str, specs: _Specs) -> _Specs:

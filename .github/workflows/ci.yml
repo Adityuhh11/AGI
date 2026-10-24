@@ -1,0 +1,75 @@
+# Builds and tests everything on a Windows runner for every pull request and every push to dev or main: the launcher
+# (Go and the Svelte page) and the memory engine (Python). Real-hardware tests are skipped by themselves: the ones that
+# need a clipboard, a Start Menu or the models are switched on by environment variables. Also by hand:
+# `gh workflow run ci.yml`.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  launcher:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Build (bindings, page, launcher)
+        shell: pwsh
+        run: ./scripts/build.ps1 -Version ci
+      - name: Go vet
+        run: go vet ./...
+      - name: Go tests
+        run: go test ./...
+      - name: Page tests and types
+        working-directory: frontend
+        run: |
+          npm test
+          npm run check
+      # The zip and the installer are built and the installer is run for real, so what breaks them is found on the pull
+      # request and not on release day (the same steps as .github/workflows/release.yml).
+      - name: Inno Setup
+        shell: pwsh
+        run: ./scripts/install-inno.ps1
+      - name: Build the zip and the installer
+        shell: pwsh
+        run: ./scripts/release.ps1 -Version 0.0.0-ci -RequireInstaller
+      - name: Try the installer
+        shell: pwsh
+        run: ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
+
+  engine:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: sidecar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Environment
+        run: uv sync --frozen
+      - name: Ruff
+        run: uv run ruff check
+      - name: Pyright
+        run: uv run pyright
+      # The real model is not fetched, so the tests marked model and perf are left out (pyproject.toml).
+      - name: Tests
+        run: uv run pytest
