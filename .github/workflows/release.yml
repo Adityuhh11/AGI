@@ -57,7 +57,10 @@ jobs:
         run: ./scripts/release.ps1 -Version '${{ steps.version.outputs.version }}' -RequireInstaller
       - name: Try the installer
         shell: pwsh
-        run: ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
+        run: |
+          # Some runner images have a Run key and some do not; a person's computer may be either. Test the bare one.
+          Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
+          ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
       - name: Files
         id: files
         shell: pwsh
