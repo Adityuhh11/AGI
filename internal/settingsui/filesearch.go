@@ -13,11 +13,12 @@ import (
 
 // SearchView is the File search page: what is installed, how an install is going, and how the engine is.
 type SearchView struct {
-	Enabled     bool
-	InLauncher  bool // files are among the results of the default search
-	Installed   bool
-	Installing  bool
-	NeedsUpdate bool
+	Enabled      bool
+	InLauncher   bool // files are among the results of the default search
+	GroupResults bool // file results are shown under a heading per kind
+	Installed    bool
+	Installing   bool
+	NeedsUpdate  bool
 	// Step, Steps and StepName say where an install is; Done and Total are bytes of the download in progress.
 	Step, Steps int
 	StepName    string
@@ -70,7 +71,7 @@ func (s *Service) Search() SearchView {
 	return SearchView{
 		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
 		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
-		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
+		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, GroupResults: cfg.Search.GroupResults, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
@@ -212,6 +213,11 @@ func (s *Service) RemoveFolder(folder string) string {
 // (files are then searched in the Files mode).
 func (s *Service) SetInLauncher(on bool) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.InLauncher = on }))
+}
+
+// SetGroupResults shows file results under a heading per kind of file with the best match first, or as one list.
+func (s *Service) SetGroupResults(on bool) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.GroupResults = on }))
 }
 
 // SetPace sets how hard indexing works: fast, balanced or gentle.
