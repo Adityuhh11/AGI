@@ -31,6 +31,9 @@ func TestAnswerArithmetic(t *testing.T) {
 		{"1e3", ""},
 		{"2 * 3 * 4 * 5", "120"},
 		{"0 * 5", "0"},
+		{"10 - 12", "-2"},
+		{"12/4", "3"},
+		{"10-12+1", "-1"},
 		{"0 * -5", "0"},
 	}
 	for _, tt := range tests {
@@ -48,7 +51,7 @@ func TestAnswerArithmetic(t *testing.T) {
 }
 
 func TestAnswerLeavesOrdinarySearchesAlone(t *testing.T) {
-	for _, text := range []string{"", "   ", "42", "2024", "3.14", "chrome", "visual studio", "note to self", "7zip", "5 apples", "a+b", "x", "e", "-", "()", "2 +", "1/0", "sqrt(", "sqrt 4", "10 km to"} {
+	for _, text := range []string{"", "   ", "42", "2024", "3.14", "chrome", "visual studio", "note to self", "7zip", "5 apples", "a+b", "x", "e", "-", "()", "2 +", "1/0", "sqrt(", "sqrt 4", "10 km to", "2024-01-05", "10-12", "1/2/2026", "2026-10-26-2"} {
 		if got, ok := Answer(text); ok {
 			t.Errorf("Answer(%q) = %+v, want no answer", text, got)
 		}

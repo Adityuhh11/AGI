@@ -6,6 +6,7 @@ package calc
 import (
 	"errors"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -26,6 +27,9 @@ func Answer(text string) (Result, bool) {
 	if text == "" {
 		return Result{}, false
 	}
+	if looksLikeADate.MatchString(text) {
+		return Result{}, false
+	}
 	if r, ok := convert(text); ok {
 		return r, true
 	}
@@ -35,6 +39,10 @@ func Answer(text string) (Result, bool) {
 	}
 	return Result{Title: pretty(value), Copy: plain(value)}, true
 }
+
+// looksLikeADate is "2024-01-05", "10-12", "1/2/2026": numbers joined by dashes, or by two slashes, with no spaces. Typed in
+// the bar these are far more likely a date or a range being looked for than a subtraction (a subtraction is "10 - 12").
+var looksLikeADate = regexp.MustCompile(`^\d+(-\d+)+$|^\d+/\d+/\d+$`)
 
 // plain is a number as it is copied: no separators, at most 10 significant digits, no trailing zeros.
 func plain(v float64) string {
