@@ -35,6 +35,7 @@ import (
 	"agi/internal/settingsui"
 	"agi/internal/sidecar"
 	"agi/internal/snippets"
+	"agi/internal/system"
 	"agi/internal/state"
 	"agi/internal/survey"
 	"agi/internal/status"
@@ -294,7 +295,15 @@ func run(afterUpdate bool) error {
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
-		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch)),
+		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch).With(palette.Extras{
+			Copy: func(text string) error {
+				if !app.Clipboard.SetText(text) {
+					return errors.New("the clipboard is in use by another program; try again")
+				}
+				return nil
+			},
+			RunSystem: system.Run,
+		})),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,

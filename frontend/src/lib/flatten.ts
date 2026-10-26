@@ -72,6 +72,6 @@ export function filePathOf(item: Item): string | null {
  */
 export function pinIdOf(item: Item): string | null {
   if (item.kind === "entry" && item.entry.Kind === "quicklink") return "quicklink:" + item.entry.ID.split(":")[1] + ":";
-  if (item.kind === "entry" && (item.entry.Kind === "snippet" || item.entry.Kind === "cmd")) return item.entry.ID;
+  if (item.kind === "entry" && (item.entry.Kind === "snippet" || item.entry.Kind === "cmd" || item.entry.Kind === "system")) return item.entry.ID;
   return tagIdOf(item);
 }
