@@ -21,23 +21,31 @@ func ParseDuration(text string) (d time.Duration, label string, ok bool) {
 	seen := map[string]bool{}
 	last := "" // the unit of the previous number, which says what a bare number after it means
 	for {
+		spaced := strings.HasPrefix(rest, " ")
+		rest = strings.TrimLeft(rest, " ")
 		number, after, found := leadingNumber(rest)
 		if !found {
 			break
 		}
 		unit, afterUnit := leadingUnit(strings.TrimLeft(after, " "))
 		if unit == "" {
-			// A bare number is minutes on its own, minutes after hours ("1h30") and seconds after minutes ("1m30").
-			switch last {
-			case "", "h":
-				unit = "m"
-			case "m":
-				unit = "s"
-			default:
+			if strings.HasPrefix(strings.TrimLeft(after, " "), ":") { // 1:30 is not a form we read; guessing what it means would be worse
 				return 0, "", false
 			}
-			if strings.HasPrefix(after, ":") { // 1:30 is not a form we read; guessing what it means would be worse
-				return 0, "", false
+			// A bare number is minutes on its own, minutes after hours and seconds after minutes when it follows with no space
+			// ("1h30", "1m30"); after a space it is the start of the label ("10 min 2 eggs").
+			switch {
+			case last == "":
+				unit = "m"
+			case spaced:
+				unit = ""
+			case last == "h":
+				unit = "m"
+			case last == "m":
+				unit = "s"
+			}
+			if unit == "" {
+				break
 			}
 			afterUnit = after
 		}
@@ -47,15 +55,15 @@ func ParseDuration(text string) (d time.Duration, label string, ok bool) {
 		seen[unit] = true
 		last = unit
 		total += number * map[string]float64{"h": 3600, "m": 60, "s": 1}[unit]
-		rest = strings.TrimSpace(afterUnit)
+		rest = afterUnit
 	}
 	if len(seen) == 0 {
 		return 0, "", false
 	}
-	d = time.Duration(total * float64(time.Second))
-	if d < minDuration || d > maxDuration {
+	if total < minDuration.Seconds() || total > maxDuration.Seconds() { // judged as a number first: a huge one must not wrap round in the conversion
 		return 0, "", false
 	}
+	d = time.Duration(total * float64(time.Second))
 	return d, strings.TrimSpace(rest), true
 }
 

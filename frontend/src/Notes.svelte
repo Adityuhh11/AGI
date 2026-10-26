@@ -23,22 +23,30 @@
   let search = $state<HTMLInputElement | undefined>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let saving: Promise<void> = Promise.resolve(); // saves run one after another, so a slow one never lands after a newer one
+  let saveFailed = false; // the last save did not work: the editor must not be left, or what was typed would be lost
 
   const html = $derived(editing ? render(editing.text) : "");
   const words = $derived(editing ? editing.text.trim().split(/\s+/).filter(Boolean).length : 0);
 
-  async function show(action: () => Promise<unknown>) {
+  /** Runs a call to the program; if it fails the reason is shown and false comes back. */
+  async function show(action: () => Promise<unknown>): Promise<boolean> {
     try {
       problem = "";
       await action();
+      return true;
     } catch (error) {
       problem = String((error as Error)?.message ?? error);
+      return false;
     }
   }
 
+  let listAsked = 0; // answers can arrive out of order; only the newest question's answer is shown
   async function loadList() {
+    const mine = ++listAsked;
     await show(async () => {
-      list = (await Notes.List(query)) ?? [];
+      const found = (await Notes.List(query)) ?? [];
+      if (mine !== listAsked) return;
+      list = found;
       loaded = true;
     });
   }
@@ -49,25 +57,27 @@
     timer = setTimeout(flush, SAVE_AFTER_MS);
   }
 
-  /** Saves what is in the editor now, after any save already under way. */
-  function flush(): Promise<void> {
+  /** Saves what is in the editor now, after any save already under way. True if everything is saved. */
+  async function flush(): Promise<boolean> {
     clearTimeout(timer);
     const note = editing;
-    if (!note) return saving;
-    const text = note.text;
-    saving = saving.then(() =>
-      show(async () => {
-        if (note.id === "" && text.trim() === "") return; // nothing typed yet: no note is made
-        const saved = await Notes.Save(note.id, text);
-        if (note.id === "" && saved.ID) note.id = saved.ID;
-        if (editing === note) status = "Saved";
-      }),
-    );
-    return saving;
+    if (note) {
+      const text = note.text;
+      saving = saving.then(async () => {
+        saveFailed = !(await show(async () => {
+          if (note.id === "" && text.trim() === "") return; // nothing typed yet: no note is made
+          const saved = await Notes.Save(note.id, text);
+          if (note.id === "" && saved.ID) note.id = saved.ID;
+          if (editing === note) status = "Saved";
+        }));
+      });
+    }
+    await saving;
+    return !saveFailed;
   }
 
   async function open(id: string) {
-    await flush();
+    if (!(await flush())) return;
     await show(async () => {
       const note = await Notes.Get(id);
       editing = { id, text: note.Text };
@@ -80,7 +90,7 @@
   }
 
   async function create(text = "") {
-    await flush();
+    if (!(await flush())) return;
     editing = { id: "", text };
     preview = false;
     confirmDelete = false;
@@ -90,7 +100,7 @@
   }
 
   async function back() {
-    await flush();
+    if (!(await flush())) return; // the error is on screen and the note is still in the editor
     const note = editing;
     editing = null;
     confirmDelete = false;
@@ -105,6 +115,7 @@
     clearTimeout(timer);
     editing = null;
     confirmDelete = false;
+    await saving; // a first save still under way gives the note its id; deleting before it lands would leave the note behind
     if (note?.id) await show(() => Notes.Delete(note.id));
     await loadList();
   }
@@ -154,6 +165,7 @@
     if (want === "new") await create();
     else if (want !== "") await open(want);
     else if (editing) await back();
+    history.replaceState(null, "", "#notes"); // handled: the next request for the same note is a new address, and is heard
   }
 
   onMount(() => {
@@ -165,11 +177,16 @@
     }
     Notes.SetOnTop(onTop);
     loadList().then(follow);
+    const flushNow = () => void flush();
     window.addEventListener("hashchange", follow);
-    window.addEventListener("blur", flush);
+    window.addEventListener("blur", flushNow);
+    window.addEventListener("pagehide", flushNow); // the window is closing: save what is waiting for the delay
+    document.addEventListener("visibilitychange", flushNow);
     return () => {
       window.removeEventListener("hashchange", follow);
-      window.removeEventListener("blur", flush);
+      window.removeEventListener("blur", flushNow);
+      window.removeEventListener("pagehide", flushNow);
+      document.removeEventListener("visibilitychange", flushNow);
     };
   });
 </script>

@@ -215,7 +215,7 @@ func parse(raw, mode string) (string, string) {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "snip:"))
 	}
 	if mode == ModeNotes {
-		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(raw), "note:"), "notes:"))
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "note:"))
 	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
@@ -227,7 +227,7 @@ func parse(raw, mode string) (string, string) {
 			return ModeClip, strings.TrimSpace(rest)
 		case "snip", "snippet", "snippets":
 			return ModeSnip, strings.TrimSpace(rest)
-		case "note", "notes":
+		case "note": // not "notes": that is the file search's Documents scope (internal/search/scope.go)
 			return ModeNotes, strings.TrimSpace(rest)
 		}
 	}

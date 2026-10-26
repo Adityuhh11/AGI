@@ -39,7 +39,7 @@ nothing leaves the machine.
   text area with a preview toggle; the markdown renderer (`lib/markdown.ts`) is ours (headings, bold, italic, code,
   code blocks, quotes, lists, task lists whose boxes can be clicked in the preview, links, rules) and escapes everything
   first, so a note can never run script. Saves 400 ms after the last key, and on closing. Delete asks once.
-- The bar: `note` finds the Notes command; `note: words` (also `notes:`) lists matching notes and, first, "New note"
+- The bar: `note` finds the Notes command; `note: words` lists matching notes and, first, "New note"
   (with the words as its first line). Enter opens the note in the window. Tab does not reach it, like Clipboard and
   Snippets.
 - Left out: syncing, tags on notes, images, a global hotkey (the bar is the way in; a setting can add one later).

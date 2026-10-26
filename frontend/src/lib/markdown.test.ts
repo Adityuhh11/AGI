@@ -82,3 +82,33 @@ test("toggleTask flips one line and only a task line", () => {
 test("windows line endings render like unix ones", () => {
   assert.equal(render("# a\r\n\r\n- b\r\n"), render("# a\n\n- b\n"));
 });
+
+test("a task inside a quote carries its own line of the note", () => {
+  const note = "- [ ] top\n\n> - [ ] quoted\n> - [x] done";
+  const html = render(note);
+  assert.deepEqual([...html.matchAll(/data-line="(\d+)"/g)].map((m) => Number(m[1])), [0, 2, 3]);
+  assert.equal(toggleTask(note, 2), "- [ ] top\n\n> - [ ] quoted\n> - [x] done".replace("> - [ ]", "> - [x]"));
+});
+
+test("emphasis marks inside a link or a code span do not reach its address", () => {
+  const link = render("see https://a.com/__x__/y and [t](https://b.com/_a_/c) and `https://c.com/*z*`");
+  assert.match(link, /href="https:\/\/a\.com\/__x__\/y"/);
+  assert.match(link, /href="https:\/\/b\.com\/_a_\/c"/);
+  assert.ok(!/href="[^"]*<(em|strong|code)>/.test(link), link);
+  assert.match(link, /<code>https:\/\/c\.com\/\*z\*<\/code>/);
+  assert.match(render("[`code` in words](https://d.com)"), /<a href="https:\/\/d\.com"><code>code<\/code> in words<\/a>/);
+});
+
+test("pathological notes render without blowing the stack or taking long", () => {
+  const started = Date.now();
+  assert.ok(render(">".repeat(20000) + " x").length > 0);
+  assert.ok(render("[a".repeat(30000)).length > 0);
+  assert.ok(render("x".repeat(100000) + " **b**").length > 0);
+  assert.ok(Date.now() - started < 1500, `took ${Date.now() - started} ms`);
+});
+
+test("a NUL in the text cannot forge a placeholder", () => {
+  const html = render("a\u0000" + "0\u0000 `code`");
+  assert.ok(!html.includes("undefined"), html);
+  assert.ok(!html.includes("\u0000"), html);
+});

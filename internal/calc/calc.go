@@ -24,7 +24,7 @@ type Result struct {
 // A bare number is not a calculation; neither is a word.
 func Answer(text string) (Result, bool) {
 	text = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(text), "="))
-	if text == "" {
+	if text == "" || len(text) > maxLength {
 		return Result{}, false
 	}
 	if looksLikeADate.MatchString(text) {
@@ -80,17 +80,38 @@ func pretty(v float64) string {
 	return sign + whole
 }
 
-// --- the expression parser: expr = term {(+|-) term}; term = power {(*|/) power}; power = unary [^ power];
-// unary = [-] postfix; postfix = primary [%]; primary = number | name | name( expr ) | ( expr ).
-// "a% of b" is a percentage of b.
+// --- the expression parser: expr = term {(+|-) term}; term = unary {(*|/) unary}; unary = (-|+) unary | power;
+// power = postfix [^ unary]; postfix = primary [%]; primary = number | name | name( expr ) | ( expr ).
+// So -2^2 is -(2^2), 2^-2 is allowed and 2^3^2 is 2^(3^2). "a% of b" is a percentage of b.
 
 type parser struct {
 	in    []rune
 	at    int
 	calls bool // a function, a constant or an operator was used: the text is not just a number
+	depth int  // how deeply brackets, signs and powers are nested
 }
 
+// maxDepth and maxLength keep a pasted wall of brackets or minus signs from being parsed all the way down.
+const (
+	maxDepth  = 64
+	maxLength = 200
+)
+
+// enter counts one level of nesting; the caller must call leave when it is done.
+func (p *parser) enter() error {
+	p.depth++
+	if p.depth > maxDepth {
+		return errSyntax
+	}
+	return nil
+}
+
+func (p *parser) leave() { p.depth-- }
+
 var errSyntax = errors.New("not an expression")
+
+// thousands is a number written with commas as thousands separators: 1,000 and 12,345,678.9, not 1,5 or 1,00.
+var thousands = regexp.MustCompile(`^\d{1,3}(,\d{3})+(\.\d+)?$`)
 
 func evaluate(text string) (value float64, interesting bool, err error) {
 	p := &parser{in: []rune(text)}
@@ -136,7 +157,7 @@ func (p *parser) expr() (float64, bool, error) {
 		if err != nil {
 			return 0, false, err
 		}
-		if rightPercent { // 100 + 10% is 100 plus ten percent of it
+		if rightPercent && !percent { // 100 + 10% is 100 plus ten percent of it; 10% + 5% is just 15%
 			right = left * right
 		}
 		if op == '+' {
@@ -149,7 +170,7 @@ func (p *parser) expr() (float64, bool, error) {
 }
 
 func (p *parser) term() (float64, bool, error) {
-	left, percent, err := p.power()
+	left, percent, err := p.unary()
 	if err != nil {
 		return 0, false, err
 	}
@@ -164,7 +185,7 @@ func (p *parser) term() (float64, bool, error) {
 		}
 		p.at++
 		p.calls = true
-		right, _, err := p.power()
+		right, _, err := p.unary()
 		if err != nil {
 			return 0, false, err
 		}
@@ -180,15 +201,32 @@ func (p *parser) term() (float64, bool, error) {
 	}
 }
 
+func (p *parser) unary() (float64, bool, error) {
+	if err := p.enter(); err != nil {
+		return 0, false, err
+	}
+	defer p.leave()
+	switch p.peek() {
+	case '-':
+		p.at++
+		v, percent, err := p.unary()
+		return -v, percent, err
+	case '+':
+		p.at++
+		return p.unary()
+	}
+	return p.power()
+}
+
 func (p *parser) power() (float64, bool, error) {
-	base, percent, err := p.unary()
+	base, percent, err := p.postfix()
 	if err != nil {
 		return 0, false, err
 	}
 	if p.peek() == '^' {
 		p.at++
 		p.calls = true
-		exp, _, err := p.power() // right to left: 2^3^2 is 2^9
+		exp, _, err := p.unary() // right to left, and a sign is allowed: 2^3^2 is 2^9, 2^-2 is a quarter
 		if err != nil {
 			return 0, false, err
 		}
@@ -197,16 +235,7 @@ func (p *parser) power() (float64, bool, error) {
 	return base, percent, nil
 }
 
-func (p *parser) unary() (float64, bool, error) {
-	if p.peek() == '-' {
-		p.at++
-		v, percent, err := p.unary()
-		return -v, percent, err
-	}
-	if p.peek() == '+' {
-		p.at++
-		return p.unary()
-	}
+func (p *parser) postfix() (float64, bool, error) {
 	v, err := p.primary()
 	if err != nil {
 		return 0, false, err
@@ -218,7 +247,7 @@ func (p *parser) unary() (float64, bool, error) {
 		save := p.at
 		p.space()
 		if p.word() == "of" {
-			rest, _, err := p.power()
+			rest, _, err := p.unary()
 			if err != nil {
 				return 0, false, err
 			}
@@ -250,6 +279,10 @@ var functions = map[string]func(float64) float64{
 func (p *parser) primary() (float64, error) {
 	switch c := p.peek(); {
 	case c == '(':
+		if err := p.enter(); err != nil {
+			return 0, err
+		}
+		defer p.leave()
 		p.at++
 		v, _, err := p.expr()
 		if err != nil {
@@ -265,7 +298,11 @@ func (p *parser) primary() (float64, error) {
 		for p.at < len(p.in) && (p.in[p.at] >= '0' && p.in[p.at] <= '9' || p.in[p.at] == '.' || p.in[p.at] == ',') {
 			p.at++
 		}
-		v, err := strconv.ParseFloat(strings.ReplaceAll(string(p.in[start:p.at]), ",", ""), 64)
+		raw := string(p.in[start:p.at])
+		if strings.Contains(raw, ",") && !thousands.MatchString(raw) {
+			return 0, errSyntax // "1,5" may be a decimal comma: not guessed at
+		}
+		v, err := strconv.ParseFloat(strings.ReplaceAll(raw, ",", ""), 64)
 		if err != nil {
 			return 0, errSyntax
 		}
@@ -282,6 +319,10 @@ func (p *parser) primary() (float64, error) {
 		if !known || p.peek() != '(' {
 			return 0, errSyntax
 		}
+		if err := p.enter(); err != nil {
+			return 0, err
+		}
+		defer p.leave()
 		p.at++
 		arg, _, err := p.expr()
 		if err != nil {

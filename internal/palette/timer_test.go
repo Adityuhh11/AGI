@@ -65,7 +65,7 @@ func TestTimerWithATimeOffersToStartIt(t *testing.T) {
 
 func TestPomodoroWordsOfferAPomodoroWithTheConfiguredLengths(t *testing.T) {
 	s, _, _ := timerService(t)
-	for _, text := range []string{"pomodoro", "pomo", "focus"} {
+	for _, text := range []string{"pomodoro", "pomo"} {
 		items := s.Query(text, ModeAll).Items
 		if len(items) == 0 || items[0].ID != "timer:pomodoro" || !strings.Contains(items[0].Title, "25 min focus, 5 min break") {
 			t.Errorf("%q gave %+v", text, items)
@@ -95,7 +95,7 @@ func TestPlainTimerOffersPresetsWhenNothingRunsAndControlsWhenSomethingDoes(t *t
 
 func TestOrdinaryWordsAndOtherModesGetNoTimerRows(t *testing.T) {
 	s, _, _ := timerService(t)
-	for _, text := range []string{"time", "tim", "timers", "my timer 5", "timer abc", "timer 0", "timer 99h", "pomodoro 5"} {
+	for _, text := range []string{"time", "tim", "timers", "my timer 5", "focus", "timer abc", "timer 0", "timer 99h", "pomodoro 5"} {
 		for _, id := range ids(s.Query(text, ModeAll)) {
 			if strings.HasPrefix(id, "timer:") {
 				t.Errorf("%q offered %s", text, id)

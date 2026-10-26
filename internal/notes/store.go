@@ -44,7 +44,7 @@ var idPattern = regexp.MustCompile(`^\d{8}-\d{6}(-\d+)?$`)
 type Store struct {
 	dir string
 	now func() time.Time
-	mu  sync.Mutex
+	mu  sync.Mutex // makes ids unique and saves and deletes one at a time; reading takes no lock (a save is an atomic rename)
 }
 
 // Open returns the store of the folder dir, creating it if it is missing.
@@ -67,8 +67,6 @@ func (s *Store) path(id string) (string, error) {
 
 // List returns every note, the most recently changed first.
 func (s *Store) List() ([]Note, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, fmt.Errorf("read the notes folder: %w", err)
@@ -92,8 +90,6 @@ func (s *Store) List() ([]Note, error) {
 
 // Get returns a note with its text.
 func (s *Store) Get(id string) (Note, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	return s.read(id)
 }
 
@@ -170,8 +166,6 @@ func (s *Store) Delete(id string) error {
 // Search returns the notes that contain every word typed (case does not matter), newest first, at most limit of them
 // (all of them if limit is 0). Nothing typed returns every note.
 func (s *Store) Search(words string, limit int) ([]Note, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, fmt.Errorf("read the notes folder: %w", err)

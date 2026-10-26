@@ -45,8 +45,9 @@ func TestNotePrefixesChooseTheNotesModeButOrdinaryTextWithAColonDoesNot(t *testi
 		raw, mode, text string
 	}{
 		{"note: standup", ModeNotes, "standup"},
-		{"notes:", ModeNotes, ""},
+		{"note:", ModeNotes, ""},
 		{"NOTE:x", ModeNotes, "x"},
+		{"notes: meeting", ModeAll, "notes: meeting"}, // the file search's Documents scope keeps working
 		{"note to self: milk", ModeAll, "note to self: milk"},
 		{"notebook: x", ModeAll, "notebook: x"},
 	}

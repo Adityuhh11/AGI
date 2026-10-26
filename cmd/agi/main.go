@@ -285,9 +285,14 @@ func run(afterUpdate bool) error {
 	setupWindow := settingsui.NewSetupWindow(app)
 	notesWindow := settingsui.NewNotesWindow(app)
 	timerWindow := settingsui.NewTimerWindow(app)
+	// A notes folder that cannot be opened (read-only, a strange profile) costs the notes, not the launcher.
 	noteStore, err := notes.Open(filepath.Join(filepath.Dir(path), "notes"))
+	var noteBook palette.NoteBook
 	if err != nil {
-		return err
+		log.Printf("notes are off: %v", err)
+		noteStore = nil
+	} else {
+		noteBook = noteStore // not assigned when nil: a nil *Store inside the interface would not look nil to the bar
 	}
 	// The timer lives here, not in its window: the window opens when one starts and closes when it ends.
 	countdown := timer.New(
@@ -326,7 +331,7 @@ func run(afterUpdate bool) error {
 				return nil
 			},
 			RunSystem: system.Run,
-			Notes:     noteStore,
+			Notes:     noteBook,
 			OpenNote:  notesWindow.OpenAt,
 			Timer:     countdown,
 		})),

@@ -96,14 +96,14 @@ func TestStopEndsEverythingAndTellsTheWindow(t *testing.T) {
 	h := newHarness()
 	h.Stop() // nothing to stop: no news
 	h.Start(time.Minute, "")
-	h.Start(2*time.Minute, "again") // replaces, and the window is already open
+	h.Start(2*time.Minute, "again") // replaces; the window is told again, so one that was closed meanwhile comes back
 	h.Stop()
 	h.Stop()
 	if got := h.State(); got != (State{}) {
 		t.Errorf("state = %+v", got)
 	}
-	if len(h.active) != 2 || !h.active[0] || h.active[1] {
-		t.Errorf("window told %v, want open once and close once", h.active)
+	if want := []bool{true, true, false}; len(h.active) != 3 || h.active[0] != want[0] || h.active[1] != want[1] || h.active[2] != want[2] {
+		t.Errorf("window told %v, want %v", h.active, want)
 	}
 }
 
@@ -194,6 +194,33 @@ func TestChangedSettingsApplyToTheNextPeriod(t *testing.T) {
 	}
 }
 
+func TestAStopWhileTheEndIsAnnouncedIsNotUndoneByTheAutoNext(t *testing.T) {
+	h := newHarness()
+	h.cfg = config.Timer{FocusMinutes: 1, ShortBreakMinutes: 1, LongBreakMinutes: 1, Rounds: 2, AutoNext: true}
+	h.Timer.onFinish = func(State) { h.Stop() } // the person presses stop just as the beep plays
+	h.StartPomodoro()
+	h.pass(time.Minute)
+	if h.State().Active {
+		t.Fatalf("the next period started over a stop: %+v", h.State())
+	}
+}
+
+func TestAWindowToldOutOfOrderEndsUpAsTheLastStateSays(t *testing.T) {
+	h := newHarness()
+	var last bool
+	h.Timer.onActive = func(a bool) { last = a }
+	h.Start(time.Minute, "")
+	h.Stop()
+	h.Start(time.Minute, "")
+	if !last {
+		t.Error("an active timer left the window closed")
+	}
+	h.Stop()
+	if last {
+		t.Error("a stopped timer left the window open")
+	}
+}
+
 func TestRunNoticesTheEndWithoutAnyoneLooking(t *testing.T) {
 	h := newHarness()
 	h.Start(time.Second, "")
@@ -239,6 +266,12 @@ func TestParseDuration(t *testing.T) {
 		{"25h", 0, "", false},
 		{"1000000000000000000000", 0, "", false},
 		{"1:30", 0, "", false},
+		{"5 : 30", 0, "", false},
+		{"10 min 2 eggs", 10 * time.Minute, "2 eggs", true},
+		{"25 2 more", 25 * time.Minute, "2 more", true},
+		{"1h 30 tea", time.Hour, "30 tea", true},
+		{"1h30 tea", 90 * time.Minute, "tea", true},
+		{"99999999999999999999h", 0, "", false},
 	}
 	for _, tt := range tests {
 		d, label, ok := ParseDuration(tt.text)

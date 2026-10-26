@@ -32,10 +32,13 @@ var (
 const overlayMargin = 16
 
 // Window opens one of the program's windows. It is built the first time it is asked for, so the hotkey path never
-// pays for it, and a second request brings the open one forward.
+// pays for it, and a second request brings the open one forward. The lock only guards which window is open: calls into Wails
+// are made without it, because a window closing runs a handler that takes the lock too.
 type Window struct {
 	app  *application.App
 	spec windowSpec
+
+	build sync.Mutex // one window is made at a time, so two requests at once cannot make two
 
 	mu    sync.Mutex
 	win   *application.WebviewWindow
@@ -54,32 +57,41 @@ func NewNotesWindow(app *application.App) *Window { return &Window{app: app, spe
 // NewTimerWindow returns the Window of the timer overlay.
 func NewTimerWindow(app *application.App) *Window { return &Window{app: app, spec: timerSpec} }
 
+func (w *Window) current() *application.WebviewWindow {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.win
+}
+
 // Open shows the window.
 func (w *Window) Open() { w.OpenAt("") }
 
 // OpenAt shows the window on the section (or note) with this id, the first one if it is empty. An open window switches
 // to it through its address (the page listens for the change), so a page opened from the bar is never the wrong one.
 func (w *Window) OpenAt(section string) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.win != nil {
-		w.win.Show()
-		w.win.UnMinimise()
+	w.build.Lock()
+	defer w.build.Unlock()
+	if win := w.current(); win != nil {
+		win.Show()
+		win.UnMinimise()
 		if !w.spec.overlay {
-			w.win.Focus()
+			win.Focus()
 		}
 		if section != "" {
-			w.win.ExecJS(fmt.Sprintf("location.hash = %q", "#"+w.spec.route+"/"+section))
+			win.ExecJS(fmt.Sprintf("location.hash = %q", "#"+w.spec.route+"/"+section))
 		}
 		return
 	}
+	w.mu.Lock()
 	w.count++
+	name := fmt.Sprintf("%s-%d", w.spec.name, w.count)
+	w.mu.Unlock()
 	url := "/#" + w.spec.route
 	if section != "" {
 		url += "/" + section
 	}
 	options := application.WebviewWindowOptions{
-		Name:             fmt.Sprintf("%s-%d", w.spec.name, w.count),
+		Name:             name,
 		Title:            w.spec.title,
 		Width:            w.spec.width,
 		Height:           w.spec.height,
@@ -106,20 +118,26 @@ func (w *Window) OpenAt(section string) {
 	win := w.app.Window.NewWithOptions(options)
 	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
 		w.mu.Lock()
-		w.win = nil
+		if w.win == win { // not a newer window that replaced this one
+			w.win = nil
+		}
 		w.mu.Unlock()
 	})
+	w.mu.Lock()
 	w.win = win
+	w.mu.Unlock()
 	win.Show()
 	if !w.spec.overlay {
 		win.Focus() // the timer must not take the keyboard from whatever is being worked in
 	}
 }
 
-// Close closes the window if it is open.
+// Close closes the window if it is open. It is forgotten at once, so opening again straight after builds a new one instead of
+// reusing the one that is closing.
 func (w *Window) Close() {
 	w.mu.Lock()
 	win := w.win
+	w.win = nil
 	w.mu.Unlock()
 	if win != nil {
 		win.Close()
@@ -128,9 +146,7 @@ func (w *Window) Close() {
 
 // SetAlwaysOnTop keeps the window above other windows, or lets them cover it. Without an open window it does nothing.
 func (w *Window) SetAlwaysOnTop(on bool) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.win != nil {
-		w.win.SetAlwaysOnTop(on)
+	if win := w.current(); win != nil {
+		win.SetAlwaysOnTop(on)
 	}
 }

@@ -66,12 +66,13 @@ func (s *Service) doNote(rest, action string) error {
 			}
 			id = n.ID
 		}
+		s.dismiss() // the bar goes first: the notes window is built next, and the bar should not wait for that
 		s.x.OpenNote(id)
 	case strings.HasPrefix(rest, "open:"):
+		s.dismiss()
 		s.x.OpenNote(strings.TrimPrefix(rest, "open:"))
 	default:
 		return fmt.Errorf("do not know how to run note:%s", rest)
 	}
-	s.dismiss()
 	return nil
 }

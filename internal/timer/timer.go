@@ -47,7 +47,12 @@ type Timer struct {
 	onFinish func(State)
 	onActive func(bool)
 
+	// notify makes the calls to onActive one at a time, each with what the timer is at that moment: whatever order two
+	// changes arrive in, the window ends up as the last state says.
+	notify sync.Mutex
+
 	mu       sync.Mutex
+	gen      int // changes whenever a period starts or the timer stops, so a decision made earlier can tell it is out of date
 	active   bool
 	paused   bool
 	finished bool
@@ -61,8 +66,8 @@ type Timer struct {
 }
 
 // New returns a timer. settings gives the pomodoro's lengths each time they are needed (so a change in Settings counts at once);
-// onFinish is called when a period ends (the beep) and onActive when a timer starts or ends (the window opens and closes).
-// Either may be nil.
+// onFinish is called when a period ends (the beep) and onActive with whether there is a timer, each time one starts or ends (the
+// window opens and closes; it must cope with being told the same thing twice). Either may be nil.
 func New(settings func() config.Timer, onFinish func(State), onActive func(bool)) *Timer {
 	return &Timer{now: time.Now, settings: settings, onFinish: onFinish, onActive: onActive}
 }
@@ -102,15 +107,29 @@ func minutes(n int) time.Duration { return time.Duration(n) * time.Minute }
 
 func (t *Timer) begin(phase Phase, label string, d time.Duration, round, rounds int) {
 	t.mu.Lock()
-	wasActive := t.active
+	t.startLocked(phase, label, d, round, rounds)
+	t.mu.Unlock()
+	t.sync()
+}
+
+// startLocked makes a period the current one and starts its clock. The deadline drops Go's monotonic reading (Round(0)): that
+// clock may not count the time a computer spends asleep, and a 25-minute timer should end 25 minutes after it began on the wall.
+func (t *Timer) startLocked(phase Phase, label string, d time.Duration, round, rounds int) {
+	t.gen++
 	t.active, t.paused, t.finished = true, false, false
 	t.phase, t.label, t.total, t.round, t.rounds = phase, label, d, round, rounds
-	t.deadline = t.now().Add(d)
+	t.deadline = t.now().Add(d).Round(0)
 	t.left = 0
-	t.mu.Unlock()
-	if !wasActive && t.onActive != nil {
-		t.onActive(true)
+}
+
+// sync tells the window whether there is a timer, as it is now.
+func (t *Timer) sync() {
+	if t.onActive == nil {
+		return
 	}
+	t.notify.Lock()
+	defer t.notify.Unlock()
+	t.onActive(t.State().Active)
 }
 
 // Pause stops the clock of a running period; Resume starts it again. Neither does anything else.
@@ -128,7 +147,7 @@ func (t *Timer) Resume() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.active && t.paused {
-		t.deadline = t.now().Add(t.left)
+		t.deadline = t.now().Add(t.left).Round(0)
 		t.paused = false
 	}
 }
@@ -137,10 +156,11 @@ func (t *Timer) Resume() {
 func (t *Timer) Stop() {
 	t.mu.Lock()
 	was := t.active
+	t.gen++
 	t.active, t.paused, t.finished = false, false, false
 	t.mu.Unlock()
-	if was && t.onActive != nil {
-		t.onActive(false)
+	if was {
+		t.sync()
 	}
 }
 
@@ -152,13 +172,15 @@ func (t *Timer) Skip() {
 		return
 	}
 	phase, label, d, round, ok := t.followingLocked()
-	rounds := t.rounds
-	t.mu.Unlock()
-	if !ok {
-		t.Stop()
-		return
+	if ok {
+		t.startLocked(phase, label, d, round, t.rounds)
 	}
-	t.begin(phase, label, d, round, rounds)
+	t.mu.Unlock()
+	if ok {
+		t.sync()
+	} else {
+		t.Stop()
+	}
 }
 
 // followingLocked is the period after the current one in a pomodoro: focus is followed by a short break, or by the long one
@@ -178,7 +200,8 @@ func (t *Timer) followingLocked() (phase Phase, label string, d time.Duration, r
 }
 
 // advance ends a period whose time has run out: the next one starts by itself when settings say so, otherwise the timer
-// waits, finished, to be dismissed or skipped on.
+// waits, finished, to be dismissed or skipped on. If the timer is stopped or restarted while the finish is being announced, the
+// next period is not started over that.
 func (t *Timer) advance() {
 	t.mu.Lock()
 	if !t.active || t.paused || t.finished || t.now().Before(t.deadline) {
@@ -187,15 +210,24 @@ func (t *Timer) advance() {
 	}
 	t.finished = true
 	finished := t.stateLocked()
+	gen := t.gen
 	phase, label, d, round, more := t.followingLocked()
 	auto := more && t.settings().AutoNext
 	t.mu.Unlock()
 	if t.onFinish != nil {
 		t.onFinish(finished)
 	}
-	if auto {
-		t.begin(phase, label, d, round, finished.Rounds)
+	if !auto {
+		return
 	}
+	t.mu.Lock()
+	if t.gen != gen {
+		t.mu.Unlock()
+		return
+	}
+	t.startLocked(phase, label, d, round, finished.Rounds)
+	t.mu.Unlock()
+	t.sync()
 }
 
 // State is the timer now.

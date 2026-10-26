@@ -1,6 +1,9 @@
 package calc
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAnswerArithmetic(t *testing.T) {
 	tests := []struct {
@@ -34,6 +37,15 @@ func TestAnswerArithmetic(t *testing.T) {
 		{"10 - 12", "-2"},
 		{"12/4", "3"},
 		{"10-12+1", "-1"},
+		{"-2^2", "-4"},
+		{"(-2)^2", "4"},
+		{"2^-2", "0.25"},
+		{"2^3^2", "512"},
+		{"-3 * -3", "9"},
+		{"10% + 5%", "0.15"},
+		{"200 + 10% + 5%", "231"},
+		{"1,000 + 1", "1001"},
+		{"12,345,678.5 * 2", "24691357"},
 		{"0 * -5", "0"},
 	}
 	for _, tt := range tests {
@@ -51,7 +63,7 @@ func TestAnswerArithmetic(t *testing.T) {
 }
 
 func TestAnswerLeavesOrdinarySearchesAlone(t *testing.T) {
-	for _, text := range []string{"", "   ", "42", "2024", "3.14", "chrome", "visual studio", "note to self", "7zip", "5 apples", "a+b", "x", "e", "-", "()", "2 +", "1/0", "sqrt(", "sqrt 4", "10 km to", "2024-01-05", "10-12", "1/2/2026", "2026-10-26-2"} {
+	for _, text := range []string{"", "   ", "42", "2024", "3.14", "chrome", "visual studio", "note to self", "7zip", "5 apples", "a+b", "x", "e", "-", "()", "2 +", "1/0", "sqrt(", "sqrt 4", "10 km to", "1,5+1,5", "1,00 * 2", "2024-01-05", "10-12", "1/2/2026", "2026-10-26-2"} {
 		if got, ok := Answer(text); ok {
 			t.Errorf("Answer(%q) = %+v, want no answer", text, got)
 		}
@@ -117,5 +129,16 @@ func TestConversionTitleReadsAsTheSentence(t *testing.T) {
 	got, _ := Answer("5 km in miles")
 	if got.Title != "5 km = 3.106855961 miles" {
 		t.Fatalf("title = %q", got.Title)
+	}
+}
+
+func TestAWallOfBracketsOrSignsIsRefusedNotParsedToTheBottom(t *testing.T) {
+	for _, text := range []string{strings.Repeat("(", 5000) + "1" + strings.Repeat(")", 5000), strings.Repeat("-", 5000) + "1", strings.Repeat("1+", 5000) + "1"} {
+		if got, ok := Answer(text); ok {
+			t.Errorf("a %d character expression was answered: %+v", len(text), got)
+		}
+	}
+	if got, ok := Answer(strings.Repeat("(", 20) + "1+1" + strings.Repeat(")", 20)); !ok || got.Copy != "2" {
+		t.Errorf("reasonable nesting was refused: %+v, %v", got, ok)
 	}
 }

@@ -29,7 +29,7 @@ var timerPresets = []int{5, 10, 25, 45}
 var timerWords = map[string]bool{"timer": true, "countdown": true}
 
 // pomodoroWords start a pomodoro.
-var pomodoroWords = map[string]bool{"pomodoro": true, "pomo": true, "focus": true}
+var pomodoroWords = map[string]bool{"pomodoro": true, "pomo": true}
 
 // timerItems are the rows the timer offers for the text: the controls of a running timer, a pomodoro, or a countdown.
 func (s *Service) timerItems(text string) []Item {
@@ -119,27 +119,29 @@ func (s *Service) doTimer(rest, action string) error {
 	if s.x.Timer == nil {
 		return fmt.Errorf("the timer is not available")
 	}
+	var run func()
 	switch {
 	case rest == "pomodoro":
-		s.x.Timer.StartPomodoro()
+		run = s.x.Timer.StartPomodoro
 	case rest == "pause":
-		s.x.Timer.Pause()
+		run = s.x.Timer.Pause
 	case rest == "resume":
-		s.x.Timer.Resume()
+		run = s.x.Timer.Resume
 	case rest == "stop":
-		s.x.Timer.Stop()
+		run = s.x.Timer.Stop
 	case rest == "skip":
-		s.x.Timer.Skip()
+		run = s.x.Timer.Skip
 	case strings.HasPrefix(rest, "start:"):
 		seconds, label, _ := strings.Cut(strings.TrimPrefix(rest, "start:"), ":")
 		n, err := strconv.Atoi(seconds)
 		if err != nil || n <= 0 {
 			return fmt.Errorf("%q is not a length of time", seconds)
 		}
-		s.x.Timer.Start(time.Duration(n)*time.Second, label)
+		run = func() { s.x.Timer.Start(time.Duration(n)*time.Second, label) }
 	default:
 		return fmt.Errorf("do not know how to run timer:%s", rest)
 	}
-	s.dismiss()
+	s.dismiss() // the bar goes first: starting a timer builds a window, and the bar should not wait for that
+	run()
 	return nil
 }

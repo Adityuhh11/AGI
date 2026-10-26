@@ -530,7 +530,7 @@
                       query={answered}
                       selected={index === selected}
                       expanded={expanded.has(item.row.Path)}
-                      onhover={() => (selected = index)}
+                      onhover={() => ((selected = index), (keying = false))}
                       onactivate={() => run(item)}
                     />
                   {/if}

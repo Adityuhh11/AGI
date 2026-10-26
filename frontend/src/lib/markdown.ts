@@ -9,17 +9,24 @@ const escape = (text: string) => text.replace(/[&<>"']/g, (c) => escapes[c]);
 
 /** Inline marks inside one already-escaped line. Code spans are lifted out first so their content is left alone. */
 function inline(escaped: string): string {
+  if (escaped.length > MAX_INLINE) return escaped; // a pasted wall of text is shown as it is: the patterns below are not meant for it
+  // Code spans and links are lifted out first and put back last, so emphasis marks inside them (a URL with __x__ in it) are never touched.
   const spans: string[] = [];
-  let text = escaped.replace(/`([^`]+)`/g, (_, code) => `\u0000${spans.push(`<code>${code}</code>`) - 1}\u0000`);
-  text = text.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)(?:(?!&(?:quot|#39|lt|gt);)[^\s)])+)\)/gi, (_, label, url) => `<a href="${url}">${label}</a>`);
-  text = text.replace(/(^|[\s(])(https?:\/\/(?:(?!&(?:quot|#39|lt|gt);)[^\s<)])+(?<![.,;:!?]))/gi, (_, before, url) => `${before}<a href="${url}">${url}</a>`);
+  const lift = (html: string) => `\u0000${spans.push(html) - 1}\u0000`;
+  let text = escaped.replace(/`([^`]+)`/g, (_, code) => lift(`<code>${code}</code>`));
+  text = text.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)(?:(?!&(?:quot|#39|lt|gt);)[^\s)])+)\)/gi, (_, label, url) => lift(`<a href="${url}">${label}</a>`));
+  text = text.replace(/(^|[\s(])(https?:\/\/(?:(?!&(?:quot|#39|lt|gt);)[^\s<)])+(?<![.,;:!?]))/gi, (_, before, url) => `${before}${lift(`<a href="${url}">${url}</a>`)}`);
   text = text.replace(/\*\*([^*]+)\*\*|__([^_]+)__/g, (_, a, b) => `<strong>${a ?? b}</strong>`);
   text = text.replace(/(^|[^\w*])\*([^*\s][^*]*)\*(?!\w)|(^|[^\w_])_([^_\s][^_]*)_(?!\w)/g, (_, p1, a, p2, b) =>
     a !== undefined ? `${p1}<em>${a}</em>` : `${p2}<em>${b}</em>`,
   );
   text = text.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-  return text.replace(/\u0000(\d+)\u0000/g, (_, i) => spans[Number(i)]);
+  const put = (t: string) => t.replace(/\u0000(\d+)\u0000/g, (_, i) => spans[Number(i)] ?? "");
+  return put(put(text)); // a link's words can hold a code span, which is itself a placeholder
 }
+
+const MAX_INLINE = 4000; // characters of one line that get emphasis and links
+const MAX_QUOTE_DEPTH = 8; // levels of > that are nested; deeper ones are shown as text
 
 const heading = /^(#{1,6})\s+(.*)$/;
 const rule = /^\s*([-*_])(\s*\1){2,}\s*$/;
@@ -30,8 +37,8 @@ const quote = /^>\s?(.*)$/;
 const fence = /^```/;
 
 /** Renders markdown to HTML. A task's box carries `data-line`, the line of the source it came from (see toggleTask). */
-export function render(markdown: string): string {
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
+export function render(markdown: string, firstLine = 0, depth = 0): string {
+  const lines = markdown.replace(/\r\n?/g, "\n").replaceAll("\u0000", "").split("\n");
   const out: string[] = [];
   let i = 0;
   while (i < lines.length) {
@@ -51,10 +58,12 @@ export function render(markdown: string): string {
     } else if (rule.test(line)) {
       out.push("<hr>");
       i++;
-    } else if (quote.test(line)) {
+    } else if (quote.test(line) && depth < MAX_QUOTE_DEPTH) {
+      const start = i;
       const body: string[] = [];
       while (i < lines.length && quote.test(lines[i])) body.push(lines[i++].match(quote)![1]);
-      out.push(`<blockquote>${render(body.join("\n"))}</blockquote>`);
+      // The quoted lines keep their place in the note, so a task inside a quote toggles its own line (see toggleTask).
+      out.push(`<blockquote>${render(body.join("\n"), firstLine + start, depth + 1)}</blockquote>`);
     } else if (bullet.test(line) || ordered.test(line)) {
       const isOrdered = !bullet.test(line);
       const items: string[] = [];
@@ -64,7 +73,7 @@ export function render(markdown: string): string {
         if (t) {
           const checked = t[1] !== " ";
           items.push(
-            `<li class="task${checked ? " done" : ""}"><input type="checkbox" data-line="${i}"${checked ? " checked" : ""}> <span>${inline(escape(t[2]))}</span></li>`,
+            `<li class="task${checked ? " done" : ""}"><input type="checkbox" data-line="${firstLine + i}"${checked ? " checked" : ""}> <span>${inline(escape(t[2]))}</span></li>`,
           );
         } else {
           items.push(`<li>${inline(escape(text))}</li>`);
@@ -80,7 +89,7 @@ export function render(markdown: string): string {
         !fence.test(lines[i]) &&
         !heading.test(lines[i]) &&
         !rule.test(lines[i]) &&
-        !quote.test(lines[i]) &&
+        !(quote.test(lines[i]) && depth < MAX_QUOTE_DEPTH) &&
         !bullet.test(lines[i]) &&
         !ordered.test(lines[i])
       ) {
@@ -97,7 +106,7 @@ export function toggleTask(markdown: string, line: number): string {
   const lines = markdown.split("\n");
   const at = lines[line];
   if (at === undefined) return markdown;
-  const toggled = at.replace(/^(\s*[-*+]\s+)\[([ xX])\]/, (_, before, mark) => `${before}[${mark === " " ? "x" : " "}]`);
+  const toggled = at.replace(/^(\s*(?:>\s?)*[-*+]\s+)\[([ xX])\]/, (_, before, mark) => `${before}[${mark === " " ? "x" : " "}]`);
   if (toggled === at) return markdown;
   lines[line] = toggled;
   return lines.join("\n");
