@@ -28,6 +28,7 @@ import (
 	"agi/internal/enginesetup"
 	"agi/internal/files"
 	"agi/internal/indexing"
+	"agi/internal/notes"
 	"agi/internal/palette"
 	"agi/internal/panel"
 	"agi/internal/search"
@@ -36,8 +37,10 @@ import (
 	"agi/internal/sidecar"
 	"agi/internal/snippets"
 	"agi/internal/state"
-	"agi/internal/survey"
 	"agi/internal/status"
+	"agi/internal/survey"
+	"agi/internal/system"
+	"agi/internal/timer"
 	"agi/internal/tray"
 	"agi/internal/update"
 	"agi/internal/watcher"
@@ -232,7 +235,11 @@ func run(afterUpdate bool) error {
 		// A first download waits for "Start indexing" so the choices come before any picture is embedded.
 		func() bool { return engine.Status().State == sidecar.StateReady && !store.Get().Search.HoldIndexing },
 		func(indexing.Status) { refresh() })
-	surveys := survey.New(engine.Client(), func() bool { return engine.Status().State == sidecar.StateReady })
+	// Counting folders needs no model (POST /survey answers while it loads), so the guide's estimates need not wait for it.
+	surveys := survey.New(engine.Client(), func() bool {
+		state := engine.Status().State
+		return state == sidecar.StateReady || state == sidecar.StateWarming
+	})
 	surveys.Set(cfg.Roots, cfg.Exclude)
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
@@ -276,6 +283,28 @@ func run(afterUpdate bool) error {
 		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
 	setupWindow := settingsui.NewSetupWindow(app)
+	notesWindow := settingsui.NewNotesWindow(app)
+	timerWindow := settingsui.NewTimerWindow(app)
+	// A notes folder that cannot be opened (read-only, a strange profile) costs the notes, not the launcher.
+	noteStore, err := notes.Open(filepath.Join(filepath.Dir(path), "notes"))
+	var noteBook palette.NoteBook
+	if err != nil {
+		log.Printf("notes are off: %v", err)
+		noteStore = nil
+	} else {
+		noteBook = noteStore // not assigned when nil: a nil *Store inside the interface would not look nil to the bar
+	}
+	// The timer lives here, not in its window: the window opens when one starts and closes when it ends.
+	countdown := timer.New(
+		func() config.Timer { return store.Get().Timer },
+		func(timer.State) { system.Beep() },
+		func(active bool) {
+			if active {
+				timerWindow.Open()
+			} else {
+				timerWindow.Close()
+			}
+		})
 	var checker *update.Checker
 	checker = update.NewChecker(version, func() {
 		release, _ := checker.Found()
@@ -288,13 +317,26 @@ func run(afterUpdate bool) error {
 			indexer.Pause()
 		}
 	}
-	icon = tray.New(app, bar.Show, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
+	icon = tray.New(app, bar.Show, notesWindow.Open, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
 		application.NewService(search.New(engine.Client(), sourceRoots, engine.Status)),
 		application.NewService(opener),
-		application.NewService(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch)),
+		application.NewService(palette.With(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch), palette.Extras{
+			Copy: func(text string) error {
+				if !app.Clipboard.SetText(text) {
+					return errors.New("the clipboard is in use by another program; try again")
+				}
+				return nil
+			},
+			RunSystem: system.Run,
+			Notes:     noteBook,
+			OpenNote:  notesWindow.OpenAt,
+			Timer:     countdown,
+		})),
+		application.NewService(notes.NewService(noteStore, notesWindow.SetAlwaysOnTop)),
+		application.NewService(timer.NewService(countdown)),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,
@@ -425,6 +467,7 @@ func run(afterUpdate bool) error {
 			}()
 		}
 		go indexer.Run(ctx)
+		go countdown.Run(ctx)
 		go surveys.Run(ctx)
 		go clips.Run(ctx)
 		go checker.Run(ctx, func() bool { return store.Get().CheckUpdates })

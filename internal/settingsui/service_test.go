@@ -704,3 +704,23 @@ func TestRemovingEverythingWaitsForARunningInstall(t *testing.T) {
 		t.Fatalf("message %q, removed %d", msg, h.setup.removed)
 	}
 }
+
+func TestTheFeelAndTimerSettingsAreShownAndChanged(t *testing.T) {
+	h := newHarness(t)
+	if v := h.svc.View(); !v.SelectionEffect || v.Timer.FocusMinutes != 25 {
+		t.Fatalf("view = %+v", v)
+	}
+	if msg := h.svc.SetSelectionEffect(false); msg != "" || h.svc.View().SelectionEffect {
+		t.Fatalf("SetSelectionEffect: %q", msg)
+	}
+	if msg := h.svc.SetGroupResults(false); msg != "" || h.store.Get().Search.GroupResults {
+		t.Fatalf("SetGroupResults: %q", msg)
+	}
+	want := config.Timer{FocusMinutes: 50, ShortBreakMinutes: 10, LongBreakMinutes: 20, Rounds: 3, AutoNext: true}
+	if msg := h.svc.SaveTimer(want); msg != "" || h.store.Get().Timer != want {
+		t.Fatalf("SaveTimer: %q, got %+v", msg, h.store.Get().Timer)
+	}
+	if msg := h.svc.SaveTimer(config.Timer{}); msg == "" || h.store.Get().Timer != want {
+		t.Fatalf("a timer of zero was accepted: %q", msg)
+	}
+}

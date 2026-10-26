@@ -29,6 +29,7 @@ type command struct {
 var commands = []command{
 	{"cmd:clipboard", "Clipboard history", "clip: "},
 	{"cmd:snippets", "Snippets", "snip: "},
+	{"cmd:notes", "Notes", "note: "},
 }
 
 func commandFor(id string) (command, bool) {

@@ -365,3 +365,58 @@ func TestDataDirMustBeAnAbsoluteLocalPath(t *testing.T) {
 		}
 	}
 }
+
+func TestNewSettingsDefaultOnAndAnOlderFileKeepsThem(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, `hotkey = 'Alt+Shift+Space'
+[search]
+pace = 'fast'
+`)
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.UI.SelectionEffect || !got.Search.GroupResults {
+		t.Errorf("the feel settings must be on when the file lacks them: %+v %+v", got.UI, got.Search)
+	}
+	if got.Timer != (Timer{FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, Rounds: 4}) {
+		t.Errorf("timer = %+v, want the pomodoro defaults", got.Timer)
+	}
+}
+
+func TestTheNewSettingsCanBeTurnedOffAndSurviveASave(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfg := Default()
+	cfg.UI.SelectionEffect, cfg.Search.GroupResults, cfg.Timer.AutoNext, cfg.Timer.FocusMinutes = false, false, true, 50
+	if err := cfg.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.UI.SelectionEffect || got.Search.GroupResults || !got.Timer.AutoNext || got.Timer.FocusMinutes != 50 {
+		t.Fatalf("lost on the way: %+v %+v %+v", got.UI, got.Search, got.Timer)
+	}
+}
+
+func TestTimerLengthsMustBeSensible(t *testing.T) {
+	tests := []struct {
+		name   string
+		change func(*Timer)
+	}{
+		{"no focus time", func(t *Timer) { t.FocusMinutes = 0 }},
+		{"a day of focus", func(t *Timer) { t.FocusMinutes = 24 * 60 }},
+		{"no break", func(t *Timer) { t.ShortBreakMinutes = 0 }},
+		{"a negative long break", func(t *Timer) { t.LongBreakMinutes = -5 }},
+		{"no rounds", func(t *Timer) { t.Rounds = 0 }},
+		{"too many rounds", func(t *Timer) { t.Rounds = 13 }},
+	}
+	for _, tt := range tests {
+		cfg := Default()
+		tt.change(&cfg.Timer)
+		if err := cfg.Validate(); err == nil {
+			t.Errorf("%s was accepted", tt.name)
+		}
+	}
+}

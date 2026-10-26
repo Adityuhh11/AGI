@@ -17,6 +17,7 @@ var settingsPages = []settingsPage{
 	{"cmd:settings:snippets", "Settings: Snippets", "snippets"},
 	{"cmd:settings:search", "Settings: File search", "search"},
 	{"cmd:settings:clipboard", "Settings: Clipboard", "clipboard"},
+	{"cmd:settings:timer", "Settings: Timer", "timer"},
 	{"cmd:settings:about", "Settings: About", "about"},
 }
 

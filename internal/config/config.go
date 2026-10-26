@@ -38,6 +38,10 @@ type Config struct {
 	// the user turns it on, because it is a request to a server the user did not name.
 	CheckUpdates bool   `toml:"check_updates,omitempty"`
 	Search       Search `toml:"search"`
+	// UI holds the small choices about how the bar feels.
+	UI UI `toml:"ui"`
+	// Timer is the pomodoro timer (internal/timer).
+	Timer Timer `toml:"timer"`
 	// Clipboard is the searchable history of what is copied (internal/clipboard).
 	Clipboard Clipboard `toml:"clipboard"`
 	// Snippets are texts kept to be pasted from the bar (internal/snippets).
@@ -45,6 +49,23 @@ type Config struct {
 	// Sidecar is the retired [sidecar] table (where the engine lived in the repository). Load reads
 	// it so old files still open and then clears it, so it is never written back.
 	Sidecar *retiredSidecar `toml:"sidecar,omitempty"`
+}
+
+// UI holds the choices about how the bar feels.
+type UI struct {
+	// SelectionEffect lifts the selected result and dims the others while the arrow keys move through the list.
+	SelectionEffect bool `toml:"selection_effect"`
+}
+
+// Timer holds the lengths of a pomodoro and how it goes on.
+type Timer struct {
+	FocusMinutes      int `toml:"focus_minutes"`
+	ShortBreakMinutes int `toml:"short_break_minutes"`
+	LongBreakMinutes  int `toml:"long_break_minutes"`
+	// Rounds is how many focus periods make a cycle; the last is followed by the long break.
+	Rounds int `toml:"rounds"`
+	// AutoNext starts the next period by itself; off, a finished period waits to be started.
+	AutoNext bool `toml:"auto_next"`
 }
 
 // Quicklink is a web address with a place for what the user types after its trigger word.
@@ -82,6 +103,8 @@ type Search struct {
 	// the web, clipboard, snippets) and files are searched in the Files mode, reached with Tab or "file:". A file from
 	// before the key existed gets it on when file search is on, so nobody loses what they had.
 	InLauncher bool `toml:"in_launcher"`
+	// GroupResults shows file results under a heading per kind of file, with the single best match first.
+	GroupResults bool `toml:"group_results"`
 	// HoldIndexing keeps the folders from being indexed until the person presses "Start indexing": set when file search
 	// is first downloaded, so the choices below are made before any picture is embedded. A file without the key (every
 	// install made before it existed) indexes as it always did.
@@ -225,6 +248,19 @@ func (c Config) Validate() error {
 	} {
 		if !slices.Contains(choice.allowed, choice.value) {
 			return fmt.Errorf("%s %q must be one of %s", choice.name, choice.value, strings.Join(choice.allowed, ", "))
+		}
+	}
+	for _, limit := range []struct {
+		name          string
+		value, lo, hi int
+	}{
+		{"timer focus_minutes", c.Timer.FocusMinutes, 1, 180},
+		{"timer short_break_minutes", c.Timer.ShortBreakMinutes, 1, 60},
+		{"timer long_break_minutes", c.Timer.LongBreakMinutes, 1, 120},
+		{"timer rounds", c.Timer.Rounds, 1, 12},
+	} {
+		if limit.value < limit.lo || limit.value > limit.hi {
+			return fmt.Errorf("%s %d must be between %d and %d", limit.name, limit.value, limit.lo, limit.hi)
 		}
 	}
 	for _, folder := range c.Exclude {

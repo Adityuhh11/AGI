@@ -134,7 +134,10 @@ type View struct {
 	Pace          string
 	Autostart     bool
 	CheckUpdates  bool
-	UpdateFound   string // the version of a newer release the last check saw, or ""
+	// SelectionEffect is the arrow-key lift in the bar; Timer is the pomodoro's lengths.
+	SelectionEffect bool
+	Timer           config.Timer
+	UpdateFound     string // the version of a newer release the last check saw, or ""
 	// UpdateInstallable says that release has a zip that can be checked, so the page can offer to install it.
 	UpdateInstallable bool
 	ConfigPath        string
@@ -148,7 +151,7 @@ func (s *Service) View() View {
 	return View{
 		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks, Snippets: c.Snippets,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
-		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, UpdateFound: s.updateFound(), UpdateInstallable: s.updateInstallable(),
+		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, SelectionEffect: c.UI.SelectionEffect, Timer: c.Timer, UpdateFound: s.updateFound(), UpdateInstallable: s.updateInstallable(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
 	}
 }
@@ -192,6 +195,15 @@ func (s *Service) SetAutostart(on bool) string {
 	return ""
 }
 
+// SetSelectionEffect turns the lift of the selected result (while the arrow keys move) on or off.
+func (s *Service) SetSelectionEffect(on bool) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.UI.SelectionEffect = on }))
+}
+
+// SaveTimer sets the pomodoro's lengths; a value out of range is refused and nothing changes.
+func (s *Service) SaveTimer(t config.Timer) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Timer = t }))
+}
 
 // SaveQuicklinks replaces the quicklinks.
 func (s *Service) SaveQuicklinks(links []config.Quicklink) string {
@@ -202,7 +214,6 @@ func (s *Service) SaveQuicklinks(links []config.Quicklink) string {
 func (s *Service) SaveSnippets(snippets []config.Snippet) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Snippets = snippets }))
 }
-
 
 // OpenFolder shows the settings folder ("config") or the log folder ("logs") in Explorer.
 func (s *Service) OpenFolder(which string) string {
