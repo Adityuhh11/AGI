@@ -234,6 +234,11 @@
       Include files in the default search
     </label>
     <p class="help">Off, the default search only finds apps, the web, clipboard and snippets. Press Tab to switch to Files and search your files.</p>
+    <label class="check">
+      <input type="checkbox" checked={search.GroupResults} onchange={(e) => run(() => Settings.SetGroupResults(e.currentTarget.checked))} />
+      Group files by type
+    </label>
+    <p class="help">Shows the best match first, then Code, Documents, PDFs, Images and Videos under their own headings. Off, files are one list in the order found.</p>
   </section>
 
   <section class="block">

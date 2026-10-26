@@ -1,8 +1,9 @@
 import type { Item as Entry } from "../../bindings/agi/internal/palette";
 import type { Match, Row } from "../../bindings/agi/internal/search";
+import { arrange } from "./groups.ts";
 
 /** A line of the result list that is a file: the file itself, or (when expanded) one more match inside it. */
-export type FileItem = { kind: "row"; row: Row } | { kind: "match"; row: Row; match: Match };
+export type FileItem = { kind: "row"; row: Row; heading?: string } | { kind: "match"; row: Row; match: Match };
 
 /** One selectable line of the result list: an instant answer (an app, a quicklink, the web search), a file, or a match inside a file. */
 export type Item = { kind: "entry"; entry: Entry } | FileItem;
@@ -16,19 +17,21 @@ export function moreCount(row: Row): number {
 
 /**
  * The visible list: a quicklink the text triggers, then the apps, then every file (each followed by its
- * further matches if it is expanded), and the web search last. With `keepOrder` (the pinned things shown
+ * further matches if it is expanded; under headings per kind of file when `group` is on, see groups.ts), and the web search last. With `keepOrder` (the pinned things shown
  * when nothing is typed) the entries are listed as given: pins are in the order they were pinned.
  */
-export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Entry[] = [], keepOrder = false): Item[] {
+export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Entry[] = [], keepOrder = false, group = false): Item[] {
   if (keepOrder) return entries.map((entry) => ({ kind: "entry", entry }));
   const of = (match: (e: Entry) => boolean): Item[] =>
     entries.filter(match).map((entry) => ({ kind: "entry", entry }));
   const items: Item[] = [...of((e) => e.Kind === "quicklink"), ...of((e) => e.Kind !== "quicklink" && e.Kind !== "web")];
-  for (const row of rows) {
-    items.push({ kind: "row", row });
-    if (expanded.has(row.Path)) {
-      for (const match of matchesOf(row).slice(1)) items.push({ kind: "match", row, match });
-    }
+  for (const { heading, rows: inGroup } of arrange(rows, group)) {
+    inGroup.forEach((row, at) => {
+      items.push({ kind: "row", row, heading: at === 0 && heading ? heading : undefined });
+      if (expanded.has(row.Path)) {
+        for (const match of matchesOf(row).slice(1)) items.push({ kind: "match", row, match });
+      }
+    });
   }
   items.push(...of((e) => e.Kind === "web")); // the web search is the fallback, last of all
   return items;

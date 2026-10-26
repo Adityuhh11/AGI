@@ -54,6 +54,9 @@
   let answerNote = $state(""); // why the Clipboard mode has nothing to list (it is off, nothing matches), if it has not
   let pins = $state(new Set<string>()); // the ids of everything pinned, to mark the rows
   let pinnedRows = $state<Entry[]>([]); // the pinned things that still exist, in the order pinned: the bar's empty state
+  let keying = $state(false); // an arrow key moved the selection a moment ago: the list lifts the selected row and dims the rest
+  let keyingTimer: ReturnType<typeof setTimeout> | undefined;
+  const KEYING_MS = 900;
   let instant = 0;
   let input: HTMLInputElement;
   let content: HTMLElement;
@@ -64,7 +67,7 @@
   const local = $derived(entries.filter((e) => e.Kind !== "web")); // answers about your own machine
   const fileRows = $derived(results && (results.Confident || local.length === 0) ? (results.Rows ?? []) : []);
   const showingPins = $derived(query.trim() === "" && mode === "all"); // nothing typed: the bar lists what is pinned
-  const items = $derived<Item[]>(flatten(fileRows, expanded, entries, showingPins));
+  const items = $derived<Item[]>(flatten(fileRows, expanded, entries, showingPins, info?.GroupResults ?? false));
   const current = $derived<Item | undefined>(items[selected]);
   const firstApp = $derived(items.findIndex((i) => i.kind === "entry" && i.entry.Kind === "app"));
   const firstFile = $derived(items.findIndex((i) => i.kind === "row"));
@@ -407,6 +410,11 @@
         setMode(cycle(mode, command.by, info?.FileSearch));
         break;
       case "move":
+        if (info?.SelectionEffect) {
+          keying = true;
+          clearTimeout(keyingTimer);
+          keyingTimer = setTimeout(() => (keying = false), KEYING_MS);
+        }
         selected = step(selected, command.by, items.length);
         scrollToSelected();
         break;
@@ -496,11 +504,12 @@
               <p class="note" class:problem={note.problem}>{note.text}</p>
             {/each}
             {#if items.length > 0}
-              <div class="results" class:stale={pending} id="results" role="listbox" aria-label="Results">
+              <div class="results" class:stale={pending} class:keying id="results" role="listbox" aria-label="Results">
                 {#each items as item, index (itemKey(item))}
                   {#if showingPins && index === 0}<h3 class="section">Pinned</h3>{/if}
                   {#if sections && index === firstApp}<h3 class="section">Apps</h3>{/if}
-                  {#if sections && index === firstFile}<h3 class="section">Files</h3>{/if}
+                  {#if item.kind === "row" && item.heading}<h3 class="section">{item.heading}</h3>
+                  {:else if sections && index === firstFile}<h3 class="section">Files</h3>{/if}
                   {#if item.kind === "entry"}
                     <EntryRow
                       id={optionId(index)}
@@ -508,7 +517,7 @@
                       tags={tagsOf(item)}
                       pinned={pins.has(pinIdOf(item) ?? "")}
                       selected={index === selected}
-                      onhover={() => (selected = index)}
+                      onhover={() => ((selected = index), (keying = false))}
                       onactivate={() => run(item)}
                     />
                   {:else}
@@ -651,6 +660,38 @@
   }
   .results.stale {
     opacity: 0.55; /* the answer to an older query, until the new one lands */
+  }
+  /* While the arrow keys move the selection (and for a moment after), the selected row lifts as a lit pane of glass and
+     the rest fade back. Only opacity and transform change. The rows are other components', hence :global. */
+  .results :global(.item) {
+    transition:
+      opacity 200ms var(--ease),
+      transform 240ms var(--ease),
+      box-shadow 240ms var(--ease);
+  }
+  .results.keying {
+    scroll-behavior: smooth;
+  }
+  .results.keying :global(.item:not(.selected)) {
+    opacity: 0.45;
+  }
+  .results.keying :global(.item.selected) {
+    position: relative;
+    z-index: 1;
+    transform: translateY(-2px) scale(1.012);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 0 1px rgba(255, 255, 255, 0.07),
+      0 10px 18px -10px rgba(0, 0, 0, 0.9);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .results.keying {
+      scroll-behavior: auto;
+    }
+    .results.keying :global(.item.selected) {
+      transform: none;
+    }
   }
   .section {
     margin: 4px 24px 2px;
