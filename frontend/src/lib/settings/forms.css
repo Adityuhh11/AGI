@@ -23,13 +23,19 @@ main .field > .label {
 main .check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  width: fit-content;
+  padding: 4px 0;
   color: var(--text);
   font: 560 13px/1.2 var(--sans);
   cursor: pointer;
 }
 main .check input {
-  accent-color: var(--text-2);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--chrome);
+  cursor: pointer;
 }
 main .help {
   margin: 0;
@@ -57,6 +63,16 @@ main select {
   background: var(--tile);
   color: var(--text);
   font: 450 13.5px/1 var(--sans);
+  transition: border-color 0.12s, background-color 0.12s;
+}
+main input[type="text"]:hover:not(:focus),
+main select:hover:not(:focus) {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+main input[type="text"]:disabled,
+main select:disabled {
+  color: var(--text-3);
+  cursor: default;
 }
 main select {
   appearance: none;
@@ -81,6 +97,7 @@ main input::placeholder {
 main .mono {
   font-family: var(--mono);
   font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
 main .btn {
   height: 34px;
@@ -134,7 +151,8 @@ main .btn.danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--danger) 16%, transparent);
 }
 main .btn:focus-visible,
-main .keys:focus-visible {
+main .keys:focus-visible,
+main .check input:focus-visible {
   outline: 1px solid var(--chrome);
   outline-offset: 2px;
 }

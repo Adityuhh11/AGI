@@ -112,8 +112,17 @@
     font: 450 13px/1 var(--sans);
     cursor: pointer;
   }
+  .keys {
+    transition: background-color 0.12s, border-color 0.12s;
+  }
   .keys:hover {
     background: var(--lift);
+  }
+  .keys:active {
+    background: var(--tile);
+  }
+  .keys:has(.prompt) {
+    border-color: rgba(230, 232, 236, 0.45);
   }
   .change {
     margin-left: 8px;

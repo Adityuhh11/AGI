@@ -100,11 +100,17 @@
     font: 500 13.5px/1 var(--sans);
     text-align: left;
     cursor: pointer;
+    transition: background-color 0.12s, color 0.12s;
   }
   nav button:hover {
+    background: var(--tile);
     color: var(--text);
   }
-  nav button.on {
+  nav button:active {
+    background: var(--lift);
+  }
+  nav button.on,
+  nav button.on:hover {
     background: var(--lift);
     color: var(--text);
     font-weight: 600;
