@@ -77,7 +77,7 @@ func (s *Service) Search() SearchView {
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
 		Hosts: enginesetup.Hosts, DownloadMB: int(enginesetup.DownloadBytes() >> 20), Pace: cfg.Search.Pace,
 		PDFPages: cfg.Search.PDFPages, Photos: cfg.Search.Photos, Videos: cfg.Search.Videos,
-		Exclude: cfg.Exclude, Data: s.dataFolder(cfg), HoldIndexing: cfg.Search.HoldIndexing, Indexed: s.indexed(), IndexDone: index.FilesDone, IndexTotal: index.FilesTotal,
+		Exclude: cfg.Exclude, Data: s.dataFolder(cfg, st), HoldIndexing: cfg.Search.HoldIndexing, Indexed: s.indexed(), IndexDone: index.FilesDone, IndexTotal: index.FilesTotal,
 	}
 }
 

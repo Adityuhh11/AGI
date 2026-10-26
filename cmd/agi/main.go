@@ -235,7 +235,11 @@ func run(afterUpdate bool) error {
 		// A first download waits for "Start indexing" so the choices come before any picture is embedded.
 		func() bool { return engine.Status().State == sidecar.StateReady && !store.Get().Search.HoldIndexing },
 		func(indexing.Status) { refresh() })
-	surveys := survey.New(engine.Client(), func() bool { return engine.Status().State == sidecar.StateReady })
+	// Counting folders needs no model (POST /survey answers while it loads), so the guide's estimates need not wait for it.
+	surveys := survey.New(engine.Client(), func() bool {
+		state := engine.Status().State
+		return state == sidecar.StateReady || state == sidecar.StateWarming
+	})
 	surveys.Set(cfg.Roots, cfg.Exclude)
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)

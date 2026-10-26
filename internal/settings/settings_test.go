@@ -122,3 +122,29 @@ func TestAnUnreadableFileIsKeptAsideAndTheDefaultsAreUsed(t *testing.T) {
 		t.Errorf("the old file was not kept: %q, %v", kept, err)
 	}
 }
+
+func TestAnUnreadableFileReplacesAnEarlierBackupAndAFileThatCannotBeReadIsLeftAlone(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	for _, body := range []string{"typo_one = 1\n", "typo_two = 2\n"} {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Open(path); err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+	}
+	if kept, _ := os.ReadFile(filepath.Join(dir, "config.unreadable.toml")); !strings.Contains(string(kept), "typo_two") {
+		t.Errorf("the backup holds %q, want the latest unreadable file", kept)
+	}
+	blocked := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.Mkdir(blocked, 0o755); err != nil { // a folder where the file should be: reading it fails
+		t.Fatal(err)
+	}
+	if _, err := Open(blocked); err == nil {
+		t.Error("an unreadable path was treated as a bad file and replaced by defaults")
+	}
+	if info, err := os.Stat(blocked); err != nil || !info.IsDir() {
+		t.Errorf("the path was moved: %v", err)
+	}
+}

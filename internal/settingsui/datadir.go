@@ -30,9 +30,10 @@ type DataFolder struct {
 	CanChange bool
 }
 
-func (s *Service) dataFolder(cfg config.Config) DataFolder {
+// dataFolder takes the install state its caller already has: asking again re-reads the whole engine source to see whether it is
+// out of date, and the page asks for all this every second.
+func (s *Service) dataFolder(cfg config.Config, installed enginesetup.State) DataFolder {
 	l := s.o.Place.Layout()
-	installed := s.o.Setup.State()
 	return DataFolder{
 		Engine: l.Root, Index: l.Index(), Chosen: cfg.Search.DataDir != "",
 		CanChange: !installed.Installed && !installed.Installing && !l.HasIndex(),
