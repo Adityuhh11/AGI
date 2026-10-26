@@ -35,7 +35,7 @@ type SearchView struct {
 	DownloadMB int
 	// Data says where the download and the index are saved and whether that can still be changed.
 	Data DataFolder
-	Pace       string
+	Pace string
 	// HoldIndexing says the folders wait for StartIndexing; Indexed is how many files the index holds, which decides
 	// whether a change of choice is a draft the page keeps until it is saved.
 	HoldIndexing bool
@@ -150,6 +150,28 @@ func (s *Service) RemoveFiles() string {
 		return msg
 	}
 	return reason(s.o.Setup.Remove())
+}
+
+// RemoveEverything takes file search off the computer as if it had never been set up: the engine, the models, the index,
+// the folders and what was chosen for them. Nothing of it is kept, so it can be set up again from nothing, for instance
+// after switching to another version of AGI.
+func (s *Service) RemoveEverything() string {
+	if s.o.Setup.State().Installing {
+		return "file search is being installed; cancel that first"
+	}
+	// The engine stops when the setting turns it off, before its files are deleted.
+	if msg := reason(s.o.Store.Update(func(c *config.Config) {
+		defaults := config.Default().Search
+		defaults.DataDir = c.Search.DataDir // where it goes is the person's choice, not something to forget
+		c.Search = defaults
+		c.Roots, c.Exclude = nil, nil
+	})); msg != "" {
+		return msg
+	}
+	if err := s.o.Setup.Remove(); err != nil {
+		return reason(err)
+	}
+	return reason(s.o.Setup.RemoveIndex())
 }
 
 // AddFolder asks for a folder and adds it to the indexed ones. Cancelling the picker changes nothing.

@@ -104,3 +104,23 @@ func TestAStaleTempFileFromACrashDoesNotBlockTheNextSave(t *testing.T) {
 		t.Fatalf("the temp file was left behind: %v", err)
 	}
 }
+
+func TestAnUnreadableFileIsKeptAsideAndTheDefaultsAreUsed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("hotkey = 'Ctrl+Alt+K'
+from_the_future = true
+"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if store.Get().Hotkey != config.DefaultHotkey {
+		t.Errorf("hotkey = %q, want the default", store.Get().Hotkey)
+	}
+	kept, err := os.ReadFile(filepath.Join(filepath.Dir(path), "config.unreadable.toml"))
+	if err != nil || !strings.Contains(string(kept), "from_the_future") {
+		t.Errorf("the old file was not kept: %q, %v", kept, err)
+	}
+}

@@ -27,6 +27,7 @@ type Setup interface {
 	Cancel()
 	State() enginesetup.State
 	Remove() error
+	RemoveIndex() error
 }
 
 // Indexing is the indexing manager as the service uses it; *indexing.Manager satisfies it.

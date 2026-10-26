@@ -4,7 +4,9 @@ import "@fontsource-variable/sora";
 import "./theme.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
+import { catchUnexpected } from "./lib/oops";
 
+catchUnexpected();
 const target = document.getElementById("app")!;
 if (location.hash.startsWith("#setup")) {
   import("./Setup.svelte").then(({ default: Setup }) => mount(Setup, { target }));
