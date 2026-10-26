@@ -52,6 +52,19 @@ input {
   caret-color: var(--chrome);
 }
 
+/* Anything that takes the keyboard shows it: the same hairline chrome ring everywhere. Components with a ring of their own
+   override this. */
+:focus-visible {
+  outline: 1px solid var(--chrome);
+  outline-offset: 2px;
+}
+
+/* Scrollbars in the plate's own colours instead of the system's. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
 /* The panel is cloaked, not hidden, so its page keeps running: everything that moves holds still
    while the panel does not have the keyboard. */
 html[data-active="false"] *,
@@ -75,12 +88,4 @@ html[data-surface="settings"] body {
     animation: none !important;
     transition: none !important;
   }
-}
-
-/* The settings window is an ordinary opaque window, not the transparent search bar. */
-html[data-surface="settings"],
-html[data-surface="settings"] body {
-  background: var(--plate);
-  overflow: auto;
-  user-select: text;
 }

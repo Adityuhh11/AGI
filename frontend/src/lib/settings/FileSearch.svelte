@@ -141,7 +141,7 @@
     {#if search.Installing}
       <p class="help">Step {search.Step} of {search.Steps}: {search.StepName}</p>
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={percent} aria-label={search.StepName}>
-        <div class="fill" style:width="{search.Total > 0 ? percent : 4}%"></div>
+        <div class="fill" style:transform="scaleX({(search.Total > 0 ? percent : 4) / 100})"></div>
       </div>
       {#if search.Total > 0}
         <p class="help mono">{megabytes(search.Done)} of {megabytes(search.Total)} MB</p>
@@ -261,7 +261,7 @@
       <p class="help">{search.Paused ? "Indexing is paused. Search still works on what is indexed." : search.IndexText}</p>
       {#if search.IndexState === "indexing" && search.IndexTotal > 0}
         <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={search.IndexTotal} aria-valuenow={search.IndexDone} aria-label="Files indexed in this folder">
-          <div class="fill" style:width="{Math.round((search.IndexDone / search.IndexTotal) * 100)}%"></div>
+          <div class="fill" style:transform="scaleX({search.IndexDone / search.IndexTotal})"></div>
         </div>
       {/if}
       <div>
@@ -362,7 +362,8 @@
     height: 100%;
     border-radius: 3px;
     background: var(--chrome);
-    transition: width 0.4s var(--ease);
+    transform-origin: left;
+    transition: transform 0.4s var(--ease);
   }
   .draft {
     display: flex;

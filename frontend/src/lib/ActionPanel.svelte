@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { filterActions } from "./actions";
+  import { step } from "./flatten";
 
   /** One line of the panel: an action of a row, or a tag to put on it. */
   type Line = { id: string; title: string; keys?: string };
@@ -35,8 +36,8 @@
   function onkeydown(event: KeyboardEvent) {
     const close = event.key === "Escape" || (event.ctrlKey && event.key.toLowerCase() === "k");
     if (close) onclose();
-    else if (event.key === "ArrowDown") selected = Math.min(shown.length - 1, selected + 1);
-    else if (event.key === "ArrowUp") selected = Math.max(0, selected - 1);
+    else if (event.key === "ArrowDown") selected = step(selected, 1, shown.length);
+    else if (event.key === "ArrowUp") selected = step(selected, -1, shown.length);
     else if (event.key === "Enter") {
       if (shown[selected]) onrun(shown[selected].id);
     } else return; // typing goes to the filter
@@ -55,11 +56,16 @@
     spellcheck="false"
     autocomplete="off"
     aria-label={placeholder}
+    role="combobox"
+    aria-expanded="true"
+    aria-controls="action-list"
+    aria-activedescendant={shown.length > 0 ? "action-" + selected : undefined}
   />
-  <ul role="listbox" aria-label="Actions">
+  <ul role="listbox" aria-label="Actions" id="action-list">
     {#each shown as action, index (action.id)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <li
+        id={"action-" + index}
         role="option"
         aria-selected={index === selected}
         class:selected={index === selected}
@@ -121,6 +127,9 @@
   }
   li.selected {
     background: var(--lift);
+  }
+  li:not(.none) {
+    cursor: pointer;
   }
   li.none {
     color: var(--text-3);
