@@ -97,6 +97,11 @@ class LlamaServer:
         self.close()
         self._launch_with_fallback()
 
+    def fall_back_to_cpu(self) -> None:
+        """Start the server again without the graphics card, for good."""
+        self._cpu, self._device_id = True, None
+        self.restart()
+
     def close(self) -> None:
         process, self._process = self._process, None
         if process is None or process.poll() is not None:

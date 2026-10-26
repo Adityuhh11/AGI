@@ -68,7 +68,9 @@ def main() -> int:
     import uvicorn
 
     app = create_app(settings, token, lambda: _load_embedder(settings))
-    uvicorn.run(app, host="127.0.0.1", port=int(port_text), log_level="info")
+    uvicorn.run(
+        app, host="127.0.0.1", port=int(port_text), log_level="info", access_log=False
+    )  # the launcher polls /health twice a second
     return 0
 
 

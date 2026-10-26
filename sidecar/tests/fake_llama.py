@@ -46,6 +46,7 @@ class FakeLlama:
         self.requests: list[tuple[str, dict]] = []
         self.client_ports: set[int] = set()
         self.drop_next = 0  # close this many requests without an answer
+        self.gpu_lost = False  # answer 500 "ErrorDeviceLost", as the real server does
         self.loading = False  # answer 503 "Loading model", as the real server does while it starts
         self.image_sizes: list[tuple[int, int]] = []
         owner = self
@@ -63,6 +64,10 @@ class FakeLlama:
                     return self._send(401, {"error": "no"})
                 if owner.loading:
                     return self._send(503, {"error": "Loading model"})
+                if owner.gpu_lost:
+                    return self._send(
+                        500, {"error": "decode() failed: vk::Queue::submit: ErrorDeviceLost"}
+                    )
                 if owner.drop_next > 0:
                     owner.drop_next -= 1
                     self.close_connection = True
@@ -118,3 +123,8 @@ class Handle:
         """A new server has a new key, as the real one does."""
         self.restarts += 1
         self.api_key = self.fake.api_key = f"key-{self.restarts + 1}"
+
+    def fall_back_to_cpu(self) -> None:
+        self.device = "cpu"
+        self.fake.gpu_lost = False
+        self.restart()
