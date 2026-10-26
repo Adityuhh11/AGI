@@ -14,6 +14,7 @@ import (
 // SearchView is the File search page: what is installed, how an install is going, and how the engine is.
 type SearchView struct {
 	Enabled     bool
+	InLauncher  bool // files are among the launcher's results
 	Installed   bool
 	Installing  bool
 	NeedsUpdate bool
@@ -69,7 +70,7 @@ func (s *Service) Search() SearchView {
 	return SearchView{
 		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
 		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
-		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
+		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
@@ -183,6 +184,11 @@ func (s *Service) RemoveFolder(folder string) string {
 		}
 		c.Exclude = exclude
 	}))
+}
+
+// SetInLauncher puts files among the launcher's results, or keeps the launcher to apps, the web and the rest.
+func (s *Service) SetInLauncher(on bool) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.InLauncher = on }))
 }
 
 // SetPace sets how hard indexing works: fast, balanced or gentle.

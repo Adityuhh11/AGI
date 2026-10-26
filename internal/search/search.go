@@ -147,7 +147,7 @@ func (s *Service) Search(query string, token int) Results {
 			return Results{Token: token, State: StateWarming, Message: "Search is starting up..."}
 		}
 		log.Printf("search %q failed: %v", query, err)
-		return Results{Token: token, State: StateError, Message: err.Error()}
+		return Results{Token: token, State: StateError, Message: sidecar.Explain(err)}
 	}
 	out.Confident = resp.Confident
 	for _, file := range resp.Files {

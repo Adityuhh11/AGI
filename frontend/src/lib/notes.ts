@@ -28,6 +28,8 @@ export function notesFor(s: NoteState): Note[] {
   const nothing = s.fileRows + s.local === 0;
   if (s.query.trim() === "") {
     if (s.info?.Engine === "failed") say(s.info.EngineMessage, true);
+  } else if (s.effective === "files" && s.info && !s.info.FilesInBar) {
+    say("Files are not part of the launcher. Turn them on in Settings, File search.");
   } else if (s.effective === "tags") {
     if (s.entries === 0) say("Nothing is tagged like that yet. Select a row and press Ctrl+T.");
   } else if (s.effective === "clip" || s.effective === "snip") {

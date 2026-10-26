@@ -69,6 +69,7 @@
   const firstApp = $derived(items.findIndex((i) => i.kind === "entry" && i.entry.Kind === "app"));
   const firstFile = $derived(items.findIndex((i) => i.kind === "row"));
   const sections = $derived(firstApp >= 0 && firstFile >= 0); // two kinds of rows: label them
+  const searchWhat = $derived(info?.FilesInBar ? "Search apps, files and the web" : "Search apps and the web");
   const chip = $derived(results?.Scope || label[effective]);
 
   // The tags of the rows on screen, for their chips.
@@ -248,7 +249,7 @@
     answerNote = answer.Note ?? "";
     selected = 0;
     clearTimeout(timer);
-    if (effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip") {
+    if (!info?.FilesInBar || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip") {
       token++;
       pending = false;
       results = null;
@@ -401,7 +402,7 @@
         break;
       }
       case "mode":
-        setMode(cycle(mode, command.by));
+        setMode(cycle(mode, command.by, info?.FilesInBar));
         break;
       case "move":
         selected = step(selected, command.by, items.length);
@@ -471,11 +472,11 @@
             bind:value={query}
             oninput={onInput}
             type="text"
-            placeholder="Search apps, files and the web"
+            placeholder={searchWhat}
             spellcheck="false"
             autocomplete="off"
             role="combobox"
-            aria-label="Search apps, files and the web"
+            aria-label={searchWhat}
             aria-expanded={showPanel}
             aria-controls="results"
             aria-activedescendant={current ? optionId(selected) : undefined}

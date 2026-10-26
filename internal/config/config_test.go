@@ -207,6 +207,32 @@ func TestLoadReadsTheSearchSettings(t *testing.T) {
 	}
 }
 
+func TestFilesStayInTheLauncherForOlderFilesButNotForNewInstalls(t *testing.T) {
+	tests := []struct {
+		name, body string
+		want       bool
+	}{
+		{"file search on, from before the key", "[search]\nenabled = true\n", true},
+		{"file search off", "[search]\nenabled = false\n", false},
+		{"chosen off", "[search]\nenabled = true\nin_launcher = false\n", false},
+		{"chosen on", "[search]\nin_launcher = true\n", true},
+	}
+	for _, tt := range tests {
+		path := filepath.Join(t.TempDir(), "config.toml")
+		writeFile(t, path, tt.body)
+		got, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Search.InLauncher != tt.want {
+			t.Errorf("%s: InLauncher = %v, want %v", tt.name, got.Search.InLauncher, tt.want)
+		}
+	}
+	if Default().Search.InLauncher {
+		t.Error("a fresh install must start as a launcher only")
+	}
+}
+
 func TestHoldIndexingIsOffForOlderFilesAndWrittenOnlyWhenOn(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	writeFile(t, path, "[search]\nenabled = true\n")

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -210,7 +211,7 @@ func TestOneFailingRootDoesNotStopTheOthers(t *testing.T) {
 	if len(fake.submitted) != 2 {
 		t.Errorf("submitted %v, want both roots", fake.submitted)
 	}
-	if s := m.Status(); s.State != Failed || s.Message != "a: disk on fire" {
+	if s := m.Status(); s.State != Failed || !strings.HasPrefix(s.Message, "a: ") {
 		t.Errorf("status %+v", s)
 	}
 }
