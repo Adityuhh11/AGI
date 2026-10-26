@@ -308,7 +308,7 @@ func run(afterUpdate bool) error {
 			indexer.Pause()
 		}
 	}
-	icon = tray.New(app, bar.Show, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
+	icon = tray.New(app, bar.Show, notesWindow.Open, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),

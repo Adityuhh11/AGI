@@ -21,6 +21,10 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **Web and quicklinks** | `?` or `web:` searches in the browser you choose. `gh rust lifetimes` opens that search on GitHub; add your own quicklinks. |
 | **Clipboard history** *(off until you switch it on)* | `clip:` lists what you copied, newest first. Enter pastes it into the program you came from. Skips copies marked private, password managers and programs you list. |
 | **Snippets** | Text you paste often, with `{date}`, `{time}` and `{clipboard}` filled in. `snip:` or a keyword. |
+| **Notes** | `note:` lists your notes; `note: buy milk` makes one. They are markdown files in `%APPDATA%\AGI\notes`, opened in a small window that stays above other windows (and can be resized, searched and deleted). |
+| **Timer and pomodoro** | `timer 25`, `timer 90s`, `timer 1h30 tea` or `pomodoro`: a small timer sits at the edge of the screen and keeps going when you close it. Lengths are in Settings > Timer. |
+| **Calculator and conversions** | `12*7+3`, `15% of 80`, `5 km in miles`, `72 f in c`: the answer is the first row; Enter copies it. |
+| **System** | `lock`, `sleep`, `task manager`, `recycle bin`, `windows settings`. Shut down and restart are left out on purpose. |
 | **Tags and pins** | `Ctrl+T` tags an app or file, `#work` lists everything tagged. `Ctrl+P` pins up to eight rows that show the moment the bar opens. |
 
 Keys: `Tab` switches between All / Apps / Files / Web, `Ctrl+K` shows what you can do with the selected row,
@@ -155,6 +159,7 @@ videos   = 'name'        # name | content
 | Search engine and models | `%LOCALAPPDATA%\AGI\engine` (only after you turn file search on); the setup guide can put it and the index on another drive |
 | The index | `%LOCALAPPDATA%\AGI\memory` |
 | Clipboard history | `%LOCALAPPDATA%\AGI\clipboard.json` (only if switched on) |
+| Notes | `%APPDATA%\AGI\notes\*.md`, one file per note |
 | What you launched, tags, pins | `%APPDATA%\AGI\state.json` |
 
 ## Build from source

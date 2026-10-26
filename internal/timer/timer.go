@@ -86,6 +86,9 @@ func (t *Timer) Start(d time.Duration, label string) {
 	if d <= 0 {
 		return
 	}
+	if label == "" {
+		label = "Timer"
+	}
 	t.begin(Countdown, label, d, 0, 0)
 }
 

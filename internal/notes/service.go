@@ -29,6 +29,3 @@ func (s *Service) SetOnTop(on bool) {
 		s.setOnTop(on)
 	}
 }
-
-// Folder is where the notes are kept, for the "open the folder" button.
-func (s *Service) Folder() string { return s.store.Dir() }
