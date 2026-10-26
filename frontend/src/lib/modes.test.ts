@@ -1,7 +1,7 @@
 // Run with: node --test src/lib/modes.test.ts (Node strips the types itself)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cycle, escapeStep, label } from "./modes.ts";
+import { asksForFiles, cycle, escapeStep, label } from "./modes.ts";
 
 test("Tab walks the modes and wraps, Shift+Tab walks back", () => {
   assert.equal(cycle("all", 1), "apps");
@@ -13,10 +13,17 @@ test("Tab walks the modes and wraps, Shift+Tab walks back", () => {
   assert.equal(cycle("apps", -1), "all");
 });
 
-test("Tab skips Files when files are not in the bar", () => {
+test("Tab skips Files when file search is off", () => {
   assert.equal(cycle("apps", 1, false), "web");
   assert.equal(cycle("web", -1, false), "apps");
   assert.equal(cycle("tags", 1, false), "all");
+});
+
+test("a kind-of-file prefix asks for files", () => {
+  assert.ok(asksForFiles("code: retry with backoff"));
+  assert.ok(asksForFiles(" PDF :lecture"));
+  assert.ok(!asksForFiles("note to self: milk"));
+  assert.ok(!asksForFiles("codex"));
 });
 
 test("Escape leaves the mode, then clears the text, then closes", () => {

@@ -15,6 +15,7 @@
   let confirming = $state("");
   let removingFiles = $state(false);
   let removingAll = $state(false);
+  let optionsOpen = $state(false);
   const roots = $derived(view.Roots ?? []);
 
   const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
@@ -97,6 +98,11 @@
     await reload();
   }
 
+  // The options are folded away until they matter: before the first indexing, or with a change waiting to be saved.
+  $effect(() => {
+    if (search?.HoldIndexing || plan.length > 0) optionsOpen = true;
+  });
+
   const running = $derived(!!search && search.Enabled && search.Installed && !search.NeedsUpdate && search.EngineState === "ready");
   const failed = $derived(!!search && (search.EngineState === "failed" || !!search.Error));
   const headline = $derived.by(() => {
@@ -113,66 +119,75 @@
   }
 </script>
 <h2>File search</h2>
-<p class="lede">Find files by what they contain: code, PDF pages, notes, and pictures by what they show. It runs on this computer and nothing leaves it.</p>
+<p class="lede">Find files by what they contain. It runs on this computer and nothing leaves it.</p>
 
 {#if search}
-  <section class="card">
+  <section class="block">
     <header class="top">
       <span class="dot" class:on={running} class:bad={failed} aria-hidden="true"></span>
       <div class="who">
         <h3>{headline}</h3>
         {#if search.Installed && !search.Installing && !search.NeedsUpdate}<p class="help">{search.Enabled ? engineText : "Installed and off."}</p>{/if}
       </div>
-      <div class="actions">
-        {#if search.Installing}
-          <button type="button" class="btn" onclick={() => Settings.CancelInstall().then(refresh)}>Cancel</button>
-        {:else if !search.Installed}
-          <button type="button" class="btn primary" onclick={() => run(() => Settings.TurnOn())}>Download and turn on</button>
-        {:else if search.NeedsUpdate}
-          <button type="button" class="btn primary" onclick={() => run(() => Settings.Update())}>Update</button>
-        {:else if search.Enabled}
-          <button type="button" class="btn" onclick={() => run(() => Settings.TurnOff())}>Turn off</button>
-        {:else}
-          <button type="button" class="btn primary" onclick={() => run(() => Settings.TurnOn())}>Turn on</button>
-        {/if}
-      </div>
+      {#if search.Installing}
+        <button type="button" class="btn" onclick={() => Settings.CancelInstall().then(refresh)}>Cancel</button>
+      {:else if !search.Installed}
+        <button type="button" class="btn primary" onclick={() => run(() => Settings.TurnOn())}>Download and turn on</button>
+      {:else if search.NeedsUpdate}
+        <button type="button" class="btn primary" onclick={() => run(() => Settings.Update())}>Update</button>
+      {:else if search.Enabled}
+        <button type="button" class="btn" onclick={() => run(() => Settings.TurnOff())}>Turn off</button>
+      {:else}
+        <button type="button" class="btn primary" onclick={() => run(() => Settings.TurnOn())}>Turn on</button>
+      {/if}
     </header>
 
     {#if search.Installing}
-      <p class="help">Step {search.Step} of {search.Steps}: {search.StepName}</p>
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={percent} aria-label={search.StepName}>
         <div class="fill" style:transform="scaleX({(search.Total > 0 ? percent : 4) / 100})"></div>
       </div>
-      {#if search.Total > 0}
-        <p class="help mono">{megabytes(search.Done)} of {megabytes(search.Total)} MB</p>
-      {:else if search.Message}
-        <p class="help mono">{search.Message}</p>
-      {/if}
-      <p class="help">You can close this window; the download goes on. Cancelling keeps what was downloaded. Nothing is indexed until you start it.</p>
+      <p class="help">
+        Step {search.Step} of {search.Steps}: {search.StepName}{#if search.Total > 0}, {megabytes(search.Done)} of {megabytes(search.Total)} MB{/if}.
+        You can close this window; the download goes on.
+      </p>
     {:else if !search.Installed}
       <p class="help">
-        A one-time download of about {(search.DownloadMB / 1024).toFixed(1)} GB (the engine and its models) from {(search.Hosts ?? []).join(", ")}.
-        Nothing is downloaded until you press the button. Afterwards you choose what to index before anything is.
+        A one-time download of about {(search.DownloadMB / 1024).toFixed(1)} GB from {(search.Hosts ?? []).join(", ")}. Nothing is downloaded until you press the
+        button, and nothing is indexed until you say so.
       </p>
       <p class="help">
-        Saved in <span class="mono">{search.Data.Engine}</span>; the index goes in <span class="mono">{search.Data.Index}</span>.
+        Saved in <span class="mono">{search.Data.Engine}</span>.
         {#if search.Data.CanChange}
-          <button type="button" class="btn quiet" onclick={() => run(() => Settings.ChooseDataFolder())}>Change folder…</button>
+          <button type="button" class="btn quiet" onclick={() => run(() => Settings.ChooseDataFolder())}>Change…</button>
           {#if search.Data.Chosen}<button type="button" class="btn quiet" onclick={() => run(() => Settings.UseDefaultDataFolder())}>Use the usual place</button>{/if}
         {/if}
       </p>
     {:else if search.NeedsUpdate}
-      <p class="help">This version of AGI comes with a newer search engine than the one installed. Updating replaces it and keeps your index.</p>
+      <p class="help">This version of AGI comes with a newer search engine. Updating keeps your index.</p>
+    {:else if search.Enabled && search.EngineState === "ready" && !search.HoldIndexing}
+      <p class="help">{search.Paused ? "Indexing is paused." : search.IndexText}</p>
+      {#if search.IndexState === "indexing" && search.IndexTotal > 0}
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={search.IndexTotal} aria-valuenow={search.IndexDone} aria-label="Files indexed in this folder">
+          <div class="fill" style:transform="scaleX({search.IndexDone / search.IndexTotal})"></div>
+        </div>
+      {/if}
+      {#if search.IndexState === "indexing"}
+        <div>
+          <button type="button" class="btn" onclick={() => (search?.Paused ? Settings.ResumeIndexing() : Settings.PauseIndexing()).then(refresh)}>
+            {search.Paused ? "Resume" : "Pause"}
+          </button>
+        </div>
+      {/if}
     {/if}
     {#if search.Error}<p class="error">The last attempt failed: {search.Error}</p>{/if}
   </section>
 
   {#if search.Enabled && search.EngineState === "ready" && search.HoldIndexing && !search.NeedsUpdate}
-    <section class="card callout" role="status">
+    <section class="block callout" role="status">
       <h3>Ready. Nothing is indexed yet.</h3>
       <p class="help">
         {search.Device === "cpu" ? "It runs on the processor here, so pictures are slow." : "It runs on the graphics card."}
-        Add the folders you want and choose what to index below, then start.
+        Add your folders, check the indexing options below, then start.
       </p>
       <div>
         <button type="button" class="btn primary" disabled={roots.length === 0} onclick={() => run(() => Settings.StartIndexing())}>Start indexing</button>
@@ -180,21 +195,10 @@
       </div>
     </section>
   {/if}
-
-  {#if search.Installed}
-    <section class="card">
-      <h3>In the launcher</h3>
-      <label class="check">
-        <input type="checkbox" checked={search.InLauncher} onchange={(e) => run(() => Settings.SetInLauncher(e.currentTarget.checked))} />
-        Show files in the launcher
-      </label>
-      <p class="help">Off, the launcher only finds apps, the web, clipboard and snippets, and Tab skips Files. Files are still indexed.</p>
-    </section>
-  {/if}
 {/if}
 
-<section class="card">
-  <h3>Folders to search</h3>
+<section class="block">
+  <h3>Folders</h3>
   {#if roots.length > 0}
     <ul class="folders">
       {#each roots as root (root)}
@@ -223,68 +227,53 @@
 </section>
 
 {#if search?.Installed}
-  <section class="card">
-    <h3>What to index</h3>
-    {#if search.Device === "cpu"}
-      <p class="help warn">
-        This computer has no graphics card file search can use, so it runs on the processor: each picture takes about 5 seconds to
-        index. Words only and names are the quick choices here.
-      </p>
-    {/if}
-    {#each CHOICES as choice (choice.kind)}
-      <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
-      <ChoiceGroup labelId="{choice.kind}-label" options={choice.options} value={shown?.[choice.kind]} onpick={(id) => choose(choice.kind, id)} hints={choiceHints(choice.kind, choice.options.map((o) => o.id), search.Estimate)} />
-    {/each}
-    {#if plan.length > 0}
-      <div class="draft" role="status">
-        <p class="label">Not saved yet</p>
-        <ul>
-          {#each effects(plan, search.Device) as line (line)}<li>{line}</li>{/each}
-        </ul>
-        <div>
-          <button type="button" class="btn primary" onclick={saveDraft}>Save and re-index</button>
-          <button type="button" class="btn quiet" onclick={() => ($draft = null)}>Discard</button>
-        </div>
-      </div>
-    {:else}
-      <p class="help">
-        {staged
-          ? "A change is saved with a button, and then only that kind of file is looked at again; nothing already indexed is computed again."
-          : "Choose before you start: changing these later re-indexes the files they concern."}
-      </p>
-    {/if}
+  <section class="block">
+    <h3>In the launcher</h3>
+    <label class="check">
+      <input type="checkbox" checked={search.InLauncher} onchange={(e) => run(() => Settings.SetInLauncher(e.currentTarget.checked))} />
+      Include files in the default search
+    </label>
+    <p class="help">Off, the default search only finds apps, the web, clipboard and snippets. Press Tab to switch to Files and search your files.</p>
   </section>
 
-  <section class="card">
-    <h3>Indexing</h3>
-    {#if search.Enabled && search.EngineState === "ready" && !search.NeedsUpdate && !search.HoldIndexing}
-      <p class="help">{search.Paused ? "Indexing is paused. Search still works on what is indexed." : search.IndexText}</p>
-      {#if search.IndexState === "indexing" && search.IndexTotal > 0}
-        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={search.IndexTotal} aria-valuenow={search.IndexDone} aria-label="Files indexed in this folder">
-          <div class="fill" style:transform="scaleX({search.IndexDone / search.IndexTotal})"></div>
-        </div>
-      {/if}
-      <div>
-        <button type="button" class="btn" onclick={() => (search?.Paused ? Settings.ResumeIndexing() : Settings.PauseIndexing()).then(refresh)}>
-          {search.Paused ? "Resume indexing" : "Pause indexing"}
-        </button>
+  <section class="block">
+    <details bind:open={optionsOpen}>
+      <summary>Indexing options</summary>
+      <div class="options">
+        {#if search.Device === "cpu"}
+          <p class="help warn">
+            No usable graphics card, so each picture takes about 5 seconds to index. Words only and names are the quick choices.
+          </p>
+        {/if}
+        {#each CHOICES as choice (choice.kind)}
+          <span class="sublabel" id="{choice.kind}-label">{choice.label}</span>
+          <ChoiceGroup labelId="{choice.kind}-label" options={choice.options} value={shown?.[choice.kind]} onpick={(id) => choose(choice.kind, id)} hints={choiceHints(choice.kind, choice.options.map((o) => o.id), search.Estimate)} />
+        {/each}
+        {#if plan.length > 0}
+          <div class="draft" role="status">
+            <p class="label">Not saved yet</p>
+            <ul>
+              {#each effects(plan, search.Device) as line (line)}<li>{line}</li>{/each}
+            </ul>
+            <div>
+              <button type="button" class="btn primary" onclick={saveDraft}>Save and re-index</button>
+              <button type="button" class="btn quiet" onclick={() => ($draft = null)}>Discard</button>
+            </div>
+          </div>
+        {/if}
+        <span class="sublabel" id="speed-label">How hard it works</span>
+        <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} hints={paceHints(search.Estimate)} />
       </div>
-    {:else}
-      <p class="help">Nothing is being indexed.</p>
-    {/if}
-    <span class="sublabel" id="speed-label">How hard it works</span>
-    <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} hints={paceHints(search.Estimate)} />
-    <p class="help">Measured on a laptop with a 6 GB card. The index is built once; after that only what changes is read.</p>
+    </details>
   </section>
 {/if}
 
 {#if search && !search.Installing}
-  <section class="card">
-    <h3>Remove</h3>
+  <section class="block remove">
     {#if removingAll}
       <p class="help">
-        This deletes the engine, the models and the whole index, forgets the folders and the choices above, and turns file search off.
-        Nothing is kept. To use it again you download it again.
+        This deletes the engine, the models and the whole index, forgets the folders and the options, and turns file search off. To use it again you
+        download it again.
       </p>
       <div class="row">
         <button type="button" class="btn danger" onclick={removeEverything}>Delete everything</button>
@@ -297,9 +286,8 @@
         <button type="button" class="btn quiet" onclick={() => (removingFiles = false)}>Keep</button>
       </div>
     {:else}
-      <p class="help">Start over, for instance to switch to another version of AGI, or to give back the disk space.</p>
       <div class="row">
-        <button type="button" class="btn danger" onclick={() => (removingAll = true)}>Remove everything…</button>
+        <button type="button" class="btn quiet danger" onclick={() => (removingAll = true)}>Remove everything…</button>
         {#if search.Installed}<button type="button" class="btn quiet" onclick={() => (removingFiles = true)}>Delete downloaded files only…</button>{/if}
       </div>
     {/if}
@@ -307,21 +295,25 @@
 {/if}
 
 <style>
-  .card {
+  .block {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-bottom: 14px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
+    padding: 22px 0;
+    border-top: 1px solid var(--line);
   }
-  .card h3 {
+  .block:first-of-type {
+    padding-top: 0;
+    border-top: 0;
+  }
+  .block h3 {
     margin: 0;
     font: 600 13.5px/1.3 var(--sans);
   }
   .callout {
-    border-color: rgba(230, 232, 236, 0.45);
+    padding: 16px;
+    border: 1px solid rgba(230, 232, 236, 0.45);
+    border-radius: 12px;
     background: var(--lift);
   }
   .top {
@@ -352,6 +344,9 @@
     align-items: center;
     gap: 8px;
   }
+  .remove {
+    padding-bottom: 0;
+  }
   .bar {
     height: 6px;
     border-radius: 3px;
@@ -365,11 +360,25 @@
     transform-origin: left;
     transition: transform 0.4s var(--ease);
   }
+  summary {
+    width: fit-content;
+    color: var(--text);
+    font: 600 13.5px/1.3 var(--sans);
+    cursor: pointer;
+  }
+  summary::marker {
+    color: var(--text-3);
+  }
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
   .draft {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin: 6px 0 0;
     padding: 14px;
     border: 1px solid rgba(230, 232, 236, 0.45);
     border-radius: 10px;
@@ -417,7 +426,7 @@
     font-size: 11.5px;
   }
   .sublabel {
-    margin-top: 6px;
+    margin-top: 8px;
     color: var(--text-2);
     font-size: 12px;
   }

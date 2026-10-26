@@ -78,9 +78,9 @@ type Clipboard struct {
 type Search struct {
 	// Enabled turns file search on: the engine runs and the folders in Roots are indexed.
 	Enabled bool `toml:"enabled"`
-	// InLauncher puts files among the launcher's results and Files among the modes Tab cycles through. Off, the bar is
-	// only a launcher; file search still runs and is indexed. A file from before the key existed gets it on when file
-	// search is on, so nobody loses what they had.
+	// InLauncher puts files among the results of the default search. Off, the default search is only a launcher (apps,
+	// the web, clipboard, snippets) and files are searched in the Files mode, reached with Tab or "file:". A file from
+	// before the key existed gets it on when file search is on, so nobody loses what they had.
 	InLauncher bool `toml:"in_launcher"`
 	// HoldIndexing keeps the folders from being indexed until the person presses "Start indexing": set when file search
 	// is first downloaded, so the choices below are made before any picture is embedded. A file without the key (every

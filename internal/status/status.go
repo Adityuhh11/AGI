@@ -14,7 +14,7 @@ type Info struct {
 	Roots  []string
 	// FileSearch says whether file search is switched on.
 	FileSearch bool
-	// FilesInBar says files are among the launcher's results and Files is one of the modes Tab cycles through.
+	// FilesInBar says files are among the results of the default search; the Files mode is there whenever FileSearch is.
 	FilesInBar bool
 	// HotkeyError is why the hotkey does not work (another app owns it), or empty.
 	HotkeyError string

@@ -22,7 +22,7 @@
   import { actionsFor, available, type Way } from "./lib/actions";
   import { filePathOf, flatten, openLine, pathOf, pinIdOf, step, tagIdOf, type Item } from "./lib/flatten";
   import { keyCommand } from "./lib/keys";
-  import { cycle, escapeStep, label, type Mode } from "./lib/modes";
+  import { asksForFiles, cycle, escapeStep, label, type Mode } from "./lib/modes";
   import { notesFor } from "./lib/notes";
   import TagPicker from "./lib/TagPicker.svelte";
 
@@ -69,7 +69,9 @@
   const firstApp = $derived(items.findIndex((i) => i.kind === "entry" && i.entry.Kind === "app"));
   const firstFile = $derived(items.findIndex((i) => i.kind === "row"));
   const sections = $derived(firstApp >= 0 && firstFile >= 0); // two kinds of rows: label them
-  const searchWhat = $derived(info?.FilesInBar ? "Search apps, files and the web" : "Search apps and the web");
+  const searchWhat = $derived(
+    effective === "files" ? "Search your files" : info?.FilesInBar ? "Search apps, files and the web" : "Search apps and the web",
+  );
   const chip = $derived(results?.Scope || label[effective]);
 
   // The tags of the rows on screen, for their chips.
@@ -249,7 +251,7 @@
     answerNote = answer.Note ?? "";
     selected = 0;
     clearTimeout(timer);
-    if (!info?.FilesInBar || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip") {
+    if ((effective === "all" && !info?.FilesInBar && !asksForFiles(query)) || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip") {
       token++;
       pending = false;
       results = null;
@@ -402,7 +404,7 @@
         break;
       }
       case "mode":
-        setMode(cycle(mode, command.by, info?.FilesInBar));
+        setMode(cycle(mode, command.by, info?.FileSearch));
         break;
       case "move":
         selected = step(selected, command.by, items.length);
