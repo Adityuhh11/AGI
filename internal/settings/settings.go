@@ -5,6 +5,9 @@ package settings
 
 import (
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync"
 
@@ -21,11 +24,21 @@ type Store struct {
 	subs   []func(old, updated config.Config)
 }
 
-// Open loads the settings file at path (creating it with the defaults if it is missing).
+// Open loads the settings file at path (creating it with the defaults if it is missing). A file that cannot be read
+// (a typo, or settings from another version of the program) is set aside as config.unreadable.toml and the defaults
+// are used: a launcher that does not start at all is worse than one that has lost its settings, and the old file is kept.
 func Open(path string) (*Store, error) {
 	cfg, err := config.Load(path)
 	if err != nil {
-		return nil, err
+		aside := filepath.Join(filepath.Dir(path), "config.unreadable.toml")
+		_ = os.Remove(aside)
+		if renameErr := os.Rename(path, aside); renameErr != nil {
+			return nil, fmt.Errorf("%w (and it could not be set aside: %v)", err, renameErr)
+		}
+		log.Printf("settings: %v; starting with the defaults, the old file is kept as %s", err, aside)
+		if cfg, err = config.Load(path); err != nil {
+			return nil, err
+		}
 	}
 	return &Store{path: path, cfg: cfg}, nil
 }

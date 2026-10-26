@@ -91,9 +91,13 @@ main .btn {
   color: var(--text);
   font: 560 13px/1 var(--sans);
   cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
 }
 main .btn:hover:not(:disabled) {
   background: var(--lift);
+}
+main .btn:active:not(:disabled) {
+  background: var(--tile);
 }
 main .btn:disabled {
   color: var(--text-3);
@@ -105,6 +109,12 @@ main .btn.primary {
   color: #000;
   font-weight: 620;
 }
+main .btn.primary:hover:not(:disabled) {
+  background: #fff; /* the plain hover fill is translucent and would leave black text on black */
+}
+main .btn.primary:active:not(:disabled) {
+  background: var(--text-2);
+}
 main .btn.primary:disabled {
   background: var(--tile);
   color: var(--text-3);
@@ -114,8 +124,14 @@ main .btn.quiet {
   background: transparent;
   color: var(--text-2);
 }
+main .btn.quiet:hover:not(:disabled) {
+  color: var(--text);
+}
 main .btn.danger {
   color: var(--danger);
+}
+main .btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
 }
 main .btn:focus-visible,
 main .keys:focus-visible {

@@ -78,6 +78,10 @@ type Clipboard struct {
 type Search struct {
 	// Enabled turns file search on: the engine runs and the folders in Roots are indexed.
 	Enabled bool `toml:"enabled"`
+	// InLauncher puts files among the launcher's results and Files among the modes Tab cycles through. Off, the bar is
+	// only a launcher; file search still runs and is indexed. A file from before the key existed gets it on when file
+	// search is on, so nobody loses what they had.
+	InLauncher bool `toml:"in_launcher"`
 	// HoldIndexing keeps the folders from being indexed until the person presses "Start indexing": set when file search
 	// is first downloaded, so the choices below are made before any picture is embedded. A file without the key (every
 	// install made before it existed) indexes as it always did.
@@ -137,6 +141,9 @@ func Load(path string) (Config, error) {
 		return Config{}, fmt.Errorf("parse %s: %w", path, err)
 	}
 	cfg.Sidecar = nil
+	if cfg.Search.Enabled && !bytes.Contains(data, []byte("in_launcher")) {
+		cfg.Search.InLauncher = true
+	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, fmt.Errorf("check %s: %w", path, err)
 	}

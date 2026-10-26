@@ -202,6 +202,24 @@ def test_a_server_that_fails_again_after_the_restart_fails_the_call(fake, tmp_pa
     assert handle.restarts == 1
 
 
+def test_a_graphics_card_that_fails_moves_the_server_to_the_cpu_and_the_call_succeeds(
+    fake, tmp_path
+):
+    embedder, handle = make(fake, tmp_path)
+    fake.gpu_lost = True
+    embedder.embed_query("x")
+    assert handle.device == "cpu" and handle.restarts == 1
+
+
+def test_a_failure_on_the_cpu_is_not_blamed_on_the_graphics_card(fake, tmp_path):
+    embedder, handle = make(fake, tmp_path)
+    handle.device = "cpu"
+    fake.gpu_lost = True
+    with pytest.raises(RuntimeError, match="answered 500"):
+        embedder.embed_query("x")
+    assert handle.restarts == 0
+
+
 def test_the_device_is_the_servers(fake, tmp_path):
     embedder, handle = make(fake, tmp_path)
     handle.device = "cpu"

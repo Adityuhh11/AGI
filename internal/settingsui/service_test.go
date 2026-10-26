@@ -18,11 +18,12 @@ import (
 
 // fakeSetup plays the installer: it is installed or not, and says what it was asked to do.
 type fakeSetup struct {
-	state      enginesetup.State
-	started    int
-	removed    int
-	cancels    int
-	failRemove error
+	state        enginesetup.State
+	started      int
+	removed      int
+	indexRemoved int
+	cancels      int
+	failRemove   error
 }
 
 func (f *fakeSetup) Installed() bool          { return f.state.Installed }
@@ -30,6 +31,7 @@ func (f *fakeSetup) Start() error             { f.started++; f.state.Installing 
 func (f *fakeSetup) Cancel()                  { f.cancels++ }
 func (f *fakeSetup) State() enginesetup.State { return f.state }
 func (f *fakeSetup) Remove() error            { f.removed++; return f.failRemove }
+func (f *fakeSetup) RemoveIndex() error       { f.indexRemoved++; return nil }
 
 // fakeIndexing plays the indexing manager.
 type fakeIndexing struct {
@@ -91,8 +93,8 @@ func (f *fakePlace) Move(to enginesetup.Layout) error {
 }
 
 type harness struct {
-	place   *fakePlace
-	surveys *fakeSurveys
+	place           *fakePlace
+	surveys         *fakeSurveys
 	installer       *fakeInstaller
 	restarts        int
 	restartErr      error
@@ -668,5 +670,37 @@ func TestTheViewSaysWhatEachFolderHoldsAndWhatEachChoiceWouldCost(t *testing.T) 
 	h.surveys.results[`C:\b`] = survey.Result{State: survey.Done, Survey: pdfs}
 	if !h.svc.Search().Estimate.Complete {
 		t.Error("every folder counted: the estimate is complete")
+	}
+}
+
+func TestRemovingEverythingForgetsTheFoldersAndChoicesButKeepsWhereItGoes(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installed = true
+	enable(t, h)
+	if err := h.store.Update(func(c *config.Config) {
+		c.Roots, c.Search.DataDir, c.Search.Pace, c.Search.Photos, c.Search.InLauncher = []string{`C:\Docs`}, `D:\AGI`, "fast", "name", true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if msg := h.svc.RemoveEverything(); msg != "" {
+		t.Fatal(msg)
+	}
+	got := h.store.Get()
+	if got.Search.Enabled || len(got.Roots) != 0 || got.Search.Pace != "balanced" || got.Search.Photos != "content" || got.Search.InLauncher {
+		t.Errorf("settings were not reset: %+v, roots %v", got.Search, got.Roots)
+	}
+	if got.Search.DataDir != `D:\AGI` {
+		t.Errorf("the chosen data folder was forgotten: %q", got.Search.DataDir)
+	}
+	if h.setup.removed != 1 || h.setup.indexRemoved != 1 {
+		t.Errorf("engine removed %d times, index %d times, want once each", h.setup.removed, h.setup.indexRemoved)
+	}
+}
+
+func TestRemovingEverythingWaitsForARunningInstall(t *testing.T) {
+	h := newHarness(t)
+	h.setup.state.Installing = true
+	if msg := h.svc.RemoveEverything(); !strings.Contains(msg, "cancel") || h.setup.removed != 0 {
+		t.Fatalf("message %q, removed %d", msg, h.setup.removed)
 	}
 }

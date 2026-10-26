@@ -433,6 +433,20 @@ func (m *Manager) State() State {
 	}
 }
 
+// RemoveIndex deletes the index the engine built. The engine must not be running: it holds the files open.
+func (m *Manager) RemoveIndex() error {
+	m.mu.Lock()
+	dir := m.installer.Layout.Index()
+	m.mu.Unlock()
+	if dir == "" {
+		return nil
+	}
+	if err := removeAll(dir); err != nil {
+		return fmt.Errorf("remove %s: %w", dir, err)
+	}
+	return nil
+}
+
 // Remove deletes the installed engine. It refuses while an install runs.
 func (m *Manager) Remove() error {
 	m.mu.Lock()

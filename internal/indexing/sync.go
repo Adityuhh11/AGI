@@ -37,11 +37,11 @@ func (m *Manager) cycle(ctx context.Context, only map[string]bool) bool {
 		return true
 	}
 	if err != nil {
-		problems = append(problems, err.Error())
+		log.Printf("indexing: %v", err)
+		problems = append(problems, sidecar.Explain(err))
 	}
 	if len(problems) > 0 {
 		m.set(Status{State: Failed, Message: strings.Join(problems, "; ")})
-		log.Print("indexing: ", problems)
 		return false
 	}
 	return true
@@ -96,8 +96,10 @@ func (m *Manager) syncAll(ctx context.Context, only map[string]bool) (problems [
 			continue
 		}
 		if err := m.syncRoot(ctx, root, exclude, options); err != nil {
-			problems = append(problems, filepath.Base(root)+": "+err.Error())
-			m.setFolder(FolderStatus{Root: root, State: Failed, Message: err.Error()})
+			log.Printf("indexing %s: %v", root, err)
+			explained := sidecar.Explain(err)
+			problems = append(problems, filepath.Base(root)+": "+explained)
+			m.setFolder(FolderStatus{Root: root, State: Failed, Message: explained})
 		}
 	}
 	// Totals are read after the last job, so they count what the index holds now.

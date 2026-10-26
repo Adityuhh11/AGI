@@ -14,6 +14,8 @@ type Info struct {
 	Roots  []string
 	// FileSearch says whether file search is switched on.
 	FileSearch bool
+	// FilesInBar says files are among the launcher's results and Files is one of the modes Tab cycles through.
+	FilesInBar bool
 	// HotkeyError is why the hotkey does not work (another app owns it), or empty.
 	HotkeyError string
 	// Engine is the search engine's state: off, starting, warming, ready, restarting, failed or stopped.
@@ -43,7 +45,7 @@ func New(settings func() config.Config, hotkeyError func() string, engine func()
 // Info returns the launcher's configuration and health.
 func (s *Service) Info() Info {
 	cfg := s.settings()
-	info := Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots, FileSearch: cfg.Search.Enabled}
+	info := Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots, FileSearch: cfg.Search.Enabled, FilesInBar: cfg.Search.Enabled && cfg.Search.InLauncher}
 	if s.hotkeyError != nil {
 		info.HotkeyError = s.hotkeyError()
 	}

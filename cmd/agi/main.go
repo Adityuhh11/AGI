@@ -64,6 +64,8 @@ func main() {
 	}
 }
 
+const maxLogBytes = 5 << 20
+
 // setUpLog sends the log to the file agi.log under %LOCALAPPDATA%\AGI\logs as well as to the
 // console, if there is one: the release build has no console window, so the file is the only record.
 func setUpLog() (closeLog func()) {
@@ -74,6 +76,10 @@ func setUpLog() (closeLog func()) {
 	logDir := filepath.Join(dir, "AGI", "logs")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return func() {}
+	}
+	// One earlier log is kept, so the file never grows past about twice this.
+	if info, err := os.Stat(filepath.Join(logDir, "agi.log")); err == nil && info.Size() > maxLogBytes {
+		_ = os.Rename(filepath.Join(logDir, "agi.log"), filepath.Join(logDir, "agi.old.log"))
 	}
 	file, err := os.OpenFile(filepath.Join(logDir, "agi.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -195,6 +201,7 @@ func run(afterUpdate bool) error {
 	}
 	// Turning file search on installs the engine in the background; when that has worked, file search is
 	// switched on, which starts the engine (the store's subscriber below).
+	var engineSwitch *sidecar.Switch // set below; an install that ends before the app has started finds it nil
 	setup := enginesetup.NewManager(enginesetup.NewInstaller(layout, engineSource), func(err error) {
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
@@ -205,6 +212,9 @@ func run(afterUpdate bool) error {
 		log.Print("file search is installed")
 		if err := store.Update(func(c *config.Config) { c.Search.Enabled = true }); err != nil {
 			log.Printf("switching file search on: %v", err)
+		}
+		if engineSwitch != nil && store.Get().Search.Enabled {
+			engineSwitch.On() // an update at startup leaves the setting as it was, so the store's subscriber does not fire
 		}
 	})
 	engine, err = sidecar.New(sidecar.Options{
@@ -326,8 +336,12 @@ func run(afterUpdate bool) error {
 
 	// The engine and the indexer report to the tray, which only exists once the app is running.
 	ctx, stop := context.WithCancel(context.Background())
-	engineSwitch := sidecar.NewSwitch(ctx, engine)
-	engineWanted := func(c config.Config) bool { return c.Search.Enabled && setup.Installed() }
+	engineSwitch = sidecar.NewSwitch(ctx, engine)
+	// An engine from an older version is never started: its API no longer matches what this launcher sends.
+	engineWanted := func(c config.Config) bool {
+		st := setup.State()
+		return c.Search.Enabled && st.Installed && !st.NeedsUpdate && !st.Installing
+	}
 
 	// The watcher follows the folders: it is started again whenever they change.
 	var watchMu sync.Mutex
@@ -388,7 +402,14 @@ func run(afterUpdate bool) error {
 				settingsWindow.OpenAt("about")
 			}()
 		}
-		if engineWanted(cfg) {
+		if st := setup.State(); cfg.Search.Enabled && st.Installed && st.NeedsUpdate {
+			// Updating the launcher leaves the engine of the old version on disk; bring it up to date before it runs.
+			log.Print("file search is from an older version; updating it")
+			engineSwitch.Off()
+			if err := setup.Start(); err != nil {
+				log.Printf("updating file search: %v", err)
+			}
+		} else if engineWanted(cfg) {
 			engineSwitch.On()
 		} else {
 			engineSwitch.Off()

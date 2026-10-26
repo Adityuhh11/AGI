@@ -54,10 +54,10 @@ test("moreCount counts matches beyond the first and tolerates none", () => {
   assert.equal(moreCount(c), 0);
 });
 
-test("step stays inside the list, also when it is empty", () => {
+test("step wraps round the list, and copes with an empty one", () => {
   assert.equal(step(0, 1, 3), 1);
-  assert.equal(step(2, 1, 3), 2);
-  assert.equal(step(0, -1, 3), 0);
+  assert.equal(step(2, 1, 3), 0);
+  assert.equal(step(0, -1, 3), 2);
   assert.equal(step(0, 1, 0), 0);
   assert.equal(step(5, 0, 3), 2);
 });

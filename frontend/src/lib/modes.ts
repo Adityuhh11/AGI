@@ -6,9 +6,10 @@ export type Mode = "all" | "apps" | "files" | "web" | "tags" | "clip" | "snip";
 
 const MODES: readonly Mode[] = ["all", "apps", "files", "web", "tags"];
 
-/** The mode after Tab (delta 1) or Shift+Tab (delta -1), wrapping round. */
-export function cycle(mode: Mode, delta: 1 | -1): Mode {
-  return MODES[(MODES.indexOf(mode) + delta + MODES.length) % MODES.length];
+/** The mode after Tab (delta 1) or Shift+Tab (delta -1), wrapping round. Without files in the bar, Tab skips Files. */
+export function cycle(mode: Mode, delta: 1 | -1, filesInBar = true): Mode {
+  const modes = filesInBar ? MODES : MODES.filter((m) => m !== "files");
+  return modes[(modes.indexOf(mode) + delta + modes.length) % modes.length];
 }
 
 /** What the chip says; `all` shows no chip. */

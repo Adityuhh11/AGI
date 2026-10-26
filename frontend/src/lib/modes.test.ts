@@ -13,6 +13,12 @@ test("Tab walks the modes and wraps, Shift+Tab walks back", () => {
   assert.equal(cycle("apps", -1), "all");
 });
 
+test("Tab skips Files when files are not in the bar", () => {
+  assert.equal(cycle("apps", 1, false), "web");
+  assert.equal(cycle("web", -1, false), "apps");
+  assert.equal(cycle("tags", 1, false), "all");
+});
+
 test("Escape leaves the mode, then clears the text, then closes", () => {
   assert.equal(escapeStep("apps", "chrome"), "mode");
   assert.equal(escapeStep("files", ""), "mode");

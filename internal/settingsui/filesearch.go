@@ -14,6 +14,7 @@ import (
 // SearchView is the File search page: what is installed, how an install is going, and how the engine is.
 type SearchView struct {
 	Enabled     bool
+	InLauncher  bool // files are among the launcher's results
 	Installed   bool
 	Installing  bool
 	NeedsUpdate bool
@@ -34,7 +35,7 @@ type SearchView struct {
 	DownloadMB int
 	// Data says where the download and the index are saved and whether that can still be changed.
 	Data DataFolder
-	Pace       string
+	Pace string
 	// HoldIndexing says the folders wait for StartIndexing; Indexed is how many files the index holds, which decides
 	// whether a change of choice is a draft the page keeps until it is saved.
 	HoldIndexing bool
@@ -69,7 +70,7 @@ func (s *Service) Search() SearchView {
 	return SearchView{
 		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
 		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
-		Enabled: cfg.Search.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
+		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
@@ -151,6 +152,28 @@ func (s *Service) RemoveFiles() string {
 	return reason(s.o.Setup.Remove())
 }
 
+// RemoveEverything takes file search off the computer as if it had never been set up: the engine, the models, the index,
+// the folders and what was chosen for them. Nothing of it is kept, so it can be set up again from nothing, for instance
+// after switching to another version of AGI.
+func (s *Service) RemoveEverything() string {
+	if s.o.Setup.State().Installing {
+		return "file search is being installed; cancel that first"
+	}
+	// The engine stops when the setting turns it off, before its files are deleted.
+	if msg := reason(s.o.Store.Update(func(c *config.Config) {
+		defaults := config.Default().Search
+		defaults.DataDir = c.Search.DataDir // where it goes is the person's choice, not something to forget
+		c.Search = defaults
+		c.Roots, c.Exclude = nil, nil
+	})); msg != "" {
+		return msg
+	}
+	if err := s.o.Setup.Remove(); err != nil {
+		return reason(err)
+	}
+	return reason(s.o.Setup.RemoveIndex())
+}
+
 // AddFolder asks for a folder and adds it to the indexed ones. Cancelling the picker changes nothing.
 func (s *Service) AddFolder() string {
 	folder, err := s.o.PickFolder()
@@ -183,6 +206,11 @@ func (s *Service) RemoveFolder(folder string) string {
 		}
 		c.Exclude = exclude
 	}))
+}
+
+// SetInLauncher puts files among the launcher's results, or keeps the launcher to apps, the web and the rest.
+func (s *Service) SetInLauncher(on bool) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.InLauncher = on }))
 }
 
 // SetPace sets how hard indexing works: fast, balanced or gentle.
