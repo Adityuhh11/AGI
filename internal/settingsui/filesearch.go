@@ -14,7 +14,7 @@ import (
 // SearchView is the File search page: what is installed, how an install is going, and how the engine is.
 type SearchView struct {
 	Enabled     bool
-	InLauncher  bool // files are among the launcher's results
+	InLauncher  bool // files are among the results of the default search
 	Installed   bool
 	Installing  bool
 	NeedsUpdate bool
@@ -208,7 +208,8 @@ func (s *Service) RemoveFolder(folder string) string {
 	}))
 }
 
-// SetInLauncher puts files among the launcher's results, or keeps the launcher to apps, the web and the rest.
+// SetInLauncher puts files among the results of the default search, or keeps that to apps, the web and the rest
+// (files are then searched in the Files mode).
 func (s *Service) SetInLauncher(on bool) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.InLauncher = on }))
 }
