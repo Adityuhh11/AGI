@@ -11,11 +11,22 @@
     hints?: Record<string, string>;
   }
   let { labelId, options, value, onpick, hints = {} }: Props = $props();
+
+  // A radio group is one stop on Tab; the arrows move inside it and choose as they go.
+  function onkeydown(event: KeyboardEvent) {
+    const delta = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const at = Math.max(0, options.findIndex((o) => o.id === value));
+    const next = options[(at + delta + options.length) % options.length];
+    onpick(next.id);
+    (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')[options.indexOf(next)]?.focus();
+  }
 </script>
 
 <div class="choices" style:--count={options.length} role="radiogroup" aria-labelledby={labelId}>
   {#each options as option (option.id)}
-    <button type="button" role="radio" aria-checked={value === option.id} class="choice" class:on={value === option.id} onclick={() => onpick(option.id)}>
+    <button type="button" role="radio" aria-checked={value === option.id} tabindex={value === option.id || (value === undefined && option === options[0]) ? 0 : -1} class="choice" {onkeydown} class:on={value === option.id} onclick={() => onpick(option.id)}>
       <span class="name">{option.name}</span>
       <span class="how">{option.how}</span>
       {#if hints[option.id]}<span class="hint">{hints[option.id]} for your folders</span>{/if}
@@ -40,9 +51,13 @@
     color: var(--text-2);
     text-align: left;
     cursor: pointer;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
   }
   .choice:hover {
     background: var(--tile);
+  }
+  .choice:active {
+    background: var(--lift);
   }
   .choice.on {
     border-color: rgba(230, 232, 236, 0.45);
