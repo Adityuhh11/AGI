@@ -45,8 +45,8 @@ Updated at the end of every phase. Last updated: 2026-10-24.
 
 ## Next
 
-Released: `v0.2.0` to `v0.5.0` (settings window, llama.cpp engine, pins, clipboard, snippets, one-click update, indexing choices and videos);
-`v0.5.0` is running on the owner's machine and two friends' machines. How versions are numbered and a release is cut is in `RELEASING.md`.
+Released: `v0.2.0` to `v0.7.0` (settings window, llama.cpp engine, pins, clipboard, snippets, one-click update, indexing choices and videos, installer and setup guide, fixes from a friend's logs);
+`v0.7.0` is the latest release. How versions are numbered and a release is cut is in `RELEASING.md`.
 All feature branches are merged and deleted; `dev` and `main` are level.
 
 The goal now is a project that is stable enough to open up and announce slowly. In phases, each ending with `main` releasable:
