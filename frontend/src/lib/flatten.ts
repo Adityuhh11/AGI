@@ -34,10 +34,10 @@ export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Ent
   return items;
 }
 
-/** The selection after moving by delta, never leaving the list. */
+/** The selection after moving by delta, wrapping round: holding Down runs to the last row and comes back to the first. */
 export function step(index: number, delta: number, count: number): number {
   if (count === 0) return 0;
-  return Math.min(count - 1, Math.max(0, index + delta));
+  return (((index + delta) % count) + count) % count;
 }
 
 /** The line to open an editor at for a selected item (0 means no particular line). */

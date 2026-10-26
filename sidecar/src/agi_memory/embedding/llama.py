@@ -59,6 +59,8 @@ class Server(Protocol):
 
     def restart(self) -> None: ...
 
+    def fall_back_to_cpu(self) -> None: ...
+
 
 class LlamaEmbedder:
     """Implements `Embedder` with EmbeddingGemma 2 (text and vision) on a llama-server."""
@@ -122,11 +124,26 @@ class LlamaEmbedder:
                             self._server.restart()
                 continue
             if response.status != 200:
+                if attempt < 2 and self._gpu_failed(data):
+                    # A graphics card that runs out of memory or is lost (a driver reset, a game
+                    # taking the memory) fails every later request too; the CPU is slower but works.
+                    with self._restarting:
+                        if self._server.api_key == key:
+                            logger.warning(
+                                "the graphics card failed (%r); continuing on the CPU", data[:120]
+                            )
+                            self._server.fall_back_to_cpu()
+                    continue
                 raise RuntimeError(
                     f"llama-server answered {response.status} to {path}: {data[:200]!r}"
                 )
             return json.loads(data)
         raise AssertionError("unreachable")
+
+    def _gpu_failed(self, answer: bytes) -> bool:
+        return self.device != "cpu" and (
+            b"ErrorDeviceLost" in answer or b"ErrorOutOfDeviceMemory" in answer
+        )
 
     def _vectors(self, inputs: list) -> np.ndarray:
         rows: list = [None] * len(inputs)

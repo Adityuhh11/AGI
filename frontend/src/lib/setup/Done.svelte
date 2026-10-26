@@ -44,7 +44,7 @@
   <div class="card">
     <p class="label">Downloading file search</p>
     <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={percent} aria-label={search.StepName}>
-      <div class="fill" style:width="{search.Total > 0 ? percent : 4}%"></div>
+      <div class="fill" style:transform="scaleX({(search.Total > 0 ? percent : 4) / 100})"></div>
     </div>
     <p class="help">
       Step {search.Step} of {search.Steps}: {search.StepName}{search.Total > 0 ? ` · ${megabytes(search.Done)} of ${megabytes(search.Total)} MB` : ""}.
@@ -89,7 +89,7 @@
     <p class="help">{search.Paused ? "Indexing is paused." : search.IndexText}</p>
     {#if search.IndexState === "indexing" && search.IndexTotal > 0}
       <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={search.IndexTotal} aria-valuenow={search.IndexDone} aria-label="Files indexed">
-        <div class="fill" style:width="{Math.round((search.IndexDone / search.IndexTotal) * 100)}%"></div>
+        <div class="fill" style:transform="scaleX({search.IndexDone / search.IndexTotal})"></div>
       </div>
     {/if}
     <p class="help">You can search right away: results fill in as AGI reads your files, newest first. The notification-area icon shows how it is going.</p>
@@ -122,6 +122,7 @@
     height: 100%;
     border-radius: 3px;
     background: var(--chrome);
-    transition: width 0.4s var(--ease);
+    transform-origin: left;
+    transition: transform 0.4s var(--ease);
   }
 </style>
