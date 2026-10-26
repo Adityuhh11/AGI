@@ -107,9 +107,7 @@ func TestAStaleTempFileFromACrashDoesNotBlockTheNextSave(t *testing.T) {
 
 func TestAnUnreadableFileIsKeptAsideAndTheDefaultsAreUsed(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	if err := os.WriteFile(path, []byte("hotkey = 'Ctrl+Alt+K'
-from_the_future = true
-"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("hotkey = 'Ctrl+Alt+K'\nfrom_the_future = true\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	store, err := Open(path)
