@@ -9,7 +9,7 @@ import (
 func TestASumIsAnsweredFirstAndEnterCopiesTheAnswer(t *testing.T) {
 	s, dismissed := newService(t, "Calculator")
 	var copied []string
-	s.With(Extras{Copy: func(text string) error { copied = append(copied, text); return nil }})
+	With(s, Extras{Copy: func(text string) error { copied = append(copied, text); return nil }})
 
 	answer := s.Query("12*7+3", ModeAll)
 	if len(answer.Items) == 0 || answer.Items[0].Kind != "calc" || answer.Items[0].Title != "87" {
@@ -26,7 +26,7 @@ func TestASumIsAnsweredFirstAndEnterCopiesTheAnswer(t *testing.T) {
 func TestAConversionRowCopiesTheNumberAlone(t *testing.T) {
 	s, _ := newService(t)
 	var copied string
-	s.With(Extras{Copy: func(text string) error { copied = text; return nil }})
+	With(s, Extras{Copy: func(text string) error { copied = text; return nil }})
 	item := s.Query("5 km in miles", ModeAll).Items[0]
 	if !strings.Contains(item.Title, "5 km = 3.10") {
 		t.Fatalf("title = %q", item.Title)
@@ -53,7 +53,7 @@ func TestACalculatorRowFailsClearlyWithoutAClipboard(t *testing.T) {
 	if err := s.Do("calc:4", "open", ""); err == nil {
 		t.Error("no clipboard, no error")
 	}
-	s.With(Extras{Copy: func(string) error { return errors.New("locked") }})
+	With(s, Extras{Copy: func(string) error { return errors.New("locked") }})
 	if err := s.Do("calc:4", "open", ""); err == nil || !strings.Contains(err.Error(), "locked") {
 		t.Errorf("err = %v", err)
 	}
@@ -66,7 +66,7 @@ func TestSystemRowsAreFoundByNameAndRunAfterTheBarIsClosed(t *testing.T) {
 	s, dismissed := newService(t)
 	var ran []string
 	var dismissedBefore int
-	s.With(Extras{RunSystem: func(id string) error { dismissedBefore = *dismissed; ran = append(ran, id); return nil }})
+	With(s, Extras{RunSystem: func(id string) error { dismissedBefore = *dismissed; ran = append(ran, id); return nil }})
 
 	tests := map[string]string{"lock": "sys:lock", "task man": "sys:taskmgr", "recycle": "sys:recycle", "windows set": "sys:winsettings", "sleep": "sys:sleep"}
 	for text, id := range tests {

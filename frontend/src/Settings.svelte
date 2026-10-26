@@ -9,6 +9,7 @@
   import General from "./lib/settings/General.svelte";
   import Quicklinks from "./lib/settings/Quicklinks.svelte";
   import Snippets from "./lib/settings/Snippets.svelte";
+  import TimerSettings from "./lib/settings/TimerSettings.svelte";
 
   const SECTIONS = [
     { id: "general", label: "General" },
@@ -16,6 +17,7 @@
     { id: "snippets", label: "Snippets" },
     { id: "search", label: "File search" },
     { id: "clipboard", label: "Clipboard" },
+    { id: "timer", label: "Timer" },
     { id: "about", label: "About" },
   ] as const;
 
@@ -62,6 +64,8 @@
         <FileSearch {view} {reload} />
       {:else if section === "clipboard"}
         <Clipboard />
+      {:else if section === "timer"}
+        <TimerSettings {view} />
       {:else}
         <About {view} />
       {/if}

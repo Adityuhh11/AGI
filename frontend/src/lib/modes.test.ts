@@ -41,6 +41,7 @@ test("the all mode shows no chip and the others name themselves", () => {
   assert.equal(label.tags, "Tags");
   assert.equal(label.clip, "Clipboard");
   assert.equal(label.snip, "Snippets");
+  assert.equal(label.note, "Notes");
 });
 
 test("Tab never lands on the clipboard or the snippets: they are reached by their prefixes", () => {

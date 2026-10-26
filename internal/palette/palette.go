@@ -37,6 +37,8 @@ const (
 	// built-in rows do).
 	ModeClip = "clip"
 	ModeSnip = "snip"
+	// ModeNotes lists the notes (`note:`), also not reached by Tab.
+	ModeNotes = "note"
 )
 
 const (
@@ -91,7 +93,7 @@ type Browser interface {
 type Item struct {
 	// ID names the thing: the kind, a colon and the kind's own id.
 	ID string
-	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag", "clip", "snippet", "cmd", "calc" or "system". The page lists quicklinks
+	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag", "clip", "snippet", "cmd", "calc", "system", "note" or "timer". The page lists quicklinks
 	// first, then apps and files, and the web search last, as the fallback.
 	Kind     string
 	Title    string
@@ -153,11 +155,16 @@ func (s *Service) Query(raw, mode string) Answer {
 		answer.Items, answer.Note = s.snippetItems(text)
 		return answer
 	}
+	if mode == ModeNotes {
+		answer.Items, answer.Note = s.noteItems(text)
+		return answer
+	}
 	if text == "" || mode == ModeFiles {
 		return answer
 	}
 	if mode == ModeAll {
 		answer.Items = append(answer.Items, calcItems(text)...) // a sum is the answer to a sum, ahead of anything it also spells
+		answer.Items = append(answer.Items, s.timerItems(text)...)
 		answer.Items = append(answer.Items, s.keywordItems(text)...)
 	}
 	if mode == ModeAll || mode == ModeWeb {
@@ -207,6 +214,9 @@ func parse(raw, mode string) (string, string) {
 	if mode == ModeSnip {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "snip:"))
 	}
+	if mode == ModeNotes {
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(raw), "note:"), "notes:"))
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "app", "apps":
@@ -217,6 +227,8 @@ func parse(raw, mode string) (string, string) {
 			return ModeClip, strings.TrimSpace(rest)
 		case "snip", "snippet", "snippets":
 			return ModeSnip, strings.TrimSpace(rest)
+		case "note", "notes":
+			return ModeNotes, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -268,6 +280,12 @@ func (s *Service) Do(id, action, typed string) error {
 	}
 	if page, ok := settingsPageFor(id); ok {
 		return s.doSettings(page, action)
+	}
+	if rest, ok := strings.CutPrefix(id, "timer:"); ok {
+		return s.doTimer(rest, action)
+	}
+	if rest, ok := strings.CutPrefix(id, "note:"); ok {
+		return s.doNote(rest, action)
 	}
 	if answer, ok := strings.CutPrefix(id, "calc:"); ok {
 		return s.doCalc(answer, action)

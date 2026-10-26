@@ -15,10 +15,16 @@ type Extras struct {
 	Copy func(text string) error
 	// RunSystem carries out a system action by id (internal/system.Run).
 	RunSystem func(id string) error
+	// Notes is the notes folder and OpenNote shows the notes window on a note ("new" for an empty one).
+	Notes    NoteBook
+	OpenNote func(id string)
+	// Timer is the countdown and the pomodoro.
+	Timer TimerControl
 }
 
-// With sets the extras and returns the service.
-func (s *Service) With(x Extras) *Service {
+// With sets the extras of s and returns it. It is a function, not a method: the exported methods of a service are bound to
+// the page, and a method that returns the service itself collides with the service's own name there.
+func With(s *Service, x Extras) *Service {
 	s.x = x
 	return s
 }

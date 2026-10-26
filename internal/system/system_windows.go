@@ -31,3 +31,9 @@ func emptyRecycleBin() error {
 	}
 	return nil
 }
+
+// Beep plays the system's notification sound (a finished timer). It makes no sound on a computer whose sounds are off, which is right.
+func Beep() {
+	const iconAsterisk = 0x40
+	_, _, _ = syscall.NewLazyDLL("user32.dll").NewProc("MessageBeep").Call(iconAsterisk)
+}

@@ -55,6 +55,7 @@ main .ok {
   font-size: 12px;
 }
 main input[type="text"],
+main input[type="number"],
 main select {
   height: 36px;
   padding: 0 12px;
@@ -66,10 +67,12 @@ main select {
   transition: border-color 0.12s, background-color 0.12s;
 }
 main input[type="text"]:hover:not(:focus),
+main input[type="number"]:hover:not(:focus),
 main select:hover:not(:focus) {
   border-color: rgba(255, 255, 255, 0.16);
 }
 main input[type="text"]:disabled,
+main input[type="number"]:disabled,
 main select:disabled {
   color: var(--text-3);
   cursor: default;
@@ -87,6 +90,7 @@ main select option {
   color: var(--text);
 }
 main input[type="text"]:focus,
+main input[type="number"]:focus,
 main select:focus {
   outline: none;
   border-color: rgba(230, 232, 236, 0.45);
