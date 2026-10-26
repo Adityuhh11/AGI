@@ -143,6 +143,7 @@
   }
   .next {
     padding: 0 12px;
+    white-space: nowrap;
     background: var(--chrome);
     color: #000;
     font: 600 12px/1 var(--sans);

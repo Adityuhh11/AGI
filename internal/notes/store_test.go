@@ -180,6 +180,8 @@ func TestTitlesAndPreviews(t *testing.T) {
 		{strings.Repeat("a", 200), strings.Repeat("a", 80) + "…", ""},
 		{"t\n" + strings.Repeat("b ", 100), "t", strings.Repeat("b ", 54) + "b…"},
 		{"日本語のノート\n二行目", "日本語のノート", "二行目"},
+		{"# **Big** `idea`\nsee [the docs](https://example.com/a_b) and ~~that~~", "Big idea", "see the docs and that"},
+		{"- [X] ticked\n- [ ] open", "ticked", "open"},
 	}
 	for _, tt := range tests {
 		title, preview := summarise(tt.text)

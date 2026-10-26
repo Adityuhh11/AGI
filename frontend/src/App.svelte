@@ -678,7 +678,7 @@
   .results.keying :global(.item.selected) {
     position: relative;
     z-index: 1;
-    transform: translateY(-2px) scale(1.012);
+    transform: translateY(-2px) scale(1.008);
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.18),

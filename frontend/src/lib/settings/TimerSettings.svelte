@@ -57,7 +57,7 @@
 <style>
   .grid {
     display: grid;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: minmax(0, 250px) auto;
     align-items: center;
     gap: 12px 16px;
     max-width: 420px;

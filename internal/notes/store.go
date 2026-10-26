@@ -207,7 +207,7 @@ func (s *Store) Search(words string, limit int) ([]Note, error) {
 // summarise is a note's title and the start of its body, each on one line.
 func summarise(text string) (title, preview string) {
 	var body []string
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSpace(strings.TrimRight(line, "\r"))
 		if line == "" {
 			continue
@@ -227,12 +227,19 @@ func summarise(text string) (title, preview string) {
 	return cut(title, titleLength), cut(strings.Join(body, " "), previewLength)
 }
 
-// clean takes the markdown marks off the front of a line: "## Title", "- [ ] task", "> quote".
+// link is a markdown link, "[words](address)", which a title or a preview shows as its words.
+var link = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
+
+// markup is the marks that only shape text: bold, strike-through and code.
+var markup = strings.NewReplacer("**", "", "__", "", "~~", "", "`", "")
+
+// clean takes the markdown off a line for a title or a preview: "## Title", "- [ ] task", "> quote", **bold**, links.
 func clean(line string) string {
 	line = strings.TrimLeft(line, "#>*-+ \t")
 	line = strings.TrimPrefix(line, "[ ] ")
 	line = strings.TrimPrefix(line, "[x] ")
-	return strings.TrimSpace(line)
+	line = strings.TrimPrefix(line, "[X] ")
+	return strings.TrimSpace(markup.Replace(link.ReplaceAllString(line, "$1")))
 }
 
 func cut(text string, n int) string {

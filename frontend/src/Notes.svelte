@@ -191,7 +191,7 @@
         {:else}
           <button type="button" class="btn quiet" onclick={() => (confirmDelete = true)} title="Delete this note">Delete</button>
         {/if}
-        <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">Pin</button>
+        <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">On top</button>
       </div>
     </header>
     {#if preview}
@@ -222,7 +222,7 @@
       />
       <div class="tools">
         <button type="button" class="btn primary" onclick={() => create()} title="New note (Ctrl+N)">New</button>
-        <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">Pin</button>
+        <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">On top</button>
       </div>
     </header>
     {#if problem}<p class="error pad">{problem}</p>{/if}
@@ -274,7 +274,7 @@
     color: var(--text-3);
     font-size: 12px;
   }
-  :global(main .btn.on) {
+  :global(main .btn.quiet.on) {
     color: var(--text);
     background: var(--lift);
   }

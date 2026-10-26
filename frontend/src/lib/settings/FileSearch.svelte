@@ -352,6 +352,9 @@
   .remove {
     padding-bottom: 0;
   }
+  .remove .row {
+    margin-left: -14px; /* the quiet buttons' own padding, so their words line up with the page */
+  }
   .bar {
     height: 6px;
     border-radius: 3px;
