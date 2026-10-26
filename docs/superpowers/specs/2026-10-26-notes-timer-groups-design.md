@@ -38,7 +38,7 @@ nothing leaves the machine.
   on). It opens on the list of notes (newest edit first, with a search box) or straight on a note. Editing is a plain
   text area with a preview toggle; the markdown renderer (`lib/markdown.ts`) is ours (headings, bold, italic, code,
   code blocks, quotes, lists, task lists whose boxes can be clicked in the preview, links, rules) and escapes everything
-  first, so a note can never run script. Saves 600 ms after the last key, and on closing. Delete asks once.
+  first, so a note can never run script. Saves 400 ms after the last key, and on closing. Delete asks once.
 - The bar: `note` finds the Notes command; `note: words` (also `notes:`) lists matching notes and, first, "New note"
   (with the words as its first line). Enter opens the note in the window. Tab does not reach it, like Clipboard and
   Snippets.

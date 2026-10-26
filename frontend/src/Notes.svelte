@@ -7,7 +7,7 @@
   import { when } from "./lib/format";
   import { render, toggleTask } from "./lib/markdown";
 
-  const SAVE_AFTER_MS = 600;
+  const SAVE_AFTER_MS = 400;
   const PIN_KEY = "agi-notes-on-top";
 
   let list = $state<Note[]>([]);
