@@ -1,7 +1,7 @@
 import pytest
 
-from agi_memory.search.fusion import blend
-from agi_memory.types import KeywordHit, VectorHit
+from omni_memory.search.fusion import blend
+from omni_memory.types import KeywordHit, VectorHit
 
 
 def v(chunk_id, score):

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Item as Entry } from "../../bindings/agi/internal/palette";
+  import type { Item as Entry } from "../../bindings/omni/internal/palette";
   import Icon from "./Icon.svelte";
 
   interface Props {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/notes"
+	"omni/internal/notes"
 )
 
 type fakeNotes struct {

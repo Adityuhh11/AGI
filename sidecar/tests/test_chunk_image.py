@@ -3,9 +3,9 @@ import io
 import pytest
 from PIL import Image
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.chunking.image import image_chunk, load_image
-from agi_memory.types import ChunkKind
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.image import image_chunk, load_image
+from omni_memory.types import ChunkKind
 
 
 def encode(image, fmt, **kwargs):

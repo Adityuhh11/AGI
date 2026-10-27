@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"agi/internal/config"
-	"agi/internal/enginesetup"
+	"omni/internal/config"
+	"omni/internal/enginesetup"
 )
 
 // Where file search keeps its files. The engine and its models (about 1.1 GB) and the index can be put on another
@@ -40,7 +40,7 @@ func (s *Service) dataFolder(cfg config.Config, installed enginesetup.State) Dat
 	}
 }
 
-// ChooseDataFolder asks for a folder and keeps file search's files in an AGI folder inside it. Cancelling the picker
+// ChooseDataFolder asks for a folder and keeps file search's files in an Omni folder inside it. Cancelling the picker
 // changes nothing.
 func (s *Service) ChooseDataFolder() string {
 	picked, err := s.o.PickFolder()
@@ -53,16 +53,16 @@ func (s *Service) ChooseDataFolder() string {
 	return s.setDataDir(dataDirIn(filepath.Clean(picked)))
 }
 
-// UseDefaultDataFolder goes back to %LOCALAPPDATA%\AGI.
+// UseDefaultDataFolder goes back to %LOCALAPPDATA%\Omni.
 func (s *Service) UseDefaultDataFolder() string { return s.setDataDir("") }
 
-// dataDirIn is the folder AGI keeps its files in inside a folder the person picked: an AGI folder, unless they picked
+// dataDirIn is the folder Omni keeps its files in inside a folder the person picked: an Omni folder, unless they picked
 // one already called that.
 func dataDirIn(picked string) string {
-	if strings.EqualFold(filepath.Base(picked), "AGI") {
+	if strings.EqualFold(filepath.Base(picked), "Omni") {
 		return picked
 	}
-	return filepath.Join(picked, "AGI")
+	return filepath.Join(picked, "Omni")
 }
 
 func (s *Service) setDataDir(dir string) string {
@@ -72,7 +72,7 @@ func (s *Service) setDataDir(dir string) string {
 	}
 	if dir != "" {
 		if err := writable(dir); err != nil {
-			return fmt.Sprintf("AGI cannot keep its files in %s: %v", dir, err)
+			return fmt.Sprintf("Omni cannot keep its files in %s: %v", dir, err)
 		}
 	}
 	if err := s.o.Place.Move(layout); err != nil {
@@ -90,7 +90,7 @@ func writable(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	probe, err := os.CreateTemp(dir, ".agi-write-test-*")
+	probe, err := os.CreateTemp(dir, ".omni-write-test-*")
 	if err != nil {
 		return err
 	}

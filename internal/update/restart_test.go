@@ -29,7 +29,7 @@ func TestWaitForArgReadsExactlyTheFlagAndAProcessId(t *testing.T) {
 }
 
 func TestRemoveOldDeletesTheMovedAsideProgramAndIsQuietWhenThereIsNone(t *testing.T) {
-	exe := filepath.Join(t.TempDir(), "agi.exe")
+	exe := filepath.Join(t.TempDir(), "omni.exe")
 	if err := RemoveOld(exe); err != nil {
 		t.Fatalf("with nothing to remove: %v", err)
 	}

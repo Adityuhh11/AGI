@@ -9,30 +9,30 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/sidecar"
+	"omni/internal/sidecar"
 )
 
 // TestMain lets this test program play both launchers of an update. Started with "--wait-for <pid>" it is the new
-// launcher: it waits for that process to end and leaves a note. Started with AGI_TEST_ROLE=old-launcher it is the one
+// launcher: it waits for that process to end and leaves a note. Started with OMNI_TEST_ROLE=old-launcher it is the one
 // being replaced: it puts itself in the launcher's kill-on-close job (as main does), starts its successor, and exits at once.
 func TestMain(m *testing.M) {
 	if pid, ok := WaitForArg(os.Args[1:]); ok {
 		if !WaitForExit(pid, 10*time.Second) {
 			os.Exit(4)
 		}
-		if err := os.WriteFile(os.Getenv("AGI_TEST_MARKER"), []byte("started after the old launcher had ended"), 0o644); err != nil {
+		if err := os.WriteFile(os.Getenv("OMNI_TEST_MARKER"), []byte("started after the old launcher had ended"), 0o644); err != nil {
 			os.Exit(5)
 		}
 		os.Exit(0)
 	}
-	if os.Getenv("AGI_TEST_ROLE") == "old-launcher" {
+	if os.Getenv("OMNI_TEST_ROLE") == "old-launcher" {
 		if err := sidecar.KillWithLauncher(); err != nil {
 			fmt.Fprintln(os.Stderr, "job:", err)
 			os.Exit(2)
 		}
 		exe, _ := os.Executable()
 		var err error
-		if os.Getenv("AGI_TEST_MODE") == "plain" { // the control: an ordinary child, which joins the job
+		if os.Getenv("OMNI_TEST_MODE") == "plain" { // the control: an ordinary child, which joins the job
 			err = exec.Command(exe, WaitForFlag, strconv.Itoa(os.Getpid())).Start()
 		} else {
 			err = StartNew(exe, os.Getpid())
@@ -50,7 +50,7 @@ func runOldLauncher(t *testing.T, mode string) (marker string) {
 	t.Helper()
 	marker = filepath.Join(t.TempDir(), "marker.txt")
 	cmd := exec.Command(os.Args[0])
-	cmd.Env = append(os.Environ(), "AGI_TEST_ROLE=old-launcher", "AGI_TEST_MODE="+mode, "AGI_TEST_MARKER="+marker)
+	cmd.Env = append(os.Environ(), "OMNI_TEST_ROLE=old-launcher", "OMNI_TEST_MODE="+mode, "OMNI_TEST_MARKER="+marker)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("the old launcher: %v\n%s", err, out)
 	}

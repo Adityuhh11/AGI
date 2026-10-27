@@ -4,7 +4,7 @@
 
 **Goal:** Put the memory engine behind an authenticated localhost HTTP API and a process entry point, so the Go launcher can start it, wait for it, index folders, search, and stop it.
 
-**Architecture:** `api/` is a thin FastAPI layer over code that already exists. `create_app` opens the store immediately and loads the embedding model in a background thread, so the port answers `/health` within a second while the model takes ~10 s. A new `JobManager` runs `Indexer.sync` in one background thread at a time and exposes progress. A new `SerializedEmbedder` lets the job thread and request threads share one model safely. `python -m agi_memory` reads the token and port from the environment and runs uvicorn on `127.0.0.1`.
+**Architecture:** `api/` is a thin FastAPI layer over code that already exists. `create_app` opens the store immediately and loads the embedding model in a background thread, so the port answers `/health` within a second while the model takes ~10 s. A new `JobManager` runs `Indexer.sync` in one background thread at a time and exposes progress. A new `SerializedEmbedder` lets the job thread and request threads share one model safely. `python -m omni_memory` reads the token and port from the environment and runs uvicorn on `127.0.0.1`.
 
 **Tech Stack:** Python >= 3.12, FastAPI, uvicorn, pydantic (comes with FastAPI), `httpx2` (dev, for the test client), plus everything from phases 0-4.
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Python `>=3.12`, `uv`; run commands from `C:\dev\VS_CODE\AGI\sidecar` unless a step says otherwise. Run Bash tool calls one at a time (parallel calls interleave the working directory). In Python snippets written through a shell heredoc, avoid backslash escapes (use the Edit tool for code containing `\n`).
-- The API binds `127.0.0.1` only (default port 7861). **Every** route, including `/health`, needs `Authorization: Bearer <token>`; the token is read from env `AGI_SIDECAR_TOKEN` and must be at least 16 characters; the server refuses to start without one. Requests whose `Host` header is not `127.0.0.1` or `localhost` (any port) are rejected with 400 before authentication is looked at. The token is compared in constant time and never logged or echoed.
+- Python `>=3.12`, `uv`; run commands from `C:\dev\VS_CODE\Omni\sidecar` unless a step says otherwise. Run Bash tool calls one at a time (parallel calls interleave the working directory). In Python snippets written through a shell heredoc, avoid backslash escapes (use the Edit tool for code containing `\n`).
+- The API binds `127.0.0.1` only (default port 7861). **Every** route, including `/health`, needs `Authorization: Bearer <token>`; the token is read from env `OMNI_SIDECAR_TOKEN` and must be at least 16 characters; the server refuses to start without one. Requests whose `Host` header is not `127.0.0.1` or `localhost` (any port) are rejected with 400 before authentication is looked at. The token is compared in constant time and never logged or echoed.
 - Auto-generated docs (`/docs`, `/redoc`, `/openapi.json`) are disabled: they would be unauthenticated pages.
 - GPU = models only; index storage and search stay on the CPU. Embedding model `google/embeddinggemma-2`, 256-d float32 unit vectors.
 - One index job at a time. Everything except `/health` answers 503 until the model is loaded.
@@ -37,7 +37,7 @@ Inputs and conditions the spec implies but its listed tests do not exercise; eac
 ```
 sidecar/
   pyproject.toml                          (modify: fastapi, uvicorn, httpx2)
-  src/agi_memory/
+  src/omni_memory/
     embedding/base.py                     (modify: `device` on the Embedder protocol)
     embedding/fake.py                     (modify: `device`)
     embedding/serialized.py               (create: SerializedEmbedder)
@@ -61,13 +61,13 @@ Deviations from the spec made while planning (listed again in `docs/api.md`): `/
 ### Task 1: Dependencies, `Embedder.device`, `SerializedEmbedder`
 
 **Files:**
-- Modify: `sidecar/pyproject.toml`, `sidecar/src/agi_memory/embedding/base.py`, `sidecar/src/agi_memory/embedding/fake.py`, `sidecar/src/agi_memory/eval/runner.py`, `sidecar/tests/test_eval.py`, `sidecar/tests/helpers.py`
-- Create: `sidecar/src/agi_memory/embedding/serialized.py`
+- Modify: `sidecar/pyproject.toml`, `sidecar/src/omni_memory/embedding/base.py`, `sidecar/src/omni_memory/embedding/fake.py`, `sidecar/src/omni_memory/eval/runner.py`, `sidecar/tests/test_eval.py`, `sidecar/tests/helpers.py`
+- Create: `sidecar/src/omni_memory/embedding/serialized.py`
 - Test: `sidecar/tests/test_serialized_embedder.py`, `sidecar/tests/test_fake_embedder.py` (append)
 
 **Interfaces:**
 - Produces `Embedder.device` (read-only `str` property; `GemmaEmbedder` already has it, `FakeEmbedder.device == "cpu"`).
-- Produces `agi_memory.embedding.serialized.SerializedEmbedder(inner: Embedder)`: implements `Embedder`; `embed_documents`, `embed_images` and `embed_query` run one at a time behind a lock; `model_id`, `dim`, `device` delegate.
+- Produces `omni_memory.embedding.serialized.SerializedEmbedder(inner: Embedder)`: implements `Embedder`; `embed_documents`, `embed_images` and `embed_query` run one at a time behind a lock; `model_id`, `dim`, `device` delegate.
 - Produces `tests/helpers.wait_for(predicate: Callable[[], T], timeout: float = 10.0, interval: float = 0.01) -> T`: polls until `predicate()` is truthy and returns that value; raises `AssertionError` on timeout.
 
 - [ ] **Step 1: Write the failing tests**
@@ -80,8 +80,8 @@ import time
 
 import numpy as np
 
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.embedding.serialized import SerializedEmbedder
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.embedding.serialized import SerializedEmbedder
 
 
 class Probe(FakeEmbedder):
@@ -157,7 +157,7 @@ def test_fake_embedder_reports_a_cpu_device():
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_serialized_embedder.py tests/test_fake_embedder.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.embedding.serialized`; `AttributeError: device`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.embedding.serialized`; `AttributeError: device`).
 
 - [ ] **Step 3: Dependencies**
 
@@ -187,7 +187,7 @@ Expected: installs fastapi, uvicorn, httpx2 and their dependencies; `uv.lock` ch
 
 - [ ] **Step 4: Implement**
 
-In `sidecar/src/agi_memory/embedding/base.py`, add this property to `Embedder` right after `dim`:
+In `sidecar/src/omni_memory/embedding/base.py`, add this property to `Embedder` right after `dim`:
 
 ```python
     @property
@@ -196,7 +196,7 @@ In `sidecar/src/agi_memory/embedding/base.py`, add this property to `Embedder` r
         ...
 ```
 
-In `sidecar/src/agi_memory/embedding/fake.py`, add after the `dim` property:
+In `sidecar/src/omni_memory/embedding/fake.py`, add after the `dim` property:
 
 ```python
     @property
@@ -204,9 +204,9 @@ In `sidecar/src/agi_memory/embedding/fake.py`, add after the `dim` property:
         return "cpu"
 ```
 
-In `sidecar/src/agi_memory/eval/runner.py` replace `device = str(getattr(embedder, "device", "none"))` with `device = embedder.device`. In `sidecar/tests/test_eval.py` change the baseline written by `test_the_cli_fails_when_quality_drops_below_the_baseline` from `"device": "none"` to `"device": "cpu"`, and the comment in `test_a_run_on_another_device_is_not_gated_on_quality` from `device 'none' != 'cuda'` to `device 'cpu' != 'cuda'`.
+In `sidecar/src/omni_memory/eval/runner.py` replace `device = str(getattr(embedder, "device", "none"))` with `device = embedder.device`. In `sidecar/tests/test_eval.py` change the baseline written by `test_the_cli_fails_when_quality_drops_below_the_baseline` from `"device": "none"` to `"device": "cpu"`, and the comment in `test_a_run_on_another_device_is_not_gated_on_quality` from `device 'none' != 'cuda'` to `device 'cpu' != 'cuda'`.
 
-Create `sidecar/src/agi_memory/embedding/serialized.py`:
+Create `sidecar/src/omni_memory/embedding/serialized.py`:
 
 ```python
 """Lets several threads share one embedder.
@@ -224,7 +224,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from agi_memory.embedding.base import Embedder
+from omni_memory.embedding.base import Embedder
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -288,12 +288,12 @@ git commit -m "feat(embedding): device on the Embedder contract and a thread-saf
 ### Task 2: Background index jobs
 
 **Files:**
-- Create: `sidecar/src/agi_memory/jobs.py`, `sidecar/tests/api_helpers.py`
+- Create: `sidecar/src/omni_memory/jobs.py`, `sidecar/tests/api_helpers.py`
 - Test: `sidecar/tests/test_jobs.py`
 
 **Interfaces:**
 - Consumes: `Indexer`, `SyncReport` (phase 3), `wait_for` (Task 1).
-- Produces `agi_memory.jobs`:
+- Produces `omni_memory.jobs`:
   - `JobState(enum.StrEnum)`: `RUNNING = "running"`, `DONE = "done"`, `FAILED = "failed"`.
   - `Job` dataclass(slots): `id: str`, `source_id: str`, `root: str`, `state: JobState = RUNNING`, `files_done: int = 0`, `files_total: int = 0`, `report: SyncReport | None = None`, `error: str | None = None`.
   - `JobBusyError(job_id: str)` (an `Exception`; `.job_id`).
@@ -310,7 +310,7 @@ git commit -m "feat(embedding): device on the Embedder contract and a thread-saf
 import threading
 import time
 
-from agi_memory.embedding import FakeEmbedder
+from omni_memory.embedding import FakeEmbedder
 
 DIM = 64
 
@@ -355,11 +355,11 @@ import pytest
 from api_helpers import FailingEmbedder, GatedEmbedder
 from helpers import wait_for
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.jobs import JobBusyError, JobManager, JobState
-from agi_memory.store import FlatStore
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.jobs import JobBusyError, JobManager, JobState
+from omni_memory.store import FlatStore
 
 
 @pytest.fixture
@@ -462,7 +462,7 @@ def test_only_the_newest_jobs_are_remembered(make_manager, folder):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_jobs.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.jobs`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.jobs`).
 
 - [ ] **Step 3: Implement `jobs.py`**
 
@@ -485,7 +485,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
-from agi_memory.indexer import Indexer, SyncReport
+from omni_memory.indexer import Indexer, SyncReport
 
 logger = logging.getLogger(__name__)
 
@@ -592,15 +592,15 @@ git commit -m "feat(jobs): one-at-a-time background index jobs with progress"
 ### Task 3: API core (app factory, auth, host check, `/health`)
 
 **Files:**
-- Create: `sidecar/src/agi_memory/api/__init__.py`, `deps.py`, `schemas.py`, `routes.py`, `app.py` (all under `sidecar/src/agi_memory/api/`)
+- Create: `sidecar/src/omni_memory/api/__init__.py`, `deps.py`, `schemas.py`, `routes.py`, `app.py` (all under `sidecar/src/omni_memory/api/`)
 - Modify: `sidecar/tests/api_helpers.py`, `sidecar/tests/conftest.py`
 - Test: `sidecar/tests/test_api_core.py`
 
 **Interfaces:**
 - Consumes: `Settings`, `FlatStore`, `Searcher`, `Indexer`, `JobManager` (Task 2), `SerializedEmbedder` (Task 1), `Embedder`.
-- Produces `agi_memory.api.deps`: `Engine` frozen dataclass (`embedder: Embedder`, `searcher: Searcher`, `jobs: JobManager`); `get_engine(request: Request) -> Engine` (raises `HTTPException(503)` while loading or after a failed load); `get_store(request: Request) -> FlatStore`; `token_guard(token: str) -> Callable[..., None]` (FastAPI dependency; 401 unless the `Authorization` header equals `Bearer <token>`, compared in constant time).
-- Produces `agi_memory.api.schemas.HealthOut(ready: bool, model: str, device: str | None, embedded_items: int, version: str, error: str | None)`.
-- Produces `agi_memory.api.routes.router` (`APIRouter`; Task 3 adds `GET /health`, Tasks 4-5 add the rest) and `agi_memory.api.app`: `MIN_TOKEN_CHARS = 16`, `ALLOWED_HOSTS = ["127.0.0.1", "localhost"]`, `create_app(settings: Settings, token: str, make_embedder: Callable[[], Embedder]) -> FastAPI`. The lifespan opens `FlatStore(settings.index_dir, model_id=settings.model_id, dim=settings.dim)`, starts a daemon thread that calls `make_embedder()` and builds the `Engine`, and closes the store on shutdown. `app.state` holds `settings`, `store`, `engine` (None until loaded) and `load_error` (None unless loading failed or the embedder's `model_id`/`dim` differ from `settings`).
+- Produces `omni_memory.api.deps`: `Engine` frozen dataclass (`embedder: Embedder`, `searcher: Searcher`, `jobs: JobManager`); `get_engine(request: Request) -> Engine` (raises `HTTPException(503)` while loading or after a failed load); `get_store(request: Request) -> FlatStore`; `token_guard(token: str) -> Callable[..., None]` (FastAPI dependency; 401 unless the `Authorization` header equals `Bearer <token>`, compared in constant time).
+- Produces `omni_memory.api.schemas.HealthOut(ready: bool, model: str, device: str | None, embedded_items: int, version: str, error: str | None)`.
+- Produces `omni_memory.api.routes.router` (`APIRouter`; Task 3 adds `GET /health`, Tasks 4-5 add the rest) and `omni_memory.api.app`: `MIN_TOKEN_CHARS = 16`, `ALLOWED_HOSTS = ["127.0.0.1", "localhost"]`, `create_app(settings: Settings, token: str, make_embedder: Callable[[], Embedder]) -> FastAPI`. The lifespan opens `FlatStore(settings.index_dir, model_id=settings.model_id, dim=settings.dim)`, starts a daemon thread that calls `make_embedder()` and builds the `Engine`, and closes the store on shutdown. `app.state` holds `settings`, `store`, `engine` (None until loaded) and `load_error` (None unless loading failed or the embedder's `model_id`/`dim` differ from `settings`).
 - Produces test helpers: `api_helpers.TOKEN`, `AUTH`, `BASE`, `wait_ready(client)`, `index(client, folder, source_id="repo") -> dict` (POST /sources, wait for the job, return its JSON), `running_app(index_dir, make_embedder=<FakeEmbedder(64)>, *, wait=True, **settings_overrides)` (context manager yielding a `TestClient` with the auth header preset and the lifespan running), and `conftest` fixtures `api` (a ready app on `tmp_path / "idx"`) and `folder` (sample folder: `Backend/jwt.js`, `Backend/addcountries.js`, `notes.md`, plus a `.env`; under a directory name with a space).
 
 - [ ] **Step 1: Test helpers**
@@ -615,9 +615,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from helpers import wait_for
 
-from agi_memory.api.app import create_app
-from agi_memory.config import Settings
-from agi_memory.embedding.base import Embedder
+from omni_memory.api.app import create_app
+from omni_memory.config import Settings
+from omni_memory.embedding.base import Embedder
 
 TOKEN = "t0ken-" + "x" * 26
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
@@ -693,9 +693,9 @@ from api_helpers import BASE, DIM, TOKEN, running_app, wait_ready
 from fastapi.testclient import TestClient
 from helpers import wait_for
 
-from agi_memory.api.app import create_app
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
+from omni_memory.api.app import create_app
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
 
 
 def test_health_describes_a_ready_engine(api):
@@ -778,17 +778,17 @@ def test_the_index_survives_a_restart(tmp_path):
 - [ ] **Step 3: Run to see them fail**
 
 Run: `uv run pytest tests/test_api_core.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.api`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.api`).
 
 - [ ] **Step 4: Implement the package**
 
-`sidecar/src/agi_memory/api/__init__.py`:
+`sidecar/src/omni_memory/api/__init__.py`:
 
 ```python
 """The HTTP API: authenticated, localhost only, a thin layer over the engine."""
 ```
 
-`sidecar/src/agi_memory/api/deps.py`:
+`sidecar/src/omni_memory/api/deps.py`:
 
 ```python
 """Request-scoped dependencies: the loaded engine, the store and the token check."""
@@ -802,10 +802,10 @@ from typing import Annotated
 
 from fastapi import Header, HTTPException, Request
 
-from agi_memory.embedding.base import Embedder
-from agi_memory.jobs import JobManager
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
+from omni_memory.embedding.base import Embedder
+from omni_memory.jobs import JobManager
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -846,7 +846,7 @@ def token_guard(token: str) -> Callable[..., None]:
     return guard
 ```
 
-`sidecar/src/agi_memory/api/schemas.py`:
+`sidecar/src/omni_memory/api/schemas.py`:
 
 ```python
 """Request and response bodies. Unknown request fields are errors, not silently ignored."""
@@ -865,7 +865,7 @@ class HealthOut(BaseModel):
     error: str | None
 ```
 
-`sidecar/src/agi_memory/api/routes.py`:
+`sidecar/src/omni_memory/api/routes.py`:
 
 ```python
 """The API routes. Auth and host checks are applied around them in `create_app`."""
@@ -876,11 +876,11 @@ from importlib.metadata import version
 
 from fastapi import APIRouter, Request
 
-from agi_memory.api.schemas import HealthOut
+from omni_memory.api.schemas import HealthOut
 
 router = APIRouter()
 
-_VERSION = version("agi-sidecar")
+_VERSION = version("omni-sidecar")
 
 
 @router.get("/health", response_model=HealthOut)
@@ -897,7 +897,7 @@ def health(request: Request) -> HealthOut:
     )
 ```
 
-`sidecar/src/agi_memory/api/app.py`:
+`sidecar/src/omni_memory/api/app.py`:
 
 ```python
 """Application factory: wires the store, the background model load, auth and the host check.
@@ -917,15 +917,15 @@ from collections.abc import AsyncIterator, Callable
 from fastapi import Depends, FastAPI
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from agi_memory.api.deps import Engine, token_guard
-from agi_memory.api.routes import router
-from agi_memory.config import Settings
-from agi_memory.embedding.base import Embedder
-from agi_memory.embedding.serialized import SerializedEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.jobs import JobManager
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
+from omni_memory.api.deps import Engine, token_guard
+from omni_memory.api.routes import router
+from omni_memory.config import Settings
+from omni_memory.embedding.base import Embedder
+from omni_memory.embedding.serialized import SerializedEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.jobs import JobManager
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
 
 logger = logging.getLogger(__name__)
 
@@ -975,7 +975,7 @@ def create_app(
         finally:
             store.close()
 
-    app = FastAPI(title="AGI memory engine", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="Omni memory engine", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.engine = None
     app.state.load_error = None
@@ -1000,7 +1000,7 @@ git commit -m "feat(api): app factory with bearer auth, host check, background m
 ### Task 4: Sources, jobs and delete routes
 
 **Files:**
-- Modify: `sidecar/src/agi_memory/api/schemas.py`, `sidecar/src/agi_memory/api/routes.py`
+- Modify: `sidecar/src/omni_memory/api/schemas.py`, `sidecar/src/omni_memory/api/routes.py`
 - Test: `sidecar/tests/test_api_sources.py`
 
 **Interfaces:**
@@ -1019,7 +1019,7 @@ import pytest
 from api_helpers import DIM, FailingEmbedder, GatedEmbedder, index, running_app, wait_ready
 from helpers import wait_for
 
-from agi_memory.embedding import FakeEmbedder
+from omni_memory.embedding import FakeEmbedder
 
 
 def test_adding_a_folder_indexes_it_and_reports_what_happened(api, folder):
@@ -1157,7 +1157,7 @@ Expected: FAIL (404 for `/sources`, `/jobs/...`).
 
 - [ ] **Step 3: Implement schemas and routes**
 
-Replace `sidecar/src/agi_memory/api/schemas.py` with:
+Replace `sidecar/src/omni_memory/api/schemas.py` with:
 
 ```python
 """Request and response bodies. Unknown request fields are errors, not silently ignored."""
@@ -1166,7 +1166,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from agi_memory.jobs import JobState
+from omni_memory.jobs import JobState
 
 # Also validated for the path parameter of DELETE /sources/{source_id}.
 SOURCE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
@@ -1230,7 +1230,7 @@ class RemovedOut(BaseModel):
     removed_chunks: int
 ```
 
-Replace `sidecar/src/agi_memory/api/routes.py` with:
+Replace `sidecar/src/omni_memory/api/routes.py` with:
 
 ```python
 """The API routes. Auth and host checks are applied around them in `create_app`."""
@@ -1244,8 +1244,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import Path as PathParam
 
-from agi_memory.api.deps import Engine, get_engine, get_store
-from agi_memory.api.schemas import (
+from omni_memory.api.deps import Engine, get_engine, get_store
+from omni_memory.api.schemas import (
     SOURCE_ID_PATTERN,
     AddSource,
     HealthOut,
@@ -1253,12 +1253,12 @@ from agi_memory.api.schemas import (
     RemovedOut,
     SourceAccepted,
 )
-from agi_memory.jobs import Job, JobBusyError
-from agi_memory.store import FlatStore
+from omni_memory.jobs import Job, JobBusyError
+from omni_memory.store import FlatStore
 
 router = APIRouter()
 
-_VERSION = version("agi-sidecar")
+_VERSION = version("omni-sidecar")
 
 
 @router.get("/health", response_model=HealthOut)
@@ -1311,7 +1311,7 @@ def delete_source(
 - [ ] **Step 4: Run the gate**
 
 Run: `uv run ruff check --fix . && uv run ruff format . && uv run ruff check . && uv run pyright && uv run pytest -q`
-Expected: all pass (about 30 new test cases). pyright may want a return annotation on `get_job`; use `-> Job` imported from `agi_memory.jobs` (FastAPI converts it through `response_model`), not `Any`.
+Expected: all pass (about 30 new test cases). pyright may want a return annotation on `get_job`; use `-> Job` imported from `omni_memory.jobs` (FastAPI converts it through `response_model`), not `Any`.
 
 - [ ] **Step 5: Commit**
 
@@ -1323,7 +1323,7 @@ git commit -m "feat(api): add and delete sources, poll index jobs"
 ### Task 5: Search route and the cross-cutting auth test
 
 **Files:**
-- Modify: `sidecar/src/agi_memory/api/schemas.py`, `sidecar/src/agi_memory/api/routes.py`
+- Modify: `sidecar/src/omni_memory/api/schemas.py`, `sidecar/src/omni_memory/api/routes.py`
 - Test: `sidecar/tests/test_api_search.py`, `sidecar/tests/test_api_auth.py`
 
 **Interfaces:**
@@ -1503,7 +1503,7 @@ Expected: search tests FAIL (404 for `/search`); the auth tests for `/search` fa
 
 - [ ] **Step 3: Implement**
 
-Append to `sidecar/src/agi_memory/api/schemas.py` (add `from agi_memory.types import ChunkKind` to the imports):
+Append to `sidecar/src/omni_memory/api/schemas.py` (add `from omni_memory.types import ChunkKind` to the imports):
 
 ```python
 class SearchFilters(_Request):
@@ -1534,7 +1534,7 @@ class SearchResponse(BaseModel):
     hits: list[SearchHitOut]
 ```
 
-In `sidecar/src/agi_memory/api/routes.py` extend the schema import with `SearchRequest, SearchResponse, SearchHitOut`, import `Filters` from `agi_memory.types`, and append:
+In `sidecar/src/omni_memory/api/routes.py` extend the schema import with `SearchRequest, SearchResponse, SearchHitOut`, import `Filters` from `omni_memory.types`, and append:
 
 ```python
 @router.post("/search")
@@ -1566,12 +1566,12 @@ git commit -m "feat(api): hybrid search route; test authentication on every rout
 ### Task 6: Process entry point and the start/ready/stop contract
 
 **Files:**
-- Create: `sidecar/src/agi_memory/__main__.py`
+- Create: `sidecar/src/omni_memory/__main__.py`
 - Test: `sidecar/tests/test_main.py`, `sidecar/tests/test_api_process.py`
 
 **Interfaces:**
 - Consumes: `create_app`, `MIN_TOKEN_CHARS` (Task 3), `Settings.from_env`, `ConfigError`, `GemmaEmbedder`.
-- Produces `python -m agi_memory`: reads `AGI_SIDECAR_TOKEN` (required, >= 16 chars), `AGI_SIDECAR_PORT` (optional, 1-65535, default 7861), `AGI_MEMORY_DIR`/`LOCALAPPDATA` (index location, as in `Settings.from_env`); exit status 2 with a one-line message on stderr for any of those being wrong (checked before anything heavy is imported); otherwise serves on `127.0.0.1` until terminated. `main() -> int`.
+- Produces `python -m omni_memory`: reads `OMNI_SIDECAR_TOKEN` (required, >= 16 chars), `OMNI_SIDECAR_PORT` (optional, 1-65535, default 7861), `OMNI_MEMORY_DIR`/`LOCALAPPDATA` (index location, as in `Settings.from_env`); exit status 2 with a one-line message on stderr for any of those being wrong (checked before anything heavy is imported); otherwise serves on `127.0.0.1` until terminated. `main() -> int`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1586,41 +1586,41 @@ import pytest
 
 
 def run_main(tmp_path, **env_overrides):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("AGI_")}
-    env["AGI_MEMORY_DIR"] = str(tmp_path / "idx")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("OMNI_")}
+    env["OMNI_MEMORY_DIR"] = str(tmp_path / "idx")
     env.update(env_overrides)
     return subprocess.run(
-        [sys.executable, "-m", "agi_memory"], env=env, capture_output=True, text=True, timeout=60
+        [sys.executable, "-m", "omni_memory"], env=env, capture_output=True, text=True, timeout=60
     )
 
 
 def test_it_refuses_to_start_without_a_token(tmp_path):
     result = run_main(tmp_path)
     assert result.returncode == 2
-    assert "AGI_SIDECAR_TOKEN" in result.stderr
+    assert "OMNI_SIDECAR_TOKEN" in result.stderr
 
 
 def test_it_refuses_a_short_token(tmp_path):
-    result = run_main(tmp_path, AGI_SIDECAR_TOKEN="short")
+    result = run_main(tmp_path, OMNI_SIDECAR_TOKEN="short")
     assert result.returncode == 2
-    assert "AGI_SIDECAR_TOKEN" in result.stderr
+    assert "OMNI_SIDECAR_TOKEN" in result.stderr
 
 
 @pytest.mark.parametrize("port", ["abc", "0", "70000", "-5", ""])
 def test_it_refuses_a_bad_port(tmp_path, port):
-    result = run_main(tmp_path, AGI_SIDECAR_TOKEN="t" * 32, AGI_SIDECAR_PORT=port)
+    result = run_main(tmp_path, OMNI_SIDECAR_TOKEN="t" * 32, OMNI_SIDECAR_PORT=port)
     assert result.returncode == 2
-    assert "AGI_SIDECAR_PORT" in result.stderr
+    assert "OMNI_SIDECAR_PORT" in result.stderr
 
 
 def test_it_refuses_to_guess_where_the_index_lives(tmp_path):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("AGI_") and k != "LOCALAPPDATA"}
-    env["AGI_SIDECAR_TOKEN"] = "t" * 32
+    env = {k: v for k, v in os.environ.items() if not k.startswith("OMNI_") and k != "LOCALAPPDATA"}
+    env["OMNI_SIDECAR_TOKEN"] = "t" * 32
     result = subprocess.run(
-        [sys.executable, "-m", "agi_memory"], env=env, capture_output=True, text=True, timeout=60
+        [sys.executable, "-m", "omni_memory"], env=env, capture_output=True, text=True, timeout=60
     )
     assert result.returncode == 2
-    assert "AGI_MEMORY_DIR" in result.stderr
+    assert "OMNI_MEMORY_DIR" in result.stderr
 ```
 
 `sidecar/tests/test_api_process.py`:
@@ -1637,8 +1637,8 @@ import urllib.request
 import pytest
 from helpers import wait_for
 
-from agi_memory.config import EMBEDDING_DIM, MODEL_ID
-from agi_memory.store import FlatStore
+from omni_memory.config import EMBEDDING_DIM, MODEL_ID
+from omni_memory.store import FlatStore
 
 pytestmark = pytest.mark.model
 
@@ -1681,12 +1681,12 @@ def test_the_real_process_honours_the_start_ready_stop_contract(tmp_path):
     port = free_port()
     env = {
         **os.environ,
-        "AGI_SIDECAR_TOKEN": TOKEN,
-        "AGI_SIDECAR_PORT": str(port),
-        "AGI_MEMORY_DIR": str(tmp_path / "idx"),
+        "OMNI_SIDECAR_TOKEN": TOKEN,
+        "OMNI_SIDECAR_PORT": str(port),
+        "OMNI_MEMORY_DIR": str(tmp_path / "idx"),
     }
     process = subprocess.Popen(
-        [sys.executable, "-m", "agi_memory"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        [sys.executable, "-m", "omni_memory"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
     )
     try:
         wait_for(lambda: answering(port), timeout=60)  # the port opens before the model is loaded
@@ -1723,15 +1723,15 @@ def test_the_real_process_honours_the_start_ready_stop_contract(tmp_path):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_main.py -q`
-Expected: FAIL (`No module named agi_memory.__main__`).
+Expected: FAIL (`No module named omni_memory.__main__`).
 
 - [ ] **Step 3: Implement `__main__.py`**
 
 ```python
-"""Process entry point: `uv run python -m agi_memory`.
+"""Process entry point: `uv run python -m omni_memory`.
 
-Contract with the launcher (docs/api.md): the token arrives in `AGI_SIDECAR_TOKEN`, the port in
-`AGI_SIDECAR_PORT`; the process binds 127.0.0.1 only, opens the port within a second, reports
+Contract with the launcher (docs/api.md): the token arrives in `OMNI_SIDECAR_TOKEN`, the port in
+`OMNI_SIDECAR_PORT`; the process binds 127.0.0.1 only, opens the port within a second, reports
 `ready: false` on `/health` while the model loads, and is stopped by terminating it.
 """
 
@@ -1740,32 +1740,32 @@ from __future__ import annotations
 import os
 import sys
 
-from agi_memory.api.app import MIN_TOKEN_CHARS, create_app
-from agi_memory.config import ConfigError, Settings
-from agi_memory.embedding.base import Embedder
+from omni_memory.api.app import MIN_TOKEN_CHARS, create_app
+from omni_memory.config import ConfigError, Settings
+from omni_memory.embedding.base import Embedder
 
 DEFAULT_PORT = 7861
 
 
 def _fail(message: str) -> int:
-    print(f"agi_memory: {message}", file=sys.stderr)
+    print(f"omni_memory: {message}", file=sys.stderr)
     return 2
 
 
 def _load_gemma(settings: Settings) -> Embedder:
     # Imported here so a bad configuration fails fast, without importing torch first.
-    from agi_memory.embedding.gemma import GemmaEmbedder
+    from omni_memory.embedding.gemma import GemmaEmbedder
 
     return GemmaEmbedder(settings)
 
 
 def main() -> int:
-    token = os.environ.get("AGI_SIDECAR_TOKEN", "")
+    token = os.environ.get("OMNI_SIDECAR_TOKEN", "")
     if len(token) < MIN_TOKEN_CHARS:
-        return _fail(f"AGI_SIDECAR_TOKEN must be set to at least {MIN_TOKEN_CHARS} characters")
-    port_text = os.environ.get("AGI_SIDECAR_PORT", str(DEFAULT_PORT))
+        return _fail(f"OMNI_SIDECAR_TOKEN must be set to at least {MIN_TOKEN_CHARS} characters")
+    port_text = os.environ.get("OMNI_SIDECAR_PORT", str(DEFAULT_PORT))
     if not port_text.isdecimal() or not 1 <= int(port_text) <= 65535:
-        return _fail(f"AGI_SIDECAR_PORT must be a port number (1-65535), got {port_text!r}")
+        return _fail(f"OMNI_SIDECAR_PORT must be a port number (1-65535), got {port_text!r}")
     try:
         settings = Settings.from_env()
     except ConfigError as error:
@@ -1795,7 +1795,7 @@ Expected: the earlier real-model tests plus `test_the_real_process_honours_the_s
 
 ```bash
 git add sidecar/src sidecar/tests
-git commit -m "feat(api): python -m agi_memory entry point and a real-process contract test"
+git commit -m "feat(api): python -m omni_memory entry point and a real-process contract test"
 ```
 
 ### Task 7: Documentation and the phase 5 gate
@@ -1810,7 +1810,7 @@ git commit -m "feat(api): python -m agi_memory entry point and a real-process co
 
 Create `docs/api.md` with these sections (write prose in the same style as the other docs; keep it exact, a Go developer will code against it):
 
-1. **Process contract**: start `uv run python -m agi_memory` from `sidecar/` with env `AGI_SIDECAR_TOKEN` (>= 16 characters, generated by Go per launch), `AGI_SIDECAR_PORT` (default 7861), `AGI_MEMORY_DIR` (optional; default `%LOCALAPPDATA%\AGI\memory`). Exit status 2 and a one-line stderr message for bad configuration. The port opens within about a second; poll `GET /health` until `ready` is true (model load 10-15 s warm); if `error` is non-null the model failed to load and `ready` will never become true. Stop by terminating the process (attach it to a Windows Job Object so it cannot outlive Go); the index survives a hard stop.
+1. **Process contract**: start `uv run python -m omni_memory` from `sidecar/` with env `OMNI_SIDECAR_TOKEN` (>= 16 characters, generated by Go per launch), `OMNI_SIDECAR_PORT` (default 7861), `OMNI_MEMORY_DIR` (optional; default `%LOCALAPPDATA%\Omni\memory`). Exit status 2 and a one-line stderr message for bad configuration. The port opens within about a second; poll `GET /health` until `ready` is true (model load 10-15 s warm); if `error` is non-null the model failed to load and `ready` will never become true. Stop by terminating the process (attach it to a Windows Job Object so it cannot outlive Go); the index survives a hard stop.
 2. **Security**: bind `127.0.0.1` only; every route needs `Authorization: Bearer <token>`; `Host` must be `127.0.0.1` or `localhost` (use `127.0.0.1`; `[::1]` is rejected); wrong host gives 400, wrong or missing token 401 (and 401 wins over 422); no CORS, no docs pages.
 3. **Routes**, one subsection each with request body, response body and every status code, exactly as built: `GET /health`, `POST /sources`, `GET /jobs/{job_id}`, `DELETE /sources/{source_id}`, `POST /search` (include the hit fields and the filters object; `modified_after_ns` is integer nanoseconds since the epoch; `k` is 1-100; `query` up to 4000 characters, empty returns no hits; raw scores are not calibrated, there is no "no good answer" signal yet).
 4. **Semantics worth knowing**: one job at a time (409 carries the running `job_id`); posting an already-indexed folder again is an incremental sync (the way to refresh); job history is in memory (last 50) and lost on restart; `DELETE` is idempotent; `source_id` pattern `^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`; paths must be absolute and exist; secrets are never indexed (deny list, counted in `report.denied`); a search issued while indexing waits at most one embedding batch.
@@ -1825,7 +1825,7 @@ Create `docs/api.md` with these sections (write prose in the same style as the o
 
 - [ ] **Step 3: Final gate and commit**
 
-Run: `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run pytest -q` (all clean), `uv run pytest -m model -q` (real-model tests including the process test pass), `uv run python -m agi_memory.eval` (exit 0: retrieval quality unchanged), and `git status --short` (nothing under `Sample Data/` or any `.env`).
+Run: `uv run ruff check . && uv run ruff format --check . && uv run pyright && uv run pytest -q` (all clean), `uv run pytest -m model -q` (real-model tests including the process test pass), `uv run python -m omni_memory.eval` (exit 0: retrieval quality unchanged), and `git status --short` (nothing under `Sample Data/` or any `.env`).
 
 ```bash
 git add docs AGENTS.md
@@ -1836,7 +1836,7 @@ git commit -m "docs: HTTP API contract and phase 5 status"
 
 ## Self-Review (done against the spec)
 
-**Spec coverage (section 8 and phase 5).** `GET /health` with `{ready, model, device, embedded_items, version}` and `ready` only after the model loads (T3); `POST /sources` returning a `job_id` (T4); `GET /jobs/{id}` with progress, counts and per-file errors (T2, T4); `DELETE /sources/{source_id}` (T4); `POST /search` with `{query, k?, filters?}` and the section 7 hit shape including raw scores and no "no good answer" signal (T5); `127.0.0.1` binding, configurable port default 7861, bearer token from `AGI_SIDECAR_TOKEN`, non-local `Host` rejected, refusal to start without a token (T3, T6); "one job at a time" (T2); process contract `uv run python -m agi_memory`, poll `/health`, stop by terminating (T6, T7); "start/ready/stop contract documented" (T7). Deferred by design: the Go side of the Job Object, `Reranker` hook and everything in phase 6.
+**Spec coverage (section 8 and phase 5).** `GET /health` with `{ready, model, device, embedded_items, version}` and `ready` only after the model loads (T3); `POST /sources` returning a `job_id` (T4); `GET /jobs/{id}` with progress, counts and per-file errors (T2, T4); `DELETE /sources/{source_id}` (T4); `POST /search` with `{query, k?, filters?}` and the section 7 hit shape including raw scores and no "no good answer" signal (T5); `127.0.0.1` binding, configurable port default 7861, bearer token from `OMNI_SIDECAR_TOKEN`, non-local `Host` rejected, refusal to start without a token (T3, T6); "one job at a time" (T2); process contract `uv run python -m omni_memory`, poll `/health`, stop by terminating (T6, T7); "start/ready/stop contract documented" (T7). Deferred by design: the Go side of the Job Object, `Reranker` hook and everything in phase 6.
 
 **Placeholders.** None.
 

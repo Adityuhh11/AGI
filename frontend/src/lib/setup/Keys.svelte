@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { View } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { View } from "../../../bindings/omni/internal/settingsui";
   import HotkeyField from "../settings/HotkeyField.svelte";
 
   let { view }: { view: View } = $props();
@@ -36,7 +36,7 @@
 <div class="field">
   <span class="label" id="setup-hotkey-label">Your hotkey</span>
   <HotkeyField labelId="setup-hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
-  <p class="help">Click it to record another. AGI says if another program already uses it.</p>
+  <p class="help">Click it to record another. Omni says if another program already uses it.</p>
 </div>
 
 <div class="field">

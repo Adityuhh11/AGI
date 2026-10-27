@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"agi/internal/config"
-	"agi/internal/timer"
+	"omni/internal/config"
+	"omni/internal/timer"
 )
 
 // TimerControl is the timer as the bar uses it; *timer.Timer satisfies it.

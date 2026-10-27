@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// These tests use the real clipboard and open a window, so they run only with AGI_REAL_CLIPBOARD=1. They
+// These tests use the real clipboard and open a window, so they run only with OMNI_REAL_CLIPBOARD=1. They
 // save the text that was on the clipboard and put it back.
 
 var (
@@ -24,12 +24,12 @@ var (
 
 func realOnly(t *testing.T) {
 	t.Helper()
-	if os.Getenv("AGI_REAL_CLIPBOARD") != "1" {
-		t.Skip("set AGI_REAL_CLIPBOARD=1 to use the real clipboard and open a window")
+	if os.Getenv("OMNI_REAL_CLIPBOARD") != "1" {
+		t.Skip("set OMNI_REAL_CLIPBOARD=1 to use the real clipboard and open a window")
 	}
 	saved := powershell(t, "Get-Clipboard -Raw")
 	t.Cleanup(func() {
-		powershell(t, "Set-Clipboard -Value $env:AGI_SAVED", "AGI_SAVED="+strings.TrimRight(saved, "\r\n"))
+		powershell(t, "Set-Clipboard -Value $env:OMNI_SAVED", "OMNI_SAVED="+strings.TrimRight(saved, "\r\n"))
 	})
 }
 
@@ -111,7 +111,7 @@ func TestRealSequenceMovesWhenSomethingIsCopied(t *testing.T) {
 const targetScript = `
 param($out, $done)
 Add-Type -AssemblyName System.Windows.Forms
-$f = New-Object Windows.Forms.Form; $f.Text = 'agi-paste-target'; $f.Width = 500; $f.Height = 240; $f.StartPosition = 'CenterScreen'
+$f = New-Object Windows.Forms.Form; $f.Text = 'omni-paste-target'; $f.Width = 500; $f.Height = 240; $f.StartPosition = 'CenterScreen'
 $t = New-Object Windows.Forms.TextBox; $t.Multiline = $true; $t.Dock = 'Fill'; $f.Controls.Add($t)
 $timer = New-Object Windows.Forms.Timer; $timer.Interval = 40
 $timer.Add_Tick({ [IO.File]::WriteAllText($out, $t.Text); if (Test-Path $done) { $f.Close() } })
@@ -140,7 +140,7 @@ func TestRealPasteIntoAnotherProgram(t *testing.T) {
 	})
 	var window uintptr
 	for deadline := time.Now().Add(15 * time.Second); window == 0 && time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
-		window = findWindow("", "agi-paste-target")
+		window = findWindow("", "omni-paste-target")
 	}
 	if window == 0 {
 		t.Fatal("the target window never appeared")
@@ -159,7 +159,7 @@ func TestRealPasteIntoAnotherProgram(t *testing.T) {
 			time.Sleep(150 * time.Millisecond)
 			paster := NewPaster(
 				func(text string) bool {
-					powershell(t, "Set-Clipboard -Value $env:AGI_TEXT", "AGI_TEXT="+text)
+					powershell(t, "Set-Clipboard -Value $env:OMNI_TEXT", "OMNI_TEXT="+text)
 					return true
 				},
 				func() uintptr { return window },

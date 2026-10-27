@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/sidecar"
+	"omni/internal/sidecar"
 )
 
 // sampleData is what a survey of the repository's Sample Data folder (96 files) reports.

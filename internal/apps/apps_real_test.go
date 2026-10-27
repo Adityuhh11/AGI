@@ -10,10 +10,10 @@ import (
 )
 
 // TestRealStartMenu measures the index on this machine's real Start Menu. It is skipped unless
-// AGI_REAL_APPS=1, because it runs PowerShell and its numbers belong to the machine it runs on.
+// OMNI_REAL_APPS=1, because it runs PowerShell and its numbers belong to the machine it runs on.
 func TestRealStartMenu(t *testing.T) {
-	if os.Getenv("AGI_REAL_APPS") != "1" {
-		t.Skip("set AGI_REAL_APPS=1 to measure the real Start Menu")
+	if os.Getenv("OMNI_REAL_APPS") != "1" {
+		t.Skip("set OMNI_REAL_APPS=1 to measure the real Start Menu")
 	}
 	start := time.Now()
 	data, err := startApps(context.Background())

@@ -48,7 +48,7 @@ func zipOf(t *testing.T, entries ...zipEntry) []byte {
 }
 
 func releaseZip(t *testing.T) []byte {
-	return zipOf(t, zipEntry{"agi.exe", newProgram}, zipEntry{"README.txt", []byte("hello")})
+	return zipOf(t, zipEntry{"omni.exe", newProgram}, zipEntry{"README.txt", []byte("hello")})
 }
 
 func sumOf(b []byte) string { s := sha256.Sum256(b); return hex.EncodeToString(s[:]) }
@@ -73,7 +73,7 @@ func newRig(t *testing.T, body []byte) *rig {
 	if err := os.MkdirAll(r.dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	r.exe = filepath.Join(r.dir, "agi.exe")
+	r.exe = filepath.Join(r.dir, "omni.exe")
 	if err := os.WriteFile(r.exe, oldProgram, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func newRig(t *testing.T, body []byte) *rig {
 	r.inst = NewInstaller(r.work)
 	r.inst.prefix = r.srv.URL + "/"
 	r.inst.sleep = func(time.Duration) {}
-	r.asset = Asset{Name: "agi-9.9.9-windows-x64.zip", URL: r.srv.URL + "/v9.9.9/agi-9.9.9-windows-x64.zip", Size: int64(len(body)), SHA256: sumOf(body)}
+	r.asset = Asset{Name: "omni-9.9.9-windows-x64.zip", URL: r.srv.URL + "/v9.9.9/omni-9.9.9-windows-x64.zip", Size: int64(len(body)), SHA256: sumOf(body)}
 	return r
 }
 
@@ -99,7 +99,7 @@ func (r *rig) untouched() {
 	if err != nil || !bytes.Equal(got, oldProgram) {
 		r.t.Fatalf("the running program changed: %q, %v", got, err)
 	}
-	r.onlyThe([]string{"agi.exe"})
+	r.onlyThe([]string{"omni.exe"})
 	if _, err := os.Stat(r.work); err == nil {
 		r.t.Fatal("the download folder was left behind")
 	}
@@ -143,7 +143,7 @@ func TestAnUpdateReplacesTheProgramAndKeepsTheOldOneAside(t *testing.T) {
 	if got, _ := os.ReadFile(r.exe + ".old"); !bytes.Equal(got, oldProgram) {
 		t.Fatalf("the old program is %q", got)
 	}
-	r.onlyThe([]string{"agi.exe", "agi.exe.old"})
+	r.onlyThe([]string{"omni.exe", "omni.exe.old"})
 	if _, err := os.Stat(r.work); err == nil {
 		t.Error("the download folder was left behind")
 	}
@@ -211,7 +211,7 @@ func TestAnUpdateBiggerThanTheLimitIsNotDownloaded(t *testing.T) {
 
 func TestAnAddressOutsideTheProjectsReleasesIsNeverContacted(t *testing.T) {
 	r := newRig(t, releaseZip(t))
-	for _, url := range []string{"https://evil.example/agi.zip", "http://github.com/Adityuhh11/AGI/releases/download/v1/agi.zip", ""} {
+	for _, url := range []string{"https://evil.example/omni.zip", "http://github.com/Adityuhh11/Omni/releases/download/v1/omni.zip", ""} {
 		r.asset.URL = url
 		if err := r.install(); err == nil {
 			t.Errorf("%q was accepted", url)
@@ -224,7 +224,7 @@ func TestAnAddressOutsideTheProjectsReleasesIsNeverContacted(t *testing.T) {
 }
 
 func TestTheRealPrefixIsThisProjectsReleases(t *testing.T) {
-	if NewInstaller(t.TempDir()).prefix != "https://github.com/Adityuhh11/AGI/releases/download/" {
+	if NewInstaller(t.TempDir()).prefix != "https://github.com/Adityuhh11/Omni/releases/download/" {
 		t.Fatal("the installer would download from somewhere else")
 	}
 }
@@ -254,28 +254,28 @@ func TestARedirectIsFollowedToTheFile(t *testing.T) {
 	}
 }
 
-func TestAZipThatDoesNotHoldExactlyOneAgiExeAtItsTopInstallsNothing(t *testing.T) {
+func TestAZipThatDoesNotHoldExactlyOneOmniExeAtItsTopInstallsNothing(t *testing.T) {
 	for name, tc := range map[string]struct {
 		body []byte
 		want string
 	}{
-		"only a readme":     {zipOf(t, zipEntry{"README.txt", []byte("x")}), "no agi.exe"},
-		"nested":            {zipOf(t, zipEntry{"bin/agi.exe", newProgram}), "no agi.exe"},
-		"a path out":        {zipOf(t, zipEntry{"../agi.exe", newProgram}), "no agi.exe"},
-		"another case":      {zipOf(t, zipEntry{"AGI.EXE", newProgram}), "no agi.exe"},
-		"twice":             {zipOf(t, zipEntry{"agi.exe", newProgram}, zipEntry{"agi.exe", newProgram}), "twice"},
-		"a directory":       {zipOf(t, zipEntry{"agi.exe/", nil}), "no agi.exe"},
-		"not a program":     {zipOf(t, zipEntry{"agi.exe", []byte("#!/bin/sh\necho hi")}), "not a Windows program"},
-		"an empty file":     {zipOf(t, zipEntry{"agi.exe", nil}), "not a Windows program"},
+		"only a readme":     {zipOf(t, zipEntry{"README.txt", []byte("x")}), "no omni.exe"},
+		"nested":            {zipOf(t, zipEntry{"bin/omni.exe", newProgram}), "no omni.exe"},
+		"a path out":        {zipOf(t, zipEntry{"../omni.exe", newProgram}), "no omni.exe"},
+		"another case":      {zipOf(t, zipEntry{"Omni.EXE", newProgram}), "no omni.exe"},
+		"twice":             {zipOf(t, zipEntry{"omni.exe", newProgram}, zipEntry{"omni.exe", newProgram}), "twice"},
+		"a directory":       {zipOf(t, zipEntry{"omni.exe/", nil}), "no omni.exe"},
+		"not a program":     {zipOf(t, zipEntry{"omni.exe", []byte("#!/bin/sh\necho hi")}), "not a Windows program"},
+		"an empty file":     {zipOf(t, zipEntry{"omni.exe", nil}), "not a Windows program"},
 		"not even a zip":    {[]byte("this is not a zip file at all"), "zip"},
-		"a zip of nothing":  {zipOf(t), "no agi.exe"},
-		"program and extra": {zipOf(t, zipEntry{"agi.exe", newProgram}, zipEntry{"../evil.dll", []byte("x")}), ""},
+		"a zip of nothing":  {zipOf(t), "no omni.exe"},
+		"program and extra": {zipOf(t, zipEntry{"omni.exe", newProgram}, zipEntry{"../evil.dll", []byte("x")}), ""},
 	} {
 		r := newRig(t, tc.body)
 		parent := filepath.Dir(r.dir)
 		before, _ := os.ReadDir(parent)
 		err := r.install()
-		if tc.want == "" { // the extra entry is ignored: only agi.exe is ever read
+		if tc.want == "" { // the extra entry is ignored: only omni.exe is ever read
 			if err != nil {
 				t.Errorf("%s: %v", name, err)
 			}
@@ -298,9 +298,9 @@ func TestAZipThatDoesNotHoldExactlyOneAgiExeAtItsTopInstallsNothing(t *testing.T
 
 func TestAFolderThatCannotBeWrittenIsFoundOutBeforeTheDownload(t *testing.T) {
 	r := newRig(t, releaseZip(t))
-	gone := filepath.Join(r.dir, "no", "such", "folder", "agi.exe")
+	gone := filepath.Join(r.dir, "no", "such", "folder", "omni.exe")
 	err := r.inst.Install(context.Background(), r.asset, gone)
-	if err == nil || !strings.Contains(err.Error(), "cannot write next to agi.exe") {
+	if err == nil || !strings.Contains(err.Error(), "cannot write next to omni.exe") {
 		t.Fatalf("error %v", err)
 	}
 	if r.hits.Load() != 0 {
@@ -381,7 +381,7 @@ func TestLeftoversOfAnEarlierUpdateAreReplaced(t *testing.T) {
 	if got, _ := os.ReadFile(r.exe + ".old"); !bytes.Equal(got, oldProgram) {
 		t.Fatalf(".old is %q", got)
 	}
-	r.onlyThe([]string{"agi.exe", "agi.exe.old"})
+	r.onlyThe([]string{"omni.exe", "omni.exe.old"})
 }
 
 func TestAReleaseWithNothingToVerifyIsNotInstalled(t *testing.T) {
@@ -486,7 +486,7 @@ func TestAnIdleInstallerSaysSo(t *testing.T) {
 func TestThePageIsGivenASentenceNotAnErrorMessage(t *testing.T) {
 	for in, want := range map[string]string{
 		"the download does not match the checksum":        "The download does not match the checksum.",
-		"cannot write next to agi.exe: access is denied.": "Cannot write next to agi.exe: access is denied.",
+		"cannot write next to omni.exe: access is denied.": "Cannot write next to omni.exe: access is denied.",
 		"The update was cancelled.":                       "The update was cancelled.",
 		"édition":                                         "Édition.",
 		"":                                                "",

@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"agi/internal/config"
-	"agi/internal/enginesetup"
-	"agi/internal/indexing"
-	"agi/internal/settings"
-	"agi/internal/sidecar"
-	"agi/internal/survey"
-	"agi/internal/update"
+	"omni/internal/config"
+	"omni/internal/enginesetup"
+	"omni/internal/indexing"
+	"omni/internal/settings"
+	"omni/internal/sidecar"
+	"omni/internal/survey"
+	"omni/internal/update"
 )
 
 // fakeSetup plays the installer: it is installed or not, and says what it was asked to do.
@@ -116,7 +116,7 @@ type harness struct {
 
 func newHarness(t *testing.T, refuse ...string) *harness {
 	t.Helper()
-	store, err := settings.Open(filepath.Join(t.TempDir(), "AGI", "config.toml"))
+	store, err := settings.Open(filepath.Join(t.TempDir(), "Omni", "config.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 		ClipboardHotkeyError: func() string { return h.clipHotkeyError },
 		Updates:              h.updates,
 		Installer:            h.installer,
-		ExePath:              "C:/app/agi.exe",
+		ExePath:              "C:/app/omni.exe",
 		Restart:              func() error { h.restarts++; return h.restartErr },
 		OpenURL:              func(a string) error { h.openedURL = a; return nil },
 		Autostart:            func() bool { return h.startup },
@@ -260,7 +260,7 @@ func TestOpenFolderKnowsTheConfigAndLogFoldersOnly(t *testing.T) {
 	if msg := h.svc.OpenFolder("logs"); msg != "" || h.opened != `C:\logs` {
 		t.Fatalf("logs: %q, opened %q", msg, h.opened)
 	}
-	if msg := h.svc.OpenFolder("config"); msg != "" || filepath.Base(h.opened) != "AGI" {
+	if msg := h.svc.OpenFolder("config"); msg != "" || filepath.Base(h.opened) != "Omni" {
 		t.Fatalf("config: %q, opened %q", msg, h.opened)
 	}
 	if msg := h.svc.OpenFolder(`C:\Windows`); msg == "" {
@@ -453,10 +453,10 @@ func TestAFolderWithNothingReadableSaysSoAndWhereWindowsMovedIt(t *testing.T) {
 		return ""
 	}
 	got := h.svc.Search().Folders
-	if want := `Nothing here AGI can read. Windows keeps this folder in C:\Users\me\OneDrive\Documents now: add that one instead`; got[0].Text != want {
+	if want := `Nothing here Omni can read. Windows keeps this folder in C:\Users\me\OneDrive\Documents now: add that one instead`; got[0].Text != want {
 		t.Errorf("a moved folder says %q", got[0].Text)
 	}
-	if got[1].Text != "Nothing here AGI can read" {
+	if got[1].Text != "Nothing here Omni can read" {
 		t.Errorf("an empty folder says %q", got[1].Text)
 	}
 }
@@ -503,7 +503,7 @@ func TestAutostartIsShownAndChanged(t *testing.T) {
 
 func TestUpdateCheckReportsWhatGitHubSaid(t *testing.T) {
 	h := newHarness(t)
-	h.updates.rel, h.updates.newer = update.Release{Version: "0.3.0", URL: "https://github.com/Adityuhh11/AGI/releases/tag/v0.3.0"}, true
+	h.updates.rel, h.updates.newer = update.Release{Version: "0.3.0", URL: "https://github.com/Adityuhh11/Omni/releases/tag/v0.3.0"}, true
 	if got := h.svc.CheckUpdate(); !got.Available || got.Latest != "0.3.0" || got.Error != "" {
 		t.Fatalf("got %+v", got)
 	}
@@ -679,7 +679,7 @@ func TestRemovingEverythingForgetsTheFoldersAndChoicesButKeepsWhereItGoes(t *tes
 	h.setup.state.Installed = true
 	enable(t, h)
 	if err := h.store.Update(func(c *config.Config) {
-		c.Roots, c.Search.DataDir, c.Search.Pace, c.Search.Photos, c.Search.InLauncher = []string{`C:\Docs`}, `D:\AGI`, "fast", "name", true
+		c.Roots, c.Search.DataDir, c.Search.Pace, c.Search.Photos, c.Search.InLauncher = []string{`C:\Docs`}, `D:\Omni`, "fast", "name", true
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -690,7 +690,7 @@ func TestRemovingEverythingForgetsTheFoldersAndChoicesButKeepsWhereItGoes(t *tes
 	if got.Search.Enabled || len(got.Roots) != 0 || got.Search.Pace != "balanced" || got.Search.Photos != "content" || got.Search.InLauncher {
 		t.Errorf("settings were not reset: %+v, roots %v", got.Search, got.Roots)
 	}
-	if got.Search.DataDir != `D:\AGI` {
+	if got.Search.DataDir != `D:\Omni` {
 		t.Errorf("the chosen data folder was forgotten: %q", got.Search.DataDir)
 	}
 	if h.setup.removed != 1 || h.setup.indexRemoved != 1 {

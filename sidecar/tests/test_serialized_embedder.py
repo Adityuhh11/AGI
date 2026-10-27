@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.embedding.serialized import SerializedEmbedder
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.embedding.serialized import SerializedEmbedder
 
 
 class Probe(FakeEmbedder):

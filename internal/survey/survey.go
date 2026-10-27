@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"agi/internal/config"
-	"agi/internal/sidecar"
+	"omni/internal/config"
+	"omni/internal/sidecar"
 )
 
 // Engine is the part of the engine's API the manager uses; *sidecar.Client satisfies it.

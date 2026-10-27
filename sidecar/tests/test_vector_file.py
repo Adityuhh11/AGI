@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from agi_memory.store.vectors import VectorFile, VectorFileError
+from omni_memory.store.vectors import VectorFile, VectorFileError
 
 
 def rows(*vectors) -> np.ndarray:

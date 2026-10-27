@@ -2,10 +2,10 @@ import shutil
 
 import pytest
 
-from agi_memory.store import FlatStore, IndexMismatchError
-from agi_memory.store.vectors import VectorFile
-from agi_memory.types import Filters
 from helpers import DIM, make_chunk, unit_vectors
+from omni_memory.store import FlatStore, IndexMismatchError
+from omni_memory.store.vectors import VectorFile
+from omni_memory.types import Filters
 
 
 def test_failed_growth_leaves_the_store_usable(tmp_path, monkeypatch):

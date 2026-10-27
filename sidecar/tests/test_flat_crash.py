@@ -4,8 +4,8 @@ import textwrap
 
 import pytest
 
-from agi_memory.store import FlatStore
 from helpers import DIM, make_chunk, unit_vectors
+from omni_memory.store import FlatStore
 
 
 def test_failed_metadata_write_leaves_a_consistent_store(tmp_path, monkeypatch):
@@ -49,9 +49,9 @@ def test_hard_kill_mid_upsert(tmp_path, kill_point):
 
         import numpy as np
 
-        from agi_memory.store import FlatStore
-        from agi_memory.store.vectors import VectorFile
-        from agi_memory.types import Chunk, ChunkKind
+        from omni_memory.store import FlatStore
+        from omni_memory.store.vectors import VectorFile
+        from omni_memory.types import Chunk, ChunkKind
 
         def chunk(name):
             return Chunk("s", name + ".txt", ChunkKind.TEXT, "{{}}", name, 1, name)

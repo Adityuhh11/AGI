@@ -11,7 +11,7 @@ import (
 // scratch points the package at keys of its own, so the test never touches the real Run key.
 func scratch(t *testing.T) {
 	t.Helper()
-	root := fmt.Sprintf(`Software\AGI-autostart-test-%d`, time.Now().UnixNano())
+	root := fmt.Sprintf(`Software\Omni-autostart-test-%d`, time.Now().UnixNano())
 	oldRun, oldApproved := runKey, approvedKey
 	runKey, approvedKey = root+`\Run`, root+`\Approved`
 	t.Cleanup(func() {
@@ -71,7 +71,7 @@ func TestAnEntryForAnotherPathIsOff(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer k.Close()
-	if err := k.SetStringValue(valueName, `"C:\somewhere\else\agi.exe"`); err != nil {
+	if err := k.SetStringValue(valueName, `"C:\somewhere\else\omni.exe"`); err != nil {
 		t.Fatal(err)
 	}
 	if Enabled() {

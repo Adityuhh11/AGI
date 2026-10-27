@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // fake records what would have been started.

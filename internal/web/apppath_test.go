@@ -5,10 +5,10 @@ import (
 	"testing"
 )
 
-// TestRealAppPath looks Zen up in this machine's registry; it runs only with AGI_REAL_WEB=1.
+// TestRealAppPath looks Zen up in this machine's registry; it runs only with OMNI_REAL_WEB=1.
 func TestRealAppPath(t *testing.T) {
-	if os.Getenv("AGI_REAL_WEB") != "1" {
-		t.Skip("set AGI_REAL_WEB=1 to read the registry")
+	if os.Getenv("OMNI_REAL_WEB") != "1" {
+		t.Skip("set OMNI_REAL_WEB=1 to read the registry")
 	}
 	path, err := appPath("zen")
 	if err != nil {

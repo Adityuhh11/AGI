@@ -98,7 +98,7 @@ keys ──> Svelte bar ──> internal/palette.Query(text, mode) ──> insta
 - `internal/commands`: the registry of commands, built in or from `config.toml`.
 - `internal/rank`: the fuzzy matcher and frecency, shared by every provider.
 - `internal/state`: the one small file of things learned about you (frecency, tags, learned prefixes), JSON written
-  atomically in `%APPDATA%\AGI\state.json`. Thousands of entries at most, so a database would be bloat.
+  atomically in `%APPDATA%\Omni\state.json`. Thousands of entries at most, so a database would be bloat.
 - `internal/web` (P2): browser detection, engines and quicklinks.
 
 Instant results never wait on the engine, the model or the disk, and nothing here touches the hotkey path: the indexes
@@ -160,7 +160,7 @@ url = "https://github.com/search?q={q}"
 
 **Later, and the part Raycast cannot do (P5):** Zen's bookmarks and history are searchable by meaning. A job copies
 `places.sqlite` and its WAL (Zen holds it open), writes bookmarks and history as plain text files under
-`%LOCALAPPDATA%\AGI\browser\` (one line per page: title and URL), and the engine indexes that folder like any other
+`%LOCALAPPDATA%\Omni\browser\` (one line per page: title and URL), and the engine indexes that folder like any other
 root, with no engine change. A hit on one of those lines opens the URL in Zen instead of the text file. "That article
 about CUDA graphs I read last week" becomes a query.
 
@@ -172,9 +172,9 @@ focuses one), calculator and unit conversion in the bar (`= 2 * 3.5`). User comm
 
 ```toml
 [[command]]
-title = "Open the AGI repo"
-run = ['code', 'C:\dev\VS_CODE\AGI']
-alias = "agi"
+title = "Open the Omni repo"
+run = ['code', 'C:\dev\VS_CODE\Omni']
+alias = "omni"
 ```
 
 This is the extension story: a file you edit, not a plugin API. Anything that outgrows it becomes a Go package here.

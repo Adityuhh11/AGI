@@ -1,7 +1,7 @@
 //go:build windows && realsidecar
 
 // Run by hand: go test -tags realsidecar -run TestTheRealEngine -v ./internal/sidecar/
-// It starts the installed engine (AGI_ENGINE_DIR or %LOCALAPPDATA%\AGI\engine) against the sample folder.
+// It starts the installed engine (OMNI_ENGINE_DIR or %LOCALAPPDATA%\Omni\engine) against the sample folder.
 
 package sidecar
 
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/enginesetup"
+	"omni/internal/enginesetup"
 )
 
 type testLog struct{ t *testing.T }
@@ -29,7 +29,7 @@ func TestTheRealEngineStartsIndexesSearchesAndStops(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !engine.Installed() {
-		t.Skip("file search is not installed (turn it on in Settings, or set AGI_ENGINE_DIR)")
+		t.Skip("file search is not installed (turn it on in Settings, or set OMNI_ENGINE_DIR)")
 	}
 	sample, err := filepath.Abs(filepath.Join("..", "..", "Sample Data"))
 	if err != nil {
@@ -38,7 +38,7 @@ func TestTheRealEngineStartsIndexesSearchesAndStops(t *testing.T) {
 	if _, err := os.Stat(sample); err != nil {
 		t.Skip("Sample Data/ is not present")
 	}
-	t.Setenv("AGI_MEMORY_DIR", t.TempDir())
+	t.Setenv("OMNI_MEMORY_DIR", t.TempDir())
 
 	sup, err := New(Options{Dir: engine.App(), Python: engine.Python(), Env: engine.Env(), Log: testLog{t}})
 	if err != nil {

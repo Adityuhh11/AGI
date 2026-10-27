@@ -3,21 +3,21 @@
 Spec: `docs/superpowers/specs/2026-10-20-one-click-update-design.md`. Branch `feat/self-update`, cut from `dev`. One commit per
 task, docs in the same commit as the code, `go vet`, `go test ./...`, `svelte-check` and `npm test` green before each. No AI attribution.
 
-**U1 `internal/update`: the asset.** `Release` gains `Asset{Name, URL, Size, SHA256}`: the `agi-<version>-windows-x64.zip` of the
+**U1 `internal/update`: the asset.** `Release` gains `Asset{Name, URL, Size, SHA256}`: the `omni-<version>-windows-x64.zip` of the
 release (a missing zip, or one with no `sha256:` digest, leaves `Asset` empty, which means "release page only"). Tests: the real
 answer's shape, no digest, no zip, an unexpected digest algorithm.
 
 **U2 `internal/update/install.go`.** `Install(ctx, asset, exePath, progress)`: download into a temporary folder (at most 200 MB,
-`https://github.com/Adityuhh11/AGI/releases/download/` only, cancellable, progress in bytes), verify the SHA-256, extract the entry named exactly
-`agi.exe` into the program's folder as `agi.exe.new`, swap with rollback and a few retries. `Installer` keeps the state the page
+`https://github.com/Adityuhh11/Omni/releases/download/` only, cancellable, progress in bytes), verify the SHA-256, extract the entry named exactly
+`omni.exe` into the program's folder as `omni.exe.new`, swap with rollback and a few retries. `Installer` keeps the state the page
 reads (`idle`, `downloading`, `verifying`, `installing`, `done`, `failed`, with bytes and the error) and refuses a second start.
 Tests with a local server and temporary folders: success, wrong digest, truncated download, too big, an address outside the project,
-a zip with no `agi.exe` / a nested one / a path in it, an unwritable folder, rollback when the second rename fails, cancel,
+a zip with no `omni.exe` / a nested one / a path in it, an unwritable folder, rollback when the second rename fails, cancel,
 double start.
 
 **U3 restart.** `sidecar.KillWithLauncher` adds `JOB_OBJECT_LIMIT_BREAKAWAY_OK`; `update.StartNew(exe, pid)` creates the new launcher with
-`CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS` and `--wait-for <pid>`; `update.WaitForExit(pid, timeout)`; `cmd/agi` handles
-`--wait-for` before the single-instance check and deletes `agi.exe.old`. A real test (a test program that starts a copy of itself and
+`CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS` and `--wait-for <pid>`; `update.WaitForExit(pid, timeout)`; `cmd/omni` handles
+`--wait-for` before the single-instance check and deletes `omni.exe.old`. A real test (a test program that starts a copy of itself and
 exits) shows the child outlives its parent inside the job.
 
 **U4 service and page.** `settingsui`: `StartUpdate`, `CancelUpdate`, `UpdateProgress`; when the install is done the service

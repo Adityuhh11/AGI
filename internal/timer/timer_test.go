@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // clock is a time the test moves by hand.

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { SearchView, View } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { SearchView, View } from "../../../bindings/omni/internal/settingsui";
   import { changes, effects, type Choices, type Kind } from "../indexingPlan";
   import { CHOICES, SPEEDS } from "./choices";
   import { choiceHints, paceHints, surveyLine } from "./hints";
@@ -163,7 +163,7 @@
         {/if}
       </p>
     {:else if search.NeedsUpdate}
-      <p class="help">This version of AGI comes with a newer search engine. Updating keeps your index.</p>
+      <p class="help">This version of Omni comes with a newer search engine. Updating keeps your index.</p>
     {:else if search.Enabled && search.EngineState === "ready" && !search.HoldIndexing}
       <p class="help">{search.Paused ? "Indexing is paused." : search.IndexText}</p>
       {#if search.IndexState === "indexing" && search.IndexTotal > 0}

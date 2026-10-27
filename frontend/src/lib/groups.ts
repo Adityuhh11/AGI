@@ -1,5 +1,5 @@
 // With extensions, so the Node test runner can load it too.
-import type { Row } from "../../bindings/agi/internal/search";
+import type { Row } from "../../bindings/omni/internal/search";
 
 /** A run of file results under one heading; an empty heading means no heading (the list is not grouped). */
 export type Group = { heading: string; rows: Row[] };

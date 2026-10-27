@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 var now = time.Date(2026, 10, 19, 14, 5, 9, 0, time.UTC)

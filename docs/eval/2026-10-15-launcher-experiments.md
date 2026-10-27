@@ -34,7 +34,7 @@ combination from every application (Ctrl+Space and Ctrl+Shift+Space are editor s
 
 ## 3. Search latency through the real sidecar (HTTP, GPU query embedding)
 
-`python -m agi_memory` started cold: port open after 1.6 s, model ready after 32.5 s (torch import and weights; 10-15 s
+`python -m omni_memory` started cold: port open after 1.6 s, model ready after 32.5 s (torch import and weights; 10-15 s
 warm). Sample Data indexed in 17 s (96 files, 431 chunks).
 
 | | p50 | p95 | max |
@@ -95,5 +95,5 @@ Bugs this and an end-to-end check against the real app found (all fixed, each is
   back each time it finds the closed panel holding it.
 - A console build (`-Console`) opens a console window that takes focus: use the windowless build for focus checks.
 - `io.MultiWriter` stops at the first write error and stderr is invalid in a windowless process, so the log file stayed
-  empty; the console write is now best effort and the file comes first (`%LOCALAPPDATA%\AGI\logs\agi.log`).
+  empty; the console write is now best effort and the file comes first (`%LOCALAPPDATA%\Omni\logs\omni.log`).
 - The harness itself raced once: the page reports "focus" and "painted" as two concurrent requests.

@@ -1,6 +1,6 @@
 # Documentation index
 
-New here? The repository's `README.md` explains what AGI is, how to install it and how it works. Contributors start with `STATUS.md`, then `ARCHITECTURE.md`.
+New here? The repository's `README.md` explains what Omni is, how to install it and how it works. Contributors start with `STATUS.md`, then `ARCHITECTURE.md`.
 
 | Doc | Answers |
 |---|---|

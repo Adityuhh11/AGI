@@ -9,7 +9,7 @@ import (
 )
 
 // swap puts the new program where the running one is. Windows lets a running program be renamed but not deleted or
-// overwritten, so the running one becomes agi.exe.old and the new one takes its name. A rename is retried a few times
+// overwritten, so the running one becomes omni.exe.old and the new one takes its name. A rename is retried a few times
 // (a virus scanner may be holding a file it has just seen written). If the second rename fails the first is undone, so
 // there is always a program at exePath.
 func (i *Installer) swap(exePath, newPath string) error {

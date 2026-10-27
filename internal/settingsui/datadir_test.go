@@ -7,17 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"agi/internal/enginesetup"
+	"omni/internal/enginesetup"
 )
 
-func TestChoosingAFolderKeepsFileSearchInAnAGIFolderInsideItAndGoingBackIsPossible(t *testing.T) {
+func TestChoosingAFolderKeepsFileSearchInAnOmniFolderInsideItAndGoingBackIsPossible(t *testing.T) {
 	h := newHarness(t)
 	picked := t.TempDir()
 	h.picked = picked
 	if msg := h.svc.ChooseDataFolder(); msg != "" {
 		t.Fatal(msg)
 	}
-	want := filepath.Join(picked, "AGI")
+	want := filepath.Join(picked, "Omni")
 	if got := h.store.Get().Search.DataDir; got != want {
 		t.Fatalf("data_dir = %q, want %q", got, want)
 	}
@@ -27,7 +27,7 @@ func TestChoosingAFolderKeepsFileSearchInAnAGIFolderInsideItAndGoingBackIsPossib
 	if _, err := os.Stat(want); err != nil {
 		t.Fatalf("the folder was not made: %v", err)
 	}
-	if left, _ := filepath.Glob(filepath.Join(want, ".agi-write-test-*")); len(left) != 0 {
+	if left, _ := filepath.Glob(filepath.Join(want, ".omni-write-test-*")); len(left) != 0 {
 		t.Fatalf("the write test left %v behind", left)
 	}
 	view := h.svc.Search().Data
@@ -40,12 +40,12 @@ func TestChoosingAFolderKeepsFileSearchInAnAGIFolderInsideItAndGoingBackIsPossib
 	}
 }
 
-func TestAFolderAlreadyCalledAGIIsUsedAsItIs(t *testing.T) {
-	picked := filepath.Join(t.TempDir(), "AGI")
+func TestAFolderAlreadyCalledOmniIsUsedAsItIs(t *testing.T) {
+	picked := filepath.Join(t.TempDir(), "Omni")
 	if got := dataDirIn(picked); got != picked {
 		t.Errorf("dataDirIn(%q) = %q", picked, got)
 	}
-	if got, want := dataDirIn(`D:\Files`), `D:\Files\AGI`; got != want {
+	if got, want := dataDirIn(`D:\Files`), `D:\Files\Omni`; got != want {
 		t.Errorf("dataDirIn = %q, want %q", got, want)
 	}
 }
@@ -68,7 +68,7 @@ func TestACancelledPickerARefusedMoveAndAFolderThatCannotBeWrittenChangeNothing(
 	if err := os.WriteFile(file, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	h.picked = file // AGI would have to be made inside a file
+	h.picked = file // Omni would have to be made inside a file
 	if msg := h.svc.ChooseDataFolder(); !strings.Contains(msg, "cannot keep its files") || h.store.Get().Search.DataDir != "" {
 		t.Fatalf("an unusable folder: %q, data_dir %q", msg, h.store.Get().Search.DataDir)
 	}

@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"agi/internal/config"
-	"agi/internal/update"
+	"omni/internal/config"
+	"omni/internal/update"
 )
 
 // The About page: the update check, and installing a newer release.

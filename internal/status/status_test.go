@@ -3,9 +3,9 @@ package status
 import (
 	"testing"
 
-	"agi/internal/config"
-	"agi/internal/indexing"
-	"agi/internal/sidecar"
+	"omni/internal/config"
+	"omni/internal/indexing"
+	"omni/internal/sidecar"
 )
 
 func infoFor(cfg config.Config, engine sidecar.State, index indexing.State) Info {

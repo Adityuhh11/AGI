@@ -5,9 +5,9 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from agi_memory.config import Settings
-from agi_memory.embedding.llama import LlamaEmbedder
 from fake_llama import API_KEY, FakeLlama, Handle, expected_for_ids, expected_for_text
+from omni_memory.config import Settings
+from omni_memory.embedding.llama import LlamaEmbedder
 
 
 @pytest.fixture

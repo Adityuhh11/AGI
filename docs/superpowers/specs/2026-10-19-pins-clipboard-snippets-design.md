@@ -82,7 +82,7 @@ but needs a hidden window and its own message loop for the same result.)
 - what the launcher puts on the clipboard itself when it pastes (the same text moves to the top instead of being added twice).
 
 **Keeping.** Newest first, the same text kept once, at most 500 entries, 30 days and 20 MB in all; the oldest go first.
-The file is `%LOCALAPPDATA%\AGI\clipboard.json` (this computer only, never in the roaming `config.toml` folder), written
+The file is `%LOCALAPPDATA%\Omni\clipboard.json` (this computer only, never in the roaming `config.toml` folder), written
 atomically. Settings: the switch, the ignore list, "Clear history", and a line saying where the file is.
 
 **In the bar.** Mode `clip` (chip "Clipboard", prefix `clip:`): with nothing typed, the newest 20; typing keeps the entries that

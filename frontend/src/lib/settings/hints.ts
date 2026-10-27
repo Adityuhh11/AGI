@@ -1,4 +1,4 @@
-import type { Estimates, FolderSurvey } from "../../../bindings/agi/internal/settingsui";
+import type { Estimates, FolderSurvey } from "../../../bindings/omni/internal/settingsui";
 import { duration, files, size } from "../format.ts";
 
 /** What each option of a choice would make indexing take, for the buttons: "about 25 min". Empty until every folder is counted. */

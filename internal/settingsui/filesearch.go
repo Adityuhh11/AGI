@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"agi/internal/config"
-	"agi/internal/enginesetup"
-	"agi/internal/indexing"
+	"omni/internal/config"
+	"omni/internal/enginesetup"
+	"omni/internal/indexing"
 )
 
 // The File search page: installing the engine, the folders it indexes, and how hard it works.
@@ -155,7 +155,7 @@ func (s *Service) RemoveFiles() string {
 
 // RemoveEverything takes file search off the computer as if it had never been set up: the engine, the models, the index,
 // the folders and what was chosen for them. Nothing of it is kept, so it can be set up again from nothing, for instance
-// after switching to another version of AGI.
+// after switching to another version of Omni.
 func (s *Service) RemoveEverything() string {
 	if s.o.Setup.State().Installing {
 		return "file search is being installed; cancel that first"
@@ -241,7 +241,7 @@ func (s *Service) folders(engineState string, hold bool) []FolderView {
 		case f.State == indexing.Indexing:
 			view.Text = fmt.Sprintf("Indexing: %d of %d files", f.FilesDone, f.FilesTotal) + indexing.LeftText(f.Remaining)
 		case f.State == indexing.UpToDate && f.Files == 0:
-			view.Text = "Nothing here AGI can read"
+			view.Text = "Nothing here Omni can read"
 			if now := s.movedTo(f.Root); now != "" {
 				view.Text += fmt.Sprintf(". Windows keeps this folder in %s now: add that one instead", now)
 			}

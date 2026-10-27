@@ -4,7 +4,7 @@ Date: 2026-10-20. Status: approved by the owner in conversation; building on `fe
 
 ## Why
 
-AGI is open source now, so it runs on machines very unlike the owner's laptop. Measured on that laptop
+Omni is open source now, so it runs on machines very unlike the owner's laptop. Measured on that laptop
 (`docs/eval/2026-10-20-indexing-throughput.md` and below):
 
 | | RTX 4050 (Vulkan) | Intel UHD (Vulkan) | CPU only |
@@ -71,7 +71,7 @@ A file indexed by name and later by content must not keep its name vector under 
 
 OneDrive's backup moves Documents, Desktop and Pictures into the OneDrive folder and leaves the old folder with only links,
 which the scanner never follows. On the owner's machine `Documents` and `Desktop` show "0 files searchable" with no reason.
-The folder line now says why: "Nothing here AGI can read" and, when the folder is one of those Windows moved, "Windows keeps
+The folder line now says why: "Nothing here Omni can read" and, when the folder is one of those Windows moved, "Windows keeps
 your Documents in C:\Users\…\OneDrive\Documents" (from the known-folder API).
 
 ## Not in scope

@@ -2,7 +2,7 @@
   import Icon from "../Icon.svelte";
 </script>
 
-<h2>Welcome to AGI</h2>
+<h2>Welcome to Omni</h2>
 <p class="lede">Press a hotkey, type, and open anything. It takes a minute to set up, and you can skip every part of it.</p>
 
 <ul class="rows">
@@ -30,7 +30,7 @@
 </ul>
 
 <p class="help">
-  Everything runs on this computer: no account and no telemetry. AGI uses the network only when you ask it to: the optional
+  Everything runs on this computer: no account and no telemetry. Omni uses the network only when you ask it to: the optional
   file-search download (about 1 GB, once), a web search in your browser, and an update check if you switch it on.
 </p>
 

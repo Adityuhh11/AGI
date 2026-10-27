@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
-	"agi/internal/config"
-	"agi/internal/enginesetup"
-	"agi/internal/indexing"
-	"agi/internal/settings"
-	"agi/internal/sidecar"
-	"agi/internal/update"
+	"omni/internal/config"
+	"omni/internal/enginesetup"
+	"omni/internal/indexing"
+	"omni/internal/settings"
+	"omni/internal/sidecar"
+	"omni/internal/update"
 )
 
 // Setup is the installer of file search as the service uses it; *enginesetup.Manager satisfies it.
@@ -99,7 +99,7 @@ type Options struct {
 	OpenSetup func()
 	// Engine reports the file-search engine's state, why it is in it, and where its model runs.
 	Engine func() sidecar.Status
-	// LogDir is where agi.log is written. Version is the build's version.
+	// LogDir is where omni.log is written. Version is the build's version.
 	LogDir, Version string
 }
 
@@ -235,7 +235,7 @@ func (s *Service) Diagnostics() string {
 	c := s.o.Store.Get()
 	engine := s.o.Engine()
 	var b strings.Builder
-	fmt.Fprintf(&b, "AGI %s on %s/%s\n", s.o.Version, runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&b, "Omni %s on %s/%s\n", s.o.Version, runtime.GOOS, runtime.GOARCH)
 	fmt.Fprintf(&b, "file search: enabled=%v engine=%s %s device=%s\n", c.Search.Enabled, engine.State, engine.Message, engine.Device)
 	fmt.Fprintf(&b, "folders: %d, quicklinks: %d, pace: %s, pdf pages: %s, photos: %s, videos: %s\n",
 		len(c.Roots), len(c.Quicklinks), c.Search.Pace, c.Search.PDFPages, c.Search.Photos, c.Search.Videos)

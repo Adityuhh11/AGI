@@ -1,4 +1,4 @@
-// Package config reads the launcher's settings file, %APPDATA%\AGI\config.toml.
+// Package config reads the launcher's settings file, %APPDATA%\Omni\config.toml.
 //
 // A missing file is created with the defaults, a file that sets only some keys keeps the
 // defaults for the rest, and a key that does not exist is an error (a typo in a hotkey or a
@@ -115,7 +115,7 @@ type Search struct {
 	// install made before it existed) indexes as it always did.
 	HoldIndexing bool `toml:"hold_indexing,omitempty"`
 	// DataDir is the folder the search engine, its models and the index are kept under (in engine and memory inside
-	// it), chosen before file search is first downloaded. Empty means %LOCALAPPDATA%\AGI.
+	// it), chosen before file search is first downloaded. Empty means %LOCALAPPDATA%\Omni.
 	DataDir string `toml:"data_dir,omitempty"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
@@ -147,7 +147,7 @@ func Path() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("locate the user config directory: %w", err)
 	}
-	return filepath.Join(dir, "AGI", "config.toml"), nil
+	return filepath.Join(dir, "Omni", "config.toml"), nil
 }
 
 // Load reads the settings file at path. If it does not exist it is created with the defaults.

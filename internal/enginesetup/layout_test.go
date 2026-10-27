@@ -18,16 +18,16 @@ func touch(t *testing.T, path string) {
 }
 
 func TestLocateUsesTheCacheFolderUnlessTheEnvironmentSaysOtherwise(t *testing.T) {
-	t.Setenv("AGI_ENGINE_DIR", "")
+	t.Setenv("OMNI_ENGINE_DIR", "")
 	t.Setenv("LOCALAPPDATA", `C:\Users\someone\AppData\Local`)
 	got, err := Locate("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `C:\Users\someone\AppData\Local\AGI\engine`; got.Root != want {
+	if want := `C:\Users\someone\AppData\Local\Omni\engine`; got.Root != want {
 		t.Fatalf("Root = %q, want %q", got.Root, want)
 	}
-	t.Setenv("AGI_ENGINE_DIR", `D:\dev\engine`)
+	t.Setenv("OMNI_ENGINE_DIR", `D:\dev\engine`)
 	if got, _ = Locate(""); got.Root != `D:\dev\engine` {
 		t.Fatalf("Root = %q, want the override", got.Root)
 	}
@@ -55,30 +55,30 @@ func TestAnEngineIsInstalledOnlyWhenTheManifestAndThePythonAreBothThere(t *testi
 }
 
 func TestAChosenFolderHoldsTheEngineAndTheIndexAndTheEnvironmentStillWins(t *testing.T) {
-	t.Setenv("AGI_ENGINE_DIR", "")
-	got, err := Locate(`D:\Files\AGI`)
+	t.Setenv("OMNI_ENGINE_DIR", "")
+	got, err := Locate(`D:\Files\Omni`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Root != `D:\Files\AGI\engine` || got.Index() != `D:\Files\AGI\memory` {
+	if got.Root != `D:\Files\Omni\engine` || got.Index() != `D:\Files\Omni\memory` {
 		t.Fatalf("layout = %+v", got)
 	}
 	env := strings.Join(got.Env(), "|")
-	if !strings.Contains(env, `AGI_MEMORY_DIR=D:\Files\AGI\memory`) || !strings.Contains(env, `AGI_MODEL_DIR=D:\Files\AGI\engine\models`) {
+	if !strings.Contains(env, `OMNI_MEMORY_DIR=D:\Files\Omni\memory`) || !strings.Contains(env, `OMNI_MODEL_DIR=D:\Files\Omni\engine\models`) {
 		t.Errorf("env = %s", env)
 	}
 	t.Setenv("LOCALAPPDATA", `C:\Users\someone\AppData\Local`)
-	t.Setenv("AGI_ENGINE_DIR", "")
+	t.Setenv("OMNI_ENGINE_DIR", "")
 	def, _ := Locate("")
-	if def.Memory != "" || strings.Contains(strings.Join(def.Env(), "|"), "AGI_MEMORY_DIR") {
+	if def.Memory != "" || strings.Contains(strings.Join(def.Env(), "|"), "OMNI_MEMORY_DIR") {
 		t.Errorf("the default must leave the engine's own index folder alone: %+v", def)
 	}
-	if def.Index() != `C:\Users\someone\AppData\Local\AGI\memory` {
+	if def.Index() != `C:\Users\someone\AppData\Local\Omni\memory` {
 		t.Errorf("default index = %q", def.Index())
 	}
-	t.Setenv("AGI_ENGINE_DIR", `E:\dev\engine`)
-	if over, _ := Locate(`D:\Files\AGI`); over.Root != `E:\dev\engine` {
-		t.Errorf("AGI_ENGINE_DIR must win: %+v", over)
+	t.Setenv("OMNI_ENGINE_DIR", `E:\dev\engine`)
+	if over, _ := Locate(`D:\Files\Omni`); over.Root != `E:\dev\engine` {
+		t.Errorf("OMNI_ENGINE_DIR must win: %+v", over)
 	}
 }
 

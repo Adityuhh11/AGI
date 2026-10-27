@@ -78,8 +78,8 @@ func (f *fakeEngine) start(_ context.Context, spec Spec, output io.Writer) (Proc
 	}
 	_, _ = io.WriteString(output, sc.output)
 
-	token := envValue(spec.Env, "AGI_SIDECAR_TOKEN")
-	listener, err := net.Listen("tcp", "127.0.0.1:"+envValue(spec.Env, "AGI_SIDECAR_PORT"))
+	token := envValue(spec.Env, "OMNI_SIDECAR_TOKEN")
+	listener, err := net.Listen("tcp", "127.0.0.1:"+envValue(spec.Env, "OMNI_SIDECAR_PORT"))
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func startHarness(t *testing.T, tune func(*Options), scripts ...script) *harness
 	opts := Options{
 		Dir:            filepath.Join("C:", "engine", "app"),
 		Python:         filepath.Join("C:", "engine", "venv", "Scripts", "python.exe"),
-		Env:            []string{"AGI_LLAMA_SERVER=C:/engine/llama/llama-server.exe"},
+		Env:            []string{"OMNI_LLAMA_SERVER=C:/engine/llama/llama-server.exe"},
 		Start:          h.engine.start,
 		Backoff:        func(int) time.Duration { return 2 * time.Millisecond },
 		Poll:           5 * time.Millisecond,
@@ -251,13 +251,13 @@ func TestTheEngineIsStartedWithItsSettingsAndBecomesReady(t *testing.T) {
 	if want := filepath.Join("C:", "engine", "venv", "Scripts", "python.exe"); spec.Exe != want {
 		t.Errorf("program = %q, want the venv's python %q", spec.Exe, want)
 	}
-	if strings.Join(spec.Args, " ") != "-m agi_memory" || spec.Dir != filepath.Join("C:", "engine", "app") {
+	if strings.Join(spec.Args, " ") != "-m omni_memory" || spec.Dir != filepath.Join("C:", "engine", "app") {
 		t.Errorf("args = %v, dir = %q", spec.Args, spec.Dir)
 	}
-	if token := envValue(spec.Env, "AGI_SIDECAR_TOKEN"); len(token) != 64 {
+	if token := envValue(spec.Env, "OMNI_SIDECAR_TOKEN"); len(token) != 64 {
 		t.Errorf("token = %q, want 64 hex characters", token)
 	}
-	if envValue(spec.Env, "AGI_SIDECAR_PORT") == "" || envValue(spec.Env, "AGI_LLAMA_SERVER") == "" {
+	if envValue(spec.Env, "OMNI_SIDECAR_PORT") == "" || envValue(spec.Env, "OMNI_LLAMA_SERVER") == "" {
 		t.Errorf("environment is missing the port or the llama.cpp server: %v", spec.Env)
 	}
 }
@@ -319,10 +319,10 @@ func TestAnEngineThatDiesIsStartedAgain(t *testing.T) {
 }
 
 func TestBadSettingsAreNotRetried(t *testing.T) {
-	h := startHarness(t, nil, script{output: "agi_memory: AGI_SIDECAR_PORT must be a port number\n", exitAfter: 5 * time.Millisecond, exitCode: 2})
+	h := startHarness(t, nil, script{output: "omni_memory: OMNI_SIDECAR_PORT must be a port number\n", exitAfter: 5 * time.Millisecond, exitCode: 2})
 	h.waitUntilFinished()
 	status := h.sup.Status()
-	if status.State != StateFailed || !strings.Contains(status.Message, "AGI_SIDECAR_PORT must be a port number") {
+	if status.State != StateFailed || !strings.Contains(status.Message, "OMNI_SIDECAR_PORT must be a port number") {
 		t.Fatalf("status = %+v", status)
 	}
 	if h.engine.starts() != 1 {
@@ -332,7 +332,7 @@ func TestBadSettingsAreNotRetried(t *testing.T) {
 
 func TestAnIndexThatMustBeRebuiltIsNotRetriedAndSaysSo(t *testing.T) {
 	h := startHarness(t, nil, script{
-		output:    "agi_memory.store.flat.IndexMismatchError: index was built with (model, dim, schema) = ...: reindex required\n",
+		output:    "omni_memory.store.flat.IndexMismatchError: index was built with (model, dim, schema) = ...: reindex required\n",
 		exitAfter: 5 * time.Millisecond, exitCode: 1,
 	})
 	h.waitUntilFinished()
@@ -448,7 +448,7 @@ func TestWhereTheEngineIsIsAskedAtEachStartSoItCanMoveBeforeItIsInstalled(t *tes
 	h := startHarness(t, func(o *Options) {
 		o.Dir, o.Python, o.Env = "", "", nil
 		o.Locate = func() (string, string, []string) {
-			return filepath.Join(where, "app"), filepath.Join(where, "venv", "Scripts", "python.exe"), []string{"AGI_MEMORY_DIR=D:/elsewhere/memory"}
+			return filepath.Join(where, "app"), filepath.Join(where, "venv", "Scripts", "python.exe"), []string{"OMNI_MEMORY_DIR=D:/elsewhere/memory"}
 		}
 	}, script{})
 	h.waitForState(StateReady)
@@ -456,7 +456,7 @@ func TestWhereTheEngineIsIsAskedAtEachStartSoItCanMoveBeforeItIsInstalled(t *tes
 	if spec.Dir != filepath.Join(where, "app") || spec.Exe != filepath.Join(where, "venv", "Scripts", "python.exe") {
 		t.Errorf("started in %q with %q", spec.Dir, spec.Exe)
 	}
-	if envValue(spec.Env, "AGI_MEMORY_DIR") != "D:/elsewhere/memory" {
+	if envValue(spec.Env, "OMNI_MEMORY_DIR") != "D:/elsewhere/memory" {
 		t.Errorf("the index folder did not reach the engine: %v", spec.Env)
 	}
 }

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // Expand fills in {date} (2026-10-19), {time} (14:05) and {clipboard}, and turns "{{" into "{". Anything else

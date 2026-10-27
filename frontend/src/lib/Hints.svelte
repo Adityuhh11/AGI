@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Info } from "../../bindings/agi/internal/status";
+  import type { Info } from "../../bindings/omni/internal/status";
   import { available, pastes } from "./actions";
   import type { Item } from "./flatten";
 

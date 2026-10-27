@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/config"
-	"agi/internal/timer"
+	"omni/internal/config"
+	"omni/internal/timer"
 )
 
 type fakeTimer struct {

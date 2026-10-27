@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/clipboard"
+	"omni/internal/clipboard"
 )
 
 // fakeClips is a clipboard history that records what the bar did with it.

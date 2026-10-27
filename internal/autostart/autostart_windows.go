@@ -17,7 +17,7 @@ var (
 	approvedKey = `Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run`
 )
 
-const valueName = "AGI"
+const valueName = "Omni"
 
 func command() (string, error) {
 	exe, err := os.Executable()

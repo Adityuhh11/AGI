@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from agi_memory.embedding.llama_server import LlamaServer, ServerError, choose_device
+from omni_memory.embedding.llama_server import LlamaServer, ServerError, choose_device
 
 HERE = Path(__file__).parent
 FAKE = [sys.executable, str(HERE / "fake_llama_server.py")]
@@ -161,7 +161,7 @@ def test_a_missing_program_is_a_clear_error(tmp_path):
 CHILD = """
 import os, sys
 from pathlib import Path
-from agi_memory.embedding.llama_server import LlamaServer
+from omni_memory.embedding.llama_server import LlamaServer
 
 server = LlamaServer([sys.argv[1], sys.argv[2]], Path(sys.argv[3]), start_timeout=10)
 server.start()

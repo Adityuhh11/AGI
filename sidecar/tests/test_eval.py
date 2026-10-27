@@ -2,10 +2,10 @@ import json
 
 import pytest
 
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.eval.golden import GoldenQuery, load_golden
-from agi_memory.eval.metrics import Metrics, QueryResult, first_relevant_rank, summarize
-from agi_memory.eval.runner import baseline_dict, compare_to_baseline, render_report, run
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.eval.golden import GoldenQuery, load_golden
+from omni_memory.eval.metrics import Metrics, QueryResult, first_relevant_rank, summarize
+from omni_memory.eval.runner import baseline_dict, compare_to_baseline, render_report, run
 
 
 def write_golden(path, text):
@@ -213,7 +213,7 @@ def test_report_lists_every_query_and_misses(tmp_path):
         QueryResult("lost one", None, (), ("z.js",)),
     ]
     golden = [GoldenQuery("found one", ("a",), (), ""), GoldenQuery("lost one", ("b",), (), "")]
-    from agi_memory.indexer import SyncReport
+    from omni_memory.indexer import SyncReport
 
     text = render_report("t", "fake", "2026-10-12", metrics, results, SyncReport(added=2), golden)
     assert "found one" in text and "lost one" in text

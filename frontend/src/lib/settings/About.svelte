@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { Clipboard } from "@wailsio/runtime";
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { UpdateProgress, View } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { UpdateProgress, View } from "../../../bindings/omni/internal/settingsui";
 
   let { view }: { view: View } = $props();
 
@@ -72,7 +72,7 @@
 </script>
 
 <h2>About</h2>
-<p class="lede">AGI {view.Version}. A launcher that keeps everything on this computer.</p>
+<p class="lede">Omni {view.Version}. A launcher that keeps everything on this computer.</p>
 
 <div class="field">
   <span class="label">Updates</span>
@@ -113,7 +113,7 @@
 
 <div class="field">
   <span class="label">Log</span>
-  <p class="help">If something does not work, send the file agi.log from this folder.</p>
+  <p class="help">If something does not work, send the file omni.log from this folder.</p>
   <p class="help mono">{view.LogDir}</p>
   <div><button type="button" class="btn" onclick={async () => (error = await Settings.OpenFolder("logs"))}>Open folder</button></div>
 </div>

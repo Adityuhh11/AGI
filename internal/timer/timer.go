@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // Phase is what a period of a pomodoro is.

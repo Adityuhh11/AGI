@@ -1,11 +1,11 @@
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind, Filters, SearchResult
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
+from omni_memory.types import ChunkKind, Filters, SearchResult
 
 DIM = 64
 
@@ -182,13 +182,13 @@ def test_a_file_search_keeps_filters_confidence_and_blank_queries(two_files):
 def test_calibrating_makes_the_measured_noise_ceiling_the_threshold(world, monkeypatch):
     searcher, _ = world
     assert searcher.confident_cosine == 0.65
-    monkeypatch.setattr("agi_memory.search.searcher.noise_ceiling", lambda store, embedder: 0.42)
+    monkeypatch.setattr("omni_memory.search.searcher.noise_ceiling", lambda store, embedder: 0.42)
     assert searcher.calibrate() == 0.42
     assert searcher.confident_cosine == 0.42
 
 
 def test_an_index_too_small_to_measure_keeps_the_default_threshold(world, monkeypatch):
     searcher, _ = world
-    monkeypatch.setattr("agi_memory.search.searcher.noise_ceiling", lambda store, embedder: None)
+    monkeypatch.setattr("omni_memory.search.searcher.noise_ceiling", lambda store, embedder: None)
     assert searcher.calibrate() is None
     assert searcher.confident_cosine == 0.65

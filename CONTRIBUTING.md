@@ -1,6 +1,6 @@
-# Contributing to AGI
+# Contributing to Omni
 
-AGI is a small project with one maintainer and a plan for where it is going. Pull requests are not open yet (the project is still being
+Omni is a small project with one maintainer and a plan for where it is going. Pull requests are not open yet (the project is still being
 made ready for other people); this file says how they will work, and issues are welcome now.
 
 ## Open an issue first
@@ -16,7 +16,7 @@ Once an issue says go:
 - One fix or one feature, with the reason in the description. Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`), small and focused.
 - CI runs on every pull request: `go vet`, `go test`, the page's tests and type check, `ruff`, `pyright` and `pytest`. Run them first (README, "Build from source").
 - Update the docs that describe the code in the same commit (`docs/README.md` says which ones).
-- If it changes what search returns, run the eval (`uv run python -m agi_memory.eval` in `sidecar/`) before and after and include both results.
+- If it changes what search returns, run the eval (`uv run python -m omni_memory.eval` in `sidecar/`) before and after and include both results.
   For speed or memory changes, measure before and after on the same computer. Choices that affect speed, memory or quality are decided by a
   measurement, not a guess.
 - Nothing that sends data elsewhere (telemetry, cloud services) fits: file search runs on the person's computer, and the only network calls are the ones
@@ -30,8 +30,8 @@ configuration. Where things are: README, "Repository map"; how they fit: [`docs/
 
 ## Reporting a bug
 
-The bug form asks for what you did, the AGI and Windows versions (Settings > About, "Copy diagnostics"), your processor and graphics card (file search
-is very different with and without one), and the log: `%LOCALAPPDATA%\AGI\logs\agi.log`. The log can contain file names and what you searched for, so
+The bug form asks for what you did, the Omni and Windows versions (Settings > About, "Copy diagnostics"), your processor and graphics card (file search
+is very different with and without one), and the log: `%LOCALAPPDATA%\Omni\logs\omni.log`. The log can contain file names and what you searched for, so
 look through it before you paste.
 
 For a security problem, use "Report a vulnerability" on the repository's Security tab instead of a public issue ([`SECURITY.md`](SECURITY.md)).

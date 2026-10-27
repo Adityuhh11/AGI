@@ -19,7 +19,7 @@ import (
 	"sync"
 	"time"
 
-	"agi/internal/sidecar"
+	"omni/internal/sidecar"
 )
 
 const (

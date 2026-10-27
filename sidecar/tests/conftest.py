@@ -1,8 +1,8 @@
 import pytest
 
-from agi_memory.store import FlatStore
 from api_helpers import running_app
 from helpers import DIM
+from omni_memory.store import FlatStore
 
 
 @pytest.fixture

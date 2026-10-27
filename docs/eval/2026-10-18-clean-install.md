@@ -10,7 +10,7 @@ from `pyproject.toml` (and the PyTorch index entry), a fresh `uv lock` (34 packa
 |---|---|
 | uv 0.13.1 zip from GitHub | 15.3 MB download, `uv.exe` + `uvx.exe` + `uvw.exe` 32 MB unpacked; 5 s |
 | `uv lock` without torch | 34 packages, under a second to resolve |
-| `uv sync --frozen --no-dev --python 3.12` with `UV_PYTHON_PREFERENCE=only-managed` | **15 s**; uv downloaded its own CPython 3.12.15 (about 23 MB) and the wheels (cache 79 MB in all); python 69 MB + venv 84 MB = **153 MB on disk**; `import agi_memory, fastapi, numpy, PIL, pypdfium2, uvicorn` works |
+| `uv sync --frozen --no-dev --python 3.12` with `UV_PYTHON_PREFERENCE=only-managed` | **15 s**; uv downloaded its own CPython 3.12.15 (about 23 MB) and the wheels (cache 79 MB in all); python 69 MB + venv 84 MB = **153 MB on disk**; `import omni_memory, fastapi, numpy, PIL, pypdfium2, uvicorn` works |
 | Total engine download besides llama.cpp and the model | about 15 + 80 = **95 MB** |
 
 Two things that would have broken a clean machine, now rules for the installer:

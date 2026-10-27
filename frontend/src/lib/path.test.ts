@@ -12,7 +12,7 @@ test("a long path keeps its last three folders", () => {
 });
 
 test("forward slashes and doubled separators are handled", () => {
-  assert.equal(shortFolder("C:/dev//VS_CODE/AGI/Sample Data/NextPlore"), "… › AGI › Sample Data › NextPlore");
+  assert.equal(shortFolder("C:/dev//VS_CODE/Omni/Sample Data/NextPlore"), "… › Omni › Sample Data › NextPlore");
 });
 
 test("an empty path is empty", () => {

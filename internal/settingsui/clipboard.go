@@ -3,8 +3,8 @@ package settingsui
 import (
 	"strings"
 
-	"agi/internal/clipboard"
-	"agi/internal/config"
+	"omni/internal/clipboard"
+	"omni/internal/config"
 )
 
 // ClipboardView is the Clipboard page: whether the history is on, how much it holds, and the programs it leaves out.

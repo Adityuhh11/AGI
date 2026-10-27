@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SearchView } from "../../../bindings/agi/internal/settingsui";
+  import type { SearchView } from "../../../bindings/omni/internal/settingsui";
 
   interface Props {
     search: SearchView;

@@ -2,7 +2,7 @@
 
 ## Version numbers
 
-`MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)), tag `vMAJOR.MINOR.PATCH`, release title `AGI MAJOR.MINOR.PATCH`. The number
+`MAJOR.MINOR.PATCH` ([SemVer](https://semver.org)), tag `vMAJOR.MINOR.PATCH`, release title `Omni MAJOR.MINOR.PATCH`. The number
 without the `v` is what `scripts/release.ps1 -Version` takes, what the program reports, and what the update check compares.
 
 - **While MAJOR is 0** (now): a new feature or a change in how something behaves bumps MINOR (`0.3.0` to `0.4.0`); a fix that
@@ -20,10 +20,10 @@ without the `v` is what `scripts/release.ps1 -Version` takes, what the program r
 2. Tag the merge commit and push the tag: `git tag vX.Y.Z <sha of main>` and `git push origin vX.Y.Z`. The Release workflow
    (`.github/workflows/release.yml`) refuses a tag that is not on `main`, builds the zip and the installer on a clean Windows
    machine with `scripts\release.ps1`, runs the installer for real (`scripts\test-installer.ps1`), attaches a build-provenance
-   attestation, and makes a **draft** release `AGI X.Y.Z` with both files, checking that GitHub's digest of each is the one built.
+   attestation, and makes a **draft** release `Omni X.Y.Z` with both files, checking that GitHub's digest of each is the one built.
    By hand (`gh workflow run release.yml`) it only uploads the files as an artifact. On a machine with Inno Setup,
    `scripts\release.ps1 -Version X.Y.Z` makes the same two files in `dist\` (the zip alone if the compiler is missing).
-3. Smoke-test the files from the draft with a clean profile (`APPDATA` and `LOCALAPPDATA` pointed at an empty folder, and `AGI_INSTANCE=x`
+3. Smoke-test the files from the draft with a clean profile (`APPDATA` and `LOCALAPPDATA` pointed at an empty folder, and `OMNI_INSTANCE=x`
    to run beside the launcher in use): it starts, the setup guide opens, Settings > About says `X.Y.Z`.
 4. Write the notes in the draft (they say what a person gets, not what changed in the code, and name anything that does not work
    yet) and publish it.

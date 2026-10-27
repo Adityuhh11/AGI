@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"agi/internal/notes"
+	"omni/internal/notes"
 )
 
 // NoteBook is the notes as the bar uses them; *notes.Store satisfies it.

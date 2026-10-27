@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from agi_memory.embedding import FakeEmbedder
 from api_helpers import DIM, FailingEmbedder, GatedEmbedder, index, running_app, wait_ready
 from helpers import wait_for
+from omni_memory.embedding import FakeEmbedder
 
 
 def test_adding_a_folder_indexes_it_and_reports_what_happened(api, folder):

@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"agi/internal/config"
-	"agi/internal/sidecar"
+	"omni/internal/config"
+	"omni/internal/sidecar"
 )
 
 // cycle runs one sync of the roots in only (every root when only is nil) and reports whether it

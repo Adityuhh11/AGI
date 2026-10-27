@@ -1,5 +1,5 @@
-# Builds the launcher and packs it for someone else: dist\agi-<version>-windows-x64.zip holds agi.exe and a
-# README.txt, and dist\agi-<version>-windows-x64-setup.exe is the installer. A published release gives its number,
+# Builds the launcher and packs it for someone else: dist\omni-<version>-windows-x64.zip holds omni.exe and a
+# README.txt, and dist\omni-<version>-windows-x64-setup.exe is the installer. A published release gives its number,
 # which is also its tag without the "v" (the update check compares it); a test build is named by the date and the
 # commit (with -dirty if the tree has changes).
 #   .\scripts\release.ps1 -Version 0.2.0   for the release v0.2.0
@@ -21,10 +21,10 @@ if ($Version -ne '') {
 & "$PSScriptRoot\build.ps1" -Version $version
 if ($LASTEXITCODE -ne 0) { throw "build failed" }
 
-$stage = "dist\agi-$version-windows-x64"
+$stage = "dist\omni-$version-windows-x64"
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item bin\agi.exe $stage
+Copy-Item bin\omni.exe $stage
 (Get-Content "$PSScriptRoot\release-readme.txt" -Raw).Replace('{VERSION}', $version) | Set-Content "$stage\README.txt" -Encoding utf8
 
 $zip = "$stage.zip"
@@ -34,16 +34,16 @@ $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
 Write-Host "built $zip ($([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB)"
 Write-Host "sha256 $hash"
 
-# The installer (installer\agi.iss) is built with Inno Setup's compiler: ISCC in the environment, on the path, or where
+# The installer (installer\omni.iss) is built with Inno Setup's compiler: ISCC in the environment, on the path, or where
 # a per-user or a normal install puts it. A machine without it still gets the zip, unless -RequireInstaller.
 $iscc = @($env:ISCC, (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source,
     "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
     "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") |
     Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if ($iscc) {
-    & $iscc "/DVersion=$version" installer\agi.iss | Out-Null
+    & $iscc "/DVersion=$version" installer\omni.iss | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "the installer did not compile" }
-    $setup = "dist\agi-$version-windows-x64-setup.exe"
+    $setup = "dist\omni-$version-windows-x64-setup.exe"
     Write-Host "built $setup ($([math]::Round((Get-Item $setup).Length / 1MB, 1)) MB)"
     Write-Host "sha256 $((Get-FileHash $setup -Algorithm SHA256).Hash.ToLower())"
 } elseif ($RequireInstaller) {

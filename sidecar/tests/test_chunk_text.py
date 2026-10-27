@@ -3,11 +3,11 @@ import json
 
 import pytest
 
-from agi_memory.chunking.common import locator_json
-from agi_memory.chunking.text import NotTextError, chunk_text_document
-from agi_memory.config import Settings
-from agi_memory.sources.rules import Route
-from agi_memory.types import ChunkKind
+from omni_memory.chunking.common import locator_json
+from omni_memory.chunking.text import NotTextError, chunk_text_document
+from omni_memory.config import Settings
+from omni_memory.sources.rules import Route
+from omni_memory.types import ChunkKind
 
 
 @pytest.fixture

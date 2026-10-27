@@ -4,7 +4,7 @@ Status: accepted, 2026-10-27.
 
 ## Context
 
-On 2026-10-24 `build/windows/agi.manifest` was embedded in `agi.exe` (commit `24ca3eb`, the installer work) with the note
+On 2026-10-24 `build/windows/omni.manifest` was embedded in `omni.exe` (commit `24ca3eb`, the installer work) with the note
 "deliberately no DPI setting: the launcher sets its own", because Wails calls `SetProcessDpiAwarenessContext` at startup.
 From then on every window (the bar, Settings, the setup guide, Notes, the timer) looked soft at the owner's 125% scale. It
 was noticed with the notes and timer windows, and two CSS rounds (`98131c1` and the notes fixes) chased the symptom without
@@ -14,7 +14,7 @@ touching the cause.
 
 | Build | Process DPI awareness | Sharpness of the same text (Laplacian variance, share of hard edges) |
 |---|---|---|
-| v0.7.0 (`29091e3`), HEAD, the owner's `bin\agi.exe` (manifest, no DPI setting) | 0, unaware | about 1120, 18% |
+| v0.7.0 (`29091e3`), HEAD, the owner's `bin\omni.exe` (manifest, no DPI setting) | 0, unaware | about 1120, 18% |
 | HEAD with the manifest taken out | 2, per-monitor | 3099, 48% |
 | HEAD with `dpiAware true/pm` and `dpiAwareness PerMonitorV2` in the manifest | 2, per-monitor | 3099, 48% |
 

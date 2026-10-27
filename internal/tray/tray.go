@@ -29,7 +29,7 @@ func New(app *application.App, open, notes, settings, setup, rescan, togglePause
 	menu.Add("Open search").OnClick(func(*application.Context) { open() })
 	menu.Add("Notes").OnClick(func(*application.Context) { notes() })
 	menu.Add("Settings").OnClick(func(*application.Context) { settings() })
-	menu.Add("Set up AGI...").OnClick(func(*application.Context) { setup() })
+	menu.Add("Set up Omni...").OnClick(func(*application.Context) { setup() })
 	update := menu.Add("Update available")
 	update.SetHidden(true)
 	update.OnClick(func(*application.Context) { settings() })
@@ -40,7 +40,7 @@ func New(app *application.App, open, notes, settings, setup, rescan, togglePause
 	menu.Add("Quit").OnClick(func(*application.Context) { app.Quit() })
 
 	icon := app.SystemTray.New().SetIcon(icon).SetMenu(menu).OnClick(open)
-	icon.SetTooltip("AGI")
+	icon.SetTooltip("Omni")
 	return &Tray{icon: icon, menu: menu, status: status, pause: pause, update: update}
 }
 
@@ -72,6 +72,6 @@ func (t *Tray) SetStatus(line string) {
 	application.InvokeAsync(func() {
 		t.status.SetLabel(line)
 		t.menu.Update()
-		t.icon.SetTooltip("AGI: " + line)
+		t.icon.SetTooltip("Omni: " + line)
 	})
 }

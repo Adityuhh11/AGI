@@ -4,14 +4,14 @@ import time
 import numpy as np
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.jobs import JobManager, JobState
-from agi_memory.pace import MIN_DUTY, PacedEmbedder, Pacer
-from agi_memory.store import FlatStore
 from api_helpers import DIM, index
 from helpers import wait_for
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.jobs import JobManager, JobState
+from omni_memory.pace import MIN_DUTY, PacedEmbedder, Pacer
+from omni_memory.store import FlatStore
 
 
 @pytest.mark.parametrize(

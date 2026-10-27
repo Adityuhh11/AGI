@@ -1,10 +1,10 @@
 package settingsui
 
 import (
-	"agi/internal/config"
-	"agi/internal/estimate"
-	"agi/internal/sidecar"
-	"agi/internal/survey"
+	"omni/internal/config"
+	"omni/internal/estimate"
+	"omni/internal/sidecar"
+	"omni/internal/survey"
 )
 
 // What the folders hold and how long indexing them will take on this computer, for the File search page and the setup

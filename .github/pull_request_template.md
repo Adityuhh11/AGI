@@ -11,4 +11,4 @@ Checked (CI runs the first three on every pull request):
 - [ ] `uv run ruff check`, `uv run pyright` and `uv run pytest` in `sidecar/`
 - [ ] The docs that describe this are updated in the same commit
 
-If search results or speed change: the numbers before and after, on the same computer (`uv run python -m agi_memory.eval`, `cmd/panelbench`).
+If search results or speed change: the numbers before and after, on the same computer (`uv run python -m omni_memory.eval`, `cmd/panelbench`).

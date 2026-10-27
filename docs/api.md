@@ -1,6 +1,6 @@
 # Memory engine HTTP API
 
-The contract the Go launcher codes against. Source of truth for behaviour is `sidecar/src/agi_memory/api/`; the
+The contract the Go launcher codes against. Source of truth for behaviour is `sidecar/src/omni_memory/api/`; the
 tests in `sidecar/tests/test_api_*.py` pin every status code listed here.
 
 ## Process contract
@@ -8,21 +8,21 @@ tests in `sidecar/tests/test_api_*.py` pin every status code listed here.
 Start from `sidecar/`:
 
 ```
-uv run python -m agi_memory
+uv run python -m omni_memory
 ```
 
 | Environment variable | Meaning |
 |---|---|
-| `AGI_SIDECAR_TOKEN` | Required. At least 16 characters. Generate a fresh random value per launch. |
-| `AGI_SIDECAR_PORT` | Optional, 1-65535, default `7861`. |
-| `AGI_MEMORY_DIR` | Optional. Index location; default `%LOCALAPPDATA%\AGI\memory`. |
-| `AGI_LLAMA_SERVER` | Required. The `llama-server.exe` the engine embeds with (it starts it, and stops it when it ends). |
-| `AGI_MODEL_DIR` | Required. The folder holding the two GGUF files of the model. |
+| `OMNI_SIDECAR_TOKEN` | Required. At least 16 characters. Generate a fresh random value per launch. |
+| `OMNI_SIDECAR_PORT` | Optional, 1-65535, default `7861`. |
+| `OMNI_MEMORY_DIR` | Optional. Index location; default `%LOCALAPPDATA%\Omni\memory`. |
+| `OMNI_LLAMA_SERVER` | Required. The `llama-server.exe` the engine embeds with (it starts it, and stops it when it ends). |
+| `OMNI_MODEL_DIR` | Required. The folder holding the two GGUF files of the model. |
 
 - A corrupt or mismatched index (wrong model or dimension) makes the process exit with a traceback instead of
   answering `/health`: the launcher should treat an early exit as fatal and offer a reindex.
 - The Go launcher does not use `uv run`: it starts the interpreter of the installed engine
-  (`%LOCALAPPDATA%\AGI\engine\venv\Scripts\python.exe -m agi_memory`) directly, sets `PYTHONUTF8=1` and
+  (`%LOCALAPPDATA%\Omni\engine\venv\Scripts\python.exe -m omni_memory`) directly, sets `PYTHONUTF8=1` and
   `PYTHONUNBUFFERED=1` and the two variables above, and kills the whole process tree to stop it (a venv's `python.exe`
   is a launcher that runs the real interpreter as a child). Measured start: port open after about 1.6 s, model ready
   after about 6 s, so a client must not assume a fixed bound. The engine is installed from the launcher

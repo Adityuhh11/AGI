@@ -6,12 +6,12 @@ Status: accepted, 2026-10-19. Amended 2026-10-20: the program can now install th
 ## Context
 
 The launcher is shared as a zip. Until now the only way to learn of a new version was to be told, and
-a person who is told replaces `agi.exe` by hand. The project rule is that nothing leaves the machine
+a person who is told replaces `omni.exe` by hand. The project rule is that nothing leaves the machine
 except calls to a configured LLM provider, and that there is no telemetry.
 
 ## Decision
 
-- **Ask.** (Installing was added on 2026-10-20, below.) `internal/update` asks `api.github.com/repos/Adityuhh11/AGI/releases/latest`
+- **Ask.** (Installing was added on 2026-10-20, below.) `internal/update` asks `api.github.com/repos/Adityuhh11/Omni/releases/latest`
   for the newest release and compares its tag with the build's version. When it is newer, Settings >
   About says so and opens the release page; the tray shows "Update available". The person downloads and
   replaces the file.
@@ -40,17 +40,17 @@ except calls to a configured LLM provider, and that there is no telemetry.
 - The first build with the check is the last one that has to be replaced by hand; builds before it
   (`v0.1.0-friend1`) cannot learn of anything.
 - GitHub allows 60 anonymous requests an hour per address; one a day is far below that.
-- Moving `agi.exe` breaks nothing here, but "Start when I sign in" remembers the path (see
+- Moving `omni.exe` breaks nothing here, but "Start when I sign in" remembers the path (see
   `internal/autostart`) and must be switched off and on again.
 
 ## Amendment, 2026-10-20: one-click install
 
 The person asked for the update to be installable from About. Built as the spec says: **a button the person presses, never
 automatic**. "Update to X" downloads the release's zip from this project's releases only, checks it against the SHA-256 GitHub
-publishes for the file (nothing is installed without one), takes the file named `agi.exe` out of it, renames the running
-program to `agi.exe.old`, puts the new one in its place (undoing the first rename if the second fails), and starts it with
+publishes for the file (nothing is installed without one), takes the file named `omni.exe` out of it, renames the running
+program to `omni.exe.old`, puts the new one in its place (undoing the first rename if the second fails), and starts it with
 `--wait-for <pid>`; it waits for the old launcher to end (a second launcher while the first runs would only hand over and exit),
-deletes `agi.exe.old` and opens Settings on About. The program is replaced where it is: no fixed install folder, so start at
+deletes `omni.exe.old` and opens Settings on About. The program is replaced where it is: no fixed install folder, so start at
 login keeps working and the folder only has to be writable (checked before the download). The launcher's kill-on-close job now
 allows a deliberate breakaway so the successor is not killed with it; the search engine, started the ordinary way, still is.
 

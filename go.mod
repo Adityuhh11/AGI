@@ -1,4 +1,4 @@
-module agi
+module omni
 
 go 1.27.1
 

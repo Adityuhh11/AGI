@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"agi/internal/clipboard"
+	"omni/internal/clipboard"
 )
 
 // clipItems answers the Clipboard mode: what was copied, newest first, narrowed by the words typed. When

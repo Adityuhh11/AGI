@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"sync"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // Store owns the configuration and the file it lives in.

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Match, Row } from "../../bindings/agi/internal/search";
+  import type { Match, Row } from "../../bindings/omni/internal/search";
   import { moreCount } from "./flatten";
   import { highlight, tidy } from "./highlight";
   import Icon from "./Icon.svelte";

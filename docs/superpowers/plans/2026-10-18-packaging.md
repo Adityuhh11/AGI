@@ -15,7 +15,7 @@ the block after them. Two milestones: **M1** after block C (the launcher alone g
 - The hotkey path must not move: `cmd/panelbench -real` before and after each block that touches the page, the panel or `main.go`
   (baseline 41 ms hotkey to focused input; limit 100 ms). Opening the settings window must not change it.
 - Nothing leaves the machine except the installer's downloads, which the user starts and whose hosts are listed before they start.
-- No test or tool may touch `%LOCALAPPDATA%\AGI\memory` of the owner: tests use `AGI_MEMORY_DIR` and temp folders.
+- No test or tool may touch `%LOCALAPPDATA%\Omni\memory` of the owner: tests use `OMNI_MEMORY_DIR` and temp folders.
 - Docs in the same commit as the behaviour; `docs/STATUS.md` gets a row per block that ships something; `docs/ARCHITECTURE.md` and
   `docs/api.md` change with the engine.
 - Read `DESIGN.md` and `PRODUCT.md` before block B; the settings window is built to them.
@@ -62,8 +62,8 @@ and compute their SHA-256. Output `docs/eval/2026-10-18-clean-install.md`, which
 ## Block C: release M1
 
 - `scripts/release.ps1` (build, version stamp, zip with `README.txt`); `main.version`; the README text per the spec. A clean-account run: the owner
-  unzips to a new folder, deletes `%APPDATA%\AGI` and `%LOCALAPPDATA%\AGI` first (after copying them), and confirms: hotkey works, apps, web,
-  tags, the settings window, the tray says file search is off, `agi.log` is written. Measure `panelbench -real`.
+  unzips to a new folder, deletes `%APPDATA%\Omni` and `%LOCALAPPDATA%\Omni` first (after copying them), and confirms: hotkey works, apps, web,
+  tags, the settings window, the tray says file search is off, `omni.log` is written. Measure `panelbench -real`.
 - Output: `docs/eval/<date>-m1-release.md`; `STATUS.md` row. **The friend gets this zip.** Questions to send with it go in the README.
 
 ## Block D: the engine on llama.cpp (Python)
@@ -71,7 +71,7 @@ and compute their SHA-256. Output `docs/eval/2026-10-18-clean-install.md`, which
 - **D1. `LlamaEmbedder`.** Promote the spike's embedder into `embedding/llama.py` and `embedding/llama_server.py` (process start, device choice from
   `--list-devices`, health wait, CPU fallback, one restart). Python tests against a fake HTTP server (truncation, token lists, keep-alive reuse,
   device parsing of real `--list-devices` output saved as a fixture, restart once, fail twice).
-- **D2. Wire and drop torch.** `__main__.py` builds `LlamaEmbedder` from `AGI_LLAMA_SERVER` and `AGI_MODEL_DIR`; delete `gemma.py`, `query_graph.py`,
+- **D2. Wire and drop torch.** `__main__.py` builds `LlamaEmbedder` from `OMNI_LLAMA_SERVER` and `OMNI_MODEL_DIR`; delete `gemma.py`, `query_graph.py`,
   `test_gemma_embedder.py`; remove torch and the PyTorch index from `pyproject.toml`, regenerate `uv.lock`; `eval/__main__.py` uses the new embedder.
   `device` values become `vulkan` and `cpu` (`docs/api.md`, the supervisor's reading of `/health`).
 - **D3. Gates.** With the spike's llama dir and models, on the owner's machine: the golden eval (every metric within 0.02), `pytest`, a real index job over
@@ -86,7 +86,7 @@ and compute their SHA-256. Output `docs/eval/2026-10-18-clean-install.md`, which
   outside its folder). Tests with `httptest`: resume after a cut connection, a wrong checksum is refused and deleted, cancel leaves resumable parts, `engine.json`
   is written last, a second run does nothing.
 - **E2. Wiring and UI.** The File search section: the host list and size before **Turn on**, a step list with bytes and Cancel, then the on state; **Remove file search**
-  and **Update engine**. On success `[search] enabled = true`, the supervisor `Start()`s with `AGI_LLAMA_SERVER` and `AGI_MODEL_DIR` pointing into the engine folder.
+  and **Update engine**. On success `[search] enabled = true`, the supervisor `Start()`s with `OMNI_LLAMA_SERVER` and `OMNI_MODEL_DIR` pointing into the engine folder.
 - **E3. Acceptance.** On the owner's machine from a clean `engine\` folder: time and bytes (into `docs/eval/`), then remove and turn on again; kill the network in
   the middle of the model download and resume.
 

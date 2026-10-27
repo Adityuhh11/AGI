@@ -13,7 +13,7 @@ var t0 = time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
 
 func open(t *testing.T) (*Store, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "AGI", "clipboard.json")
+	path := filepath.Join(t.TempDir(), "Omni", "clipboard.json")
 	s, err := OpenStore(path)
 	if err != nil {
 		t.Fatal(err)

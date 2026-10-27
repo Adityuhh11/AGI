@@ -1,20 +1,20 @@
-AGI {VERSION}
+Omni {VERSION}
 A launcher for Windows: press a hotkey, type, and open an app, search the web, jump to a quicklink,
 or (optionally) find your own files by what they say. Everything runs on this computer.
 
 STARTING IT
 
-  1. Unzip the folder anywhere and run agi.exe.
+  1. Unzip the folder anywhere and run omni.exe.
      Windows may say "Windows protected your PC", because the program is not signed yet.
      Click "More info", then "Run anyway".
   2. There is no window of its own. The program sits in the notification area (the little arrow
-     by the clock). The first time it starts it opens a short setup guide: what AGI is, the hotkey and
+     by the clock). The first time it starts it opens a short setup guide: what Omni is, the hotkey and
      the keys, and the optional file search (Settings > About > "Open the guide", or the
      tray menu, shows it again).
   3. Press Alt+Shift+Space to open the bar. Settings > General changes the hotkey, and says
      so if another program already owns the one you pick.
   4. Settings > General > "Start when I sign in" makes it start with Windows. It remembers where
-     agi.exe is; if you move the file, switch that off and on again.
+     omni.exe is; if you move the file, switch that off and on again.
 
 WHAT TO TRY
 
@@ -38,12 +38,12 @@ WHAT TO TRY
 FILE SEARCH (optional, off until you turn it on)
 
   Finds files by what they contain, not by their names: code, PDF pages, notes, pictures by what
-  they show ("the diagram with the three boxes") and videos. It is the part of AGI that needs the
+  they show ("the diagram with the three boxes") and videos. It is the part of Omni that needs the
   most from your computer, so it is a choice.
 
   Settings > File search > "Download and turn on".
   - It downloads about 1 GB once, from github.com, pypi.org, files.pythonhosted.org and
-    huggingface.co, and says so before you press the button. Afterwards AGI makes no network
+    huggingface.co, and says so before you press the button. Afterwards Omni makes no network
     calls for it. It took about two minutes on a fast connection.
   - It runs on the graphics card (NVIDIA, AMD or Intel Arc, through Vulkan) and falls back to the
     processor if there is none or its driver does not support Vulkan. On the processor a picture
@@ -66,18 +66,18 @@ FILE SEARCH (optional, off until you turn it on)
     what is indexed so far.
   - "Turn off" stops it and keeps the files. "Delete downloaded files" removes the engine and the
     models (about 1.1 GB on disk) and keeps the index, which works again after turning it on.
-  - A new version of AGI may come with a newer search engine; Settings offers an Update button.
+  - A new version of Omni may come with a newer search engine; Settings offers an Update button.
     (0.5.0 does: press it once after updating from 0.4.0, so videos can be indexed.)
-  - A folder that shows "Nothing here AGI can read" may be one Windows moved: with OneDrive's
+  - A folder that shows "Nothing here Omni can read" may be one Windows moved: with OneDrive's
     backup on, Documents, Desktop and Pictures live under the OneDrive folder. Settings says where.
 
 WHERE THINGS ARE
 
-  Settings file   %APPDATA%\AGI\config.toml
-  Log             %LOCALAPPDATA%\AGI\logs\agi.log
-  Search engine   %LOCALAPPDATA%\AGI\engine      (only after you turn file search on)
-  Index           %LOCALAPPDATA%\AGI\memory      (what file search has indexed)
-  Clipboard       %LOCALAPPDATA%\AGI\clipboard.json (only if you switched the history on)
+  Settings file   %APPDATA%\Omni\config.toml
+  Log             %LOCALAPPDATA%\Omni\logs\omni.log
+  Search engine   %LOCALAPPDATA%\Omni\engine      (only after you turn file search on)
+  Index           %LOCALAPPDATA%\Omni\memory      (what file search has indexed)
+  Clipboard       %LOCALAPPDATA%\Omni\clipboard.json (only if you switched the history on)
   Quit            right-click the icon in the notification area, then Quit
   Remove it all   quit it, delete this folder, then delete the folders above.
   The program has no telemetry. Besides the downloads of file search it only touches the network
@@ -85,8 +85,8 @@ WHERE THINGS ARE
   Settings > About > "Check for updates", or "Check once a day" if you turn it on (off by default).
   That request goes to api.github.com, asks for the latest version number and sends nothing else.
   "Update to X" in the same place downloads the new version only when you press it, checks it against
-  the checksum GitHub published for it, replaces agi.exe where it is (the folder must be one you can
-  write to) and restarts. Or download the zip yourself and replace agi.exe by hand.
+  the checksum GitHub published for it, replaces omni.exe where it is (the folder must be one you can
+  write to) and restarts. Or download the zip yourself and replace omni.exe by hand.
 
 NOT HERE YET
 
@@ -101,4 +101,4 @@ WHAT I WOULD LIKE TO KNOW
      did indexing get in your way (heat, fans, a slow computer, a game stuttering)? Did the speeds
      feel right? Were the results you expected first?
   4. Anything that felt wrong: a wrong result, a flicker, a delay, a window that did not go away.
-  5. If something broke, please send agi.log from the folder above (Settings > About opens it).
+  5. If something broke, please send omni.log from the folder above (Settings > About opens it).

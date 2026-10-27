@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"agi/internal/config"
-	"agi/internal/rank"
+	"omni/internal/config"
+	"omni/internal/rank"
 )
 
 // Snippets is the user's snippets as the bar uses them; *snippets.Service satisfies it.

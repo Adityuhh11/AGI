@@ -1,8 +1,8 @@
 import pytest
 
-from agi_memory.store.keyword import build_match
-from agi_memory.types import ChunkKind, Filters
 from helpers import make_chunk, unit_vectors
+from omni_memory.store.keyword import build_match
+from omni_memory.types import ChunkKind, Filters
 
 
 @pytest.mark.parametrize(
@@ -149,8 +149,8 @@ def four_chunks(store):
 
 
 def test_a_word_in_most_of_a_large_index_is_skipped_by_keyword_search(store, monkeypatch):
-    monkeypatch.setattr("agi_memory.store.keyword._COMMON_MIN_DOCS", 0)
-    monkeypatch.setattr("agi_memory.store.keyword._COMMON_FRACTION", 0.5)
+    monkeypatch.setattr("omni_memory.store.keyword._COMMON_MIN_DOCS", 0)
+    monkeypatch.setattr("omni_memory.store.keyword._COMMON_FRACTION", 0.5)
     chunks = four_chunks(store)
     assert store.keyword_search("function", 10) == []  # in all four chunks: no signal
     assert store.keyword_search("function alpha", 10)[0].id == chunks[0].id

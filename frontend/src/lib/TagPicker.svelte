@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Palette } from "../../bindings/agi/internal/palette";
-  import type { TagInfo } from "../../bindings/agi/internal/palette";
+  import { Service as Palette } from "../../bindings/omni/internal/palette";
+  import type { TagInfo } from "../../bindings/omni/internal/palette";
   import ActionPanel from "./ActionPanel.svelte";
   import { newTag, tagLines } from "./tags";
 

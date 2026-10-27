@@ -3,9 +3,9 @@ import threading
 import numpy as np
 import pytest
 
-from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind, Filters
 from helpers import DIM, make_chunk, unit_vectors
+from omni_memory.store import FlatStore
+from omni_memory.types import ChunkKind, Filters
 
 
 def oracle(vectors_by_id: dict[str, np.ndarray], query: np.ndarray, n: int):
@@ -92,6 +92,7 @@ def test_ties_are_broken_by_id_whatever_the_insert_order(store, monkeypatch):
     chunks = [make_chunk(name) for name in ("zulu", "alpha", "mike")]
     same = np.repeat(unit_vectors(1), 3, axis=0)
     store.upsert(chunks, same)
+
     # Identical rows are not always an exact tie: a matrix product may sum a row in another order
     # depending on where it sits and on the processor (a CI runner differed in the last bit). The
     # rule is about exact ties, so make them exact.

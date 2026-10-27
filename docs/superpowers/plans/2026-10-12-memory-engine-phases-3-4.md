@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Python `>=3.12`, `uv`; run commands from `C:\dev\VS_CODE\AGI\sidecar` unless a step says otherwise. Run Bash tool calls one at a time (parallel calls interleave the working directory).
+- Python `>=3.12`, `uv`; run commands from `C:\dev\VS_CODE\Omni\sidecar` unless a step says otherwise. Run Bash tool calls one at a time (parallel calls interleave the working directory).
 - GPU = models only; index storage and search stay on the CPU. Embedding model `google/embeddinggemma-2`, 256-d float32 unit vectors.
 - **Secrets are never read.** Built-in deny list that cannot be overridden: directories `.git`, `node_modules`, `.venv`, `venv`, `__pycache__`, `.ssh`; files `.env*`, `*.pem`, `*.key`, `id_rsa*`, `id_dsa*`, `id_ecdsa*`, `id_ed25519*`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `.netrc`, `.npmrc`, and lockfiles (`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `uv.lock`, `poetry.lock`, `Pipfile.lock`, `Cargo.lock`, `go.sum`, `composer.lock`). Case-insensitive. Denied entries are counted, never opened.
 - Size limits: text/code files 5 MB; images and PDFs 50 MB. Larger files are skipped and counted.
@@ -41,7 +41,7 @@ Inputs the spec implies but its stated tests do not exercise; each has a test in
 sidecar/
   pyproject.toml                          (modify: deps, `perf` marker)
   eval/golden.yaml                        (create: 38 golden queries)
-  src/agi_memory/
+  src/omni_memory/
     config.py                             (modify: limits)
     types.py                              (modify: FileRecord, KeywordHit, SearchHit)
     sources/__init__.py  rules.py  folder.py
@@ -71,13 +71,13 @@ Deviations from the spec made while planning (the plan updates the spec text in 
 ### Task 1: Dependencies, settings limits, secret deny list and file routing
 
 **Files:**
-- Modify: `sidecar/pyproject.toml`, `sidecar/src/agi_memory/config.py`
-- Create: `sidecar/src/agi_memory/sources/__init__.py`, `sidecar/src/agi_memory/sources/rules.py`
+- Modify: `sidecar/pyproject.toml`, `sidecar/src/omni_memory/config.py`
+- Create: `sidecar/src/omni_memory/sources/__init__.py`, `sidecar/src/omni_memory/sources/rules.py`
 - Test: `sidecar/tests/test_config.py` (append), `sidecar/tests/test_rules.py`
 
 **Interfaces:**
 - Produces `Settings` fields (all with defaults): `max_text_file_bytes=5*1024*1024`, `max_media_file_bytes=50*1024*1024`, `chunk_lines=40`, `chunk_overlap_lines=10`, `max_chunk_chars=6000`, `pdf_render_scale=1.5`, `image_max_side=1024`, `flush_chunks=64`; `Settings.__post_init__` raises `ValueError` mentioning `chunk_overlap_lines` unless `0 <= chunk_overlap_lines < chunk_lines`.
-- Produces `agi_memory.sources.rules`: `Route` (`enum.StrEnum`: `CODE`, `MARKDOWN`, `TEXT`, `PDF`, `IMAGE`), `is_denied_dir(name: str) -> bool`, `is_denied_file(name: str) -> bool`, `is_denied(uri: str) -> bool` (any path component a denied dir, or the last a denied file), `route_for(name: str) -> Route | None` (by lower-cased suffix), `size_limit(route: Route, settings: Settings) -> int`.
+- Produces `omni_memory.sources.rules`: `Route` (`enum.StrEnum`: `CODE`, `MARKDOWN`, `TEXT`, `PDF`, `IMAGE`), `is_denied_dir(name: str) -> bool`, `is_denied_file(name: str) -> bool`, `is_denied(uri: str) -> bool` (any path component a denied dir, or the last a denied file), `route_for(name: str) -> Route | None` (by lower-cased suffix), `size_limit(route: Route, settings: Settings) -> int`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -102,8 +102,8 @@ Create `sidecar/tests/test_rules.py`:
 ```python
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.sources.rules import Route, is_denied, route_for, size_limit
+from omni_memory.config import Settings
+from omni_memory.sources.rules import Route, is_denied, route_for, size_limit
 
 DENIED = [
     ".env",
@@ -188,7 +188,7 @@ def test_size_limits_depend_on_the_route(tmp_path):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_config.py tests/test_rules.py -q`
-Expected: FAIL (`AttributeError`/`TypeError` for the new `Settings` fields; `ModuleNotFoundError: agi_memory.sources`).
+Expected: FAIL (`AttributeError`/`TypeError` for the new `Settings` fields; `ModuleNotFoundError: omni_memory.sources`).
 
 - [ ] **Step 3: Update `sidecar/pyproject.toml`**
 
@@ -223,7 +223,7 @@ Expected: installs pathspec, pypdfium2, pyyaml, threadpoolctl; the lockfile chan
 
 - [ ] **Step 4: Implement `Settings` limits**
 
-In `sidecar/src/agi_memory/config.py`, add these fields after `image_batch_size` in `Settings`:
+In `sidecar/src/omni_memory/config.py`, add these fields after `image_batch_size` in `Settings`:
 
 ```python
     max_text_file_bytes: int = 5 * 1024 * 1024
@@ -247,13 +247,13 @@ In `sidecar/src/agi_memory/config.py`, add these fields after `image_batch_size`
 
 - [ ] **Step 5: Implement `sources/rules.py`**
 
-Create `sidecar/src/agi_memory/sources/__init__.py`:
+Create `sidecar/src/omni_memory/sources/__init__.py`:
 
 ```python
 """Where indexed files come from: the deny list, file routing and the folder scanner."""
 ```
 
-Create `sidecar/src/agi_memory/sources/rules.py`:
+Create `sidecar/src/omni_memory/sources/rules.py`:
 
 ```python
 """What the indexer may read: the secret deny list and the file-type routing table.
@@ -268,7 +268,7 @@ import enum
 import fnmatch
 from pathlib import PurePosixPath
 
-from agi_memory.config import Settings
+from omni_memory.config import Settings
 
 
 class Route(enum.StrEnum):
@@ -369,12 +369,12 @@ git commit -m "feat(sources): secret deny list, file routing and ingestion limit
 ### Task 2: Folder scanner
 
 **Files:**
-- Create: `sidecar/src/agi_memory/sources/folder.py`
+- Create: `sidecar/src/omni_memory/sources/folder.py`
 - Test: `sidecar/tests/test_scan.py`
 
 **Interfaces:**
 - Consumes: `Route`, `is_denied_dir`, `is_denied_file`, `route_for`, `size_limit` (Task 1); `Settings`.
-- Produces `agi_memory.sources.folder`:
+- Produces `omni_memory.sources.folder`:
   - `ScannedFile(uri: str, path: Path, route: Route, size: int, mtime_ns: int)` frozen dataclass.
   - `ScanResult` dataclass with `files: list[ScannedFile]`, `denied: int`, `ignored: int`, `unsupported: int`, `too_large: int`, `unreadable: list[tuple[str, str]]` (uri prefix and message; a directory's prefix ends with `/`, the root's prefix is `""`).
   - `scan(root: Path, settings: Settings) -> ScanResult`: depth-first, entries sorted by name, URIs relative to `root` with `/`, honours nested `.gitignore` files (last matching rule wins, deeper files override), skips symlinks and junctions silently, counts a denied/ignored directory once.
@@ -388,9 +388,9 @@ import os
 
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.sources.folder import scan
-from agi_memory.sources.rules import Route
+from omni_memory.config import Settings
+from omni_memory.sources.folder import scan
+from omni_memory.sources.rules import Route
 
 
 def write(root, relative, content="x"):
@@ -504,7 +504,7 @@ def test_missing_root_is_reported_as_unreadable_root(tmp_path, settings):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_scan.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.sources.folder`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.sources.folder`).
 
 - [ ] **Step 3: Implement `sources/folder.py`**
 
@@ -524,8 +524,8 @@ from pathlib import Path
 
 import pathspec
 
-from agi_memory.config import Settings
-from agi_memory.sources.rules import (
+from omni_memory.config import Settings
+from omni_memory.sources.rules import (
     Route,
     is_denied_dir,
     is_denied_file,
@@ -641,13 +641,13 @@ git commit -m "feat(sources): gitignore-aware folder scanner that never follows 
 ### Task 3: Text, code and Markdown chunkers
 
 **Files:**
-- Create: `sidecar/src/agi_memory/chunking/__init__.py`, `sidecar/src/agi_memory/chunking/common.py`, `sidecar/src/agi_memory/chunking/text.py`
+- Create: `sidecar/src/omni_memory/chunking/__init__.py`, `sidecar/src/omni_memory/chunking/common.py`, `sidecar/src/omni_memory/chunking/text.py`
 - Test: `sidecar/tests/test_chunk_text.py`
 
 **Interfaces:**
 - Consumes: `Chunk`, `ChunkKind` (types); `Route` (Task 1); `Settings` (Task 1 fields).
-- Produces `agi_memory.chunking.common`: `ChunkingError(Exception)`, `locator_json(**fields: object) -> str` (canonical: sorted keys, no spaces), `sha256_hex(text: str) -> str`.
-- Produces `agi_memory.chunking.text`: `NotTextError(ChunkingError)` (file looks binary), `chunk_text_document(source_id: str, uri: str, route: Route, data: bytes, mtime_ns: int, settings: Settings) -> list[Chunk]` for routes `CODE`, `MARKDOWN`, `TEXT` (other routes raise `ValueError`). Each chunk: `text = f"{uri}\n{body}"[:max_chunk_chars]`, `content_hash = sha256_hex(text)`, locator `{"lines":[first,last]}` (1-based, inclusive), kind from the route; blank bodies are dropped.
+- Produces `omni_memory.chunking.common`: `ChunkingError(Exception)`, `locator_json(**fields: object) -> str` (canonical: sorted keys, no spaces), `sha256_hex(text: str) -> str`.
+- Produces `omni_memory.chunking.text`: `NotTextError(ChunkingError)` (file looks binary), `chunk_text_document(source_id: str, uri: str, route: Route, data: bytes, mtime_ns: int, settings: Settings) -> list[Chunk]` for routes `CODE`, `MARKDOWN`, `TEXT` (other routes raise `ValueError`). Each chunk: `text = f"{uri}\n{body}"[:max_chunk_chars]`, `content_hash = sha256_hex(text)`, locator `{"lines":[first,last]}` (1-based, inclusive), kind from the route; blank bodies are dropped.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -659,11 +659,11 @@ import json
 
 import pytest
 
-from agi_memory.chunking.common import locator_json
-from agi_memory.chunking.text import NotTextError, chunk_text_document
-from agi_memory.config import Settings
-from agi_memory.sources.rules import Route
-from agi_memory.types import ChunkKind
+from omni_memory.chunking.common import locator_json
+from omni_memory.chunking.text import NotTextError, chunk_text_document
+from omni_memory.config import Settings
+from omni_memory.sources.rules import Route
+from omni_memory.types import ChunkKind
 
 
 @pytest.fixture
@@ -770,17 +770,17 @@ def test_locator_json_is_canonical():
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_chunk_text.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.chunking`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.chunking`).
 
 - [ ] **Step 3: Implement**
 
-`sidecar/src/agi_memory/chunking/__init__.py`:
+`sidecar/src/omni_memory/chunking/__init__.py`:
 
 ```python
 """Turning files into chunks: text/code/Markdown windows, PDF pages, images."""
 ```
 
-`sidecar/src/agi_memory/chunking/common.py`:
+`sidecar/src/omni_memory/chunking/common.py`:
 
 ```python
 """Small helpers shared by every chunker."""
@@ -804,7 +804,7 @@ def sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 ```
 
-`sidecar/src/agi_memory/chunking/text.py`:
+`sidecar/src/omni_memory/chunking/text.py`:
 
 ```python
 """Chunks for text-like files: source code, plain text, CSV/JSON and Markdown.
@@ -819,10 +819,10 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 
-from agi_memory.chunking.common import ChunkingError, locator_json, sha256_hex
-from agi_memory.config import Settings
-from agi_memory.sources.rules import Route
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.chunking.common import ChunkingError, locator_json, sha256_hex
+from omni_memory.config import Settings
+from omni_memory.sources.rules import Route
+from omni_memory.types import Chunk, ChunkKind
 
 _KINDS = {
     Route.CODE: ChunkKind.CODE,
@@ -914,17 +914,17 @@ git commit -m "feat(chunking): line-window and Markdown-section chunkers for tex
 ### Task 4: PDF and image chunkers
 
 **Files:**
-- Create: `sidecar/src/agi_memory/chunking/pdf.py`, `sidecar/src/agi_memory/chunking/image.py`, `sidecar/tests/pdf_fixture.py`
+- Create: `sidecar/src/omni_memory/chunking/pdf.py`, `sidecar/src/omni_memory/chunking/image.py`, `sidecar/tests/pdf_fixture.py`
 - Test: `sidecar/tests/test_chunk_pdf.py`, `sidecar/tests/test_chunk_image.py`
 - Modify: `docs/superpowers/specs/2026-10-12-memory-engine-design.md` (section 5/6 note on image `text`)
 
 **Interfaces:**
 - Consumes: `ChunkingError`, `locator_json`, `sha256_hex` (Task 3); `Chunk`, `ChunkKind`; `Settings`.
-- Produces `agi_memory.chunking.pdf`:
+- Produces `omni_memory.chunking.pdf`:
   - `PdfPages(data: bytes)`: context manager; raises `ChunkingError` if pdfium cannot open the file; `len(pdf)` pages; `text(index: int) -> str` (0-based); `render(index: int, scale: float) -> PIL.Image.Image` (RGB); `close()`.
   - `pdf_text_chunks(source_id, uri, pdf: PdfPages, mtime_ns, settings) -> list[Chunk]`: kind `PDF_TEXT`, locator `{"page": n}` (1-based), one per page whose stripped text is non-empty, `text = f"{uri}\n{body}"[:max_chunk_chars]`.
   - `pdf_page_chunks(source_id, uri, file_sha256: str, page_count: int, mtime_ns) -> list[Chunk]`: kind `PDF_PAGE`, locator `{"page": n}`, `text=""`, `content_hash = sha256_hex(f"{file_sha256}:{n}")`.
-- Produces `agi_memory.chunking.image`: `load_image(data: bytes, max_side: int) -> PIL.Image.Image` (EXIF-rotated, RGB, thumbnailed; raises `ChunkingError` on undecodable data), `image_chunk(source_id, uri, file_sha256: str, mtime_ns) -> Chunk` (kind `IMAGE`, locator `"{}"`, `text=uri`, `content_hash=file_sha256`).
+- Produces `omni_memory.chunking.image`: `load_image(data: bytes, max_side: int) -> PIL.Image.Image` (EXIF-rotated, RGB, thumbnailed; raises `ChunkingError` on undecodable data), `image_chunk(source_id, uri, file_sha256: str, mtime_ns) -> Chunk` (kind `IMAGE`, locator `"{}"`, `text=uri`, `content_hash=file_sha256`).
 - Produces test helper `tests/pdf_fixture.make_text_pdf(pages: list[str]) -> bytes`.
 
 - [ ] **Step 1: Test fixture and failing tests**
@@ -975,10 +975,10 @@ import pytest
 from pdf_fixture import make_text_pdf
 from PIL import Image
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.chunking.pdf import PdfPages, pdf_page_chunks, pdf_text_chunks
-from agi_memory.config import Settings
-from agi_memory.types import ChunkKind
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.pdf import PdfPages, pdf_page_chunks, pdf_text_chunks
+from omni_memory.config import Settings
+from omni_memory.types import ChunkKind
 
 
 @pytest.fixture
@@ -1042,9 +1042,9 @@ import io
 import pytest
 from PIL import Image
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.chunking.image import image_chunk, load_image
-from agi_memory.types import ChunkKind
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.image import image_chunk, load_image
+from omni_memory.types import ChunkKind
 
 
 def encode(image, fmt, **kwargs):
@@ -1089,7 +1089,7 @@ def test_image_chunk_keeps_the_file_name_searchable():
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_chunk_pdf.py tests/test_chunk_image.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.chunking.pdf`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.chunking.pdf`).
 
 - [ ] **Step 3: Implement `chunking/pdf.py`**
 
@@ -1110,9 +1110,9 @@ from typing import Self
 import pypdfium2 as pdfium
 from PIL.Image import Image
 
-from agi_memory.chunking.common import ChunkingError, locator_json, sha256_hex
-from agi_memory.config import Settings
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.chunking.common import ChunkingError, locator_json, sha256_hex
+from omni_memory.config import Settings
+from omni_memory.types import Chunk, ChunkKind
 
 
 class PdfPages:
@@ -1221,8 +1221,8 @@ import io
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.types import Chunk, ChunkKind
 
 
 def load_image(data: bytes, max_side: int) -> Image.Image:
@@ -1268,8 +1268,8 @@ git commit -m "feat(chunking): PDF pages as text and images, and image loading"
 ### Task 5: Store schema v2 with sources and files
 
 **Files:**
-- Modify: `sidecar/src/agi_memory/types.py`, `sidecar/src/agi_memory/store/schema.py`, `sidecar/src/agi_memory/store/flat.py`, `sidecar/tests/helpers.py`
-- Create: `sidecar/src/agi_memory/store/catalog.py`
+- Modify: `sidecar/src/omni_memory/types.py`, `sidecar/src/omni_memory/store/schema.py`, `sidecar/src/omni_memory/store/flat.py`, `sidecar/tests/helpers.py`
+- Create: `sidecar/src/omni_memory/store/catalog.py`
 - Test: `sidecar/tests/test_catalog.py`
 
 **Interfaces:**
@@ -1282,7 +1282,7 @@ git commit -m "feat(chunking): PDF pages as text and images, and image loading"
 
 - [ ] **Step 1: Test helpers and failing tests**
 
-Append to `sidecar/tests/helpers.py` (add `FileRecord` to the existing `agi_memory.types` import):
+Append to `sidecar/tests/helpers.py` (add `FileRecord` to the existing `omni_memory.types` import):
 
 ```python
 def make_file_chunks(uri: str, count: int, *, source_id: str = "s", tag: str = "v1") -> list[Chunk]:
@@ -1316,7 +1316,7 @@ import numpy as np
 import pytest
 from helpers import DIM, file_record, make_file_chunks, unit_vectors
 
-from agi_memory.store import FlatStore, IndexMismatchError
+from omni_memory.store import FlatStore, IndexMismatchError
 
 
 def put(store, uri, count, *, tag="v1", sha="sha1", source_id="s", mtime_ns=1):
@@ -1435,11 +1435,11 @@ def test_an_index_from_the_previous_schema_is_refused(tmp_path):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_catalog.py -q`
-Expected: FAIL (`ImportError: cannot import name 'FileRecord'` from `agi_memory.types` via `helpers`).
+Expected: FAIL (`ImportError: cannot import name 'FileRecord'` from `omni_memory.types` via `helpers`).
 
 - [ ] **Step 3: Add `FileRecord` to `types.py`**
 
-Append to `sidecar/src/agi_memory/types.py`:
+Append to `sidecar/src/omni_memory/types.py`:
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -1455,7 +1455,7 @@ class FileRecord:
 
 - [ ] **Step 4: Schema v2**
 
-In `sidecar/src/agi_memory/store/schema.py` set `SCHEMA_VERSION = 2`, and insert these statements inside the `SCHEMA` string immediately after the `CREATE INDEX IF NOT EXISTS chunks_source ...` line:
+In `sidecar/src/omni_memory/store/schema.py` set `SCHEMA_VERSION = 2`, and insert these statements inside the `SCHEMA` string immediately after the `CREATE INDEX IF NOT EXISTS chunks_source ...` line:
 
 ```sql
 CREATE INDEX IF NOT EXISTS chunks_source_uri ON chunks(source_id, uri);
@@ -1492,7 +1492,7 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Sequence
 
-from agi_memory.types import FileRecord
+from omni_memory.types import FileRecord
 
 
 class Catalog:
@@ -1564,9 +1564,9 @@ class Catalog:
 
 - [ ] **Step 6: Wire it into `FlatStore`**
 
-In `sidecar/src/agi_memory/store/flat.py`:
+In `sidecar/src/omni_memory/store/flat.py`:
 
-1. Add imports: `from agi_memory.store.catalog import Catalog` and extend the types import to `from agi_memory.types import Chunk, ChunkKind, FileRecord, Filters, VectorHit`.
+1. Add imports: `from omni_memory.store.catalog import Catalog` and extend the types import to `from omni_memory.types import Chunk, ChunkKind, FileRecord, Filters, VectorHit`.
 2. In `__init__`, right after `self._lock = threading.RLock()` and `self._db = sqlite3.connect(...)`, add `self._catalog = Catalog(self._db)`.
 3. Add these methods to the class, before `_validate_query`:
 
@@ -1642,12 +1642,12 @@ git commit -m "feat(store): sources and files catalog with atomic per-file repla
 ### Task 6: Indexer (incremental sync)
 
 **Files:**
-- Create: `sidecar/src/agi_memory/indexer.py`
+- Create: `sidecar/src/omni_memory/indexer.py`
 - Test: `sidecar/tests/test_indexer.py`
 
 **Interfaces:**
 - Consumes: `scan`/`ScannedFile`/`ScanResult` (Task 2), `chunk_text_document`/`NotTextError` (Task 3), `PdfPages`/`pdf_text_chunks`/`pdf_page_chunks`/`load_image`/`image_chunk` (Task 4), `FlatStore` catalog methods (Task 5), `Embedder`, `Settings`, `Route`, `FileRecord`, `ChunkingError`.
-- Produces `agi_memory.indexer`:
+- Produces `omni_memory.indexer`:
   - `FileError(uri: str, message: str)`; `SyncReport` with ints `added, updated, unchanged, removed, denied, ignored, unsupported, too_large, chunks_written` and `errors: list[FileError]`.
   - `Indexer(store: FlatStore, embedder: Embedder, settings: Settings, *, clock: Callable[[], int] = time.time_ns)`.
   - `Indexer.sync(source_id: str, root: Path, *, on_progress: Callable[[int, int], None] | None = None) -> SyncReport`: raises `FileNotFoundError` if `root` is not a directory; otherwise brings the store in line with the folder (see behaviour below). Per-file read/chunk failures are recorded in `errors` (binary files count as `unsupported`); embedder and store failures propagate.
@@ -1666,11 +1666,11 @@ import pytest
 from pdf_fixture import make_text_pdf
 from PIL import Image
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.store import FlatStore
+from omni_memory.types import ChunkKind
 
 DIM = 16
 
@@ -1936,7 +1936,7 @@ def test_empty_and_hostile_files_do_not_break_a_sync(indexer, store, root):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_indexer.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.indexer`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.indexer`).
 
 - [ ] **Step 3: Implement `indexer.py`**
 
@@ -1964,16 +1964,16 @@ from pathlib import Path
 
 import numpy as np
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.chunking.image import image_chunk, load_image
-from agi_memory.chunking.pdf import PdfPages, pdf_page_chunks, pdf_text_chunks
-from agi_memory.chunking.text import NotTextError, chunk_text_document
-from agi_memory.config import Settings
-from agi_memory.embedding.base import Embedder
-from agi_memory.sources.folder import ScannedFile, scan
-from agi_memory.sources.rules import Route
-from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, FileRecord
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.image import image_chunk, load_image
+from omni_memory.chunking.pdf import PdfPages, pdf_page_chunks, pdf_text_chunks
+from omni_memory.chunking.text import NotTextError, chunk_text_document
+from omni_memory.config import Settings
+from omni_memory.embedding.base import Embedder
+from omni_memory.sources.folder import ScannedFile, scan
+from omni_memory.sources.rules import Route
+from omni_memory.store import FlatStore
+from omni_memory.types import Chunk, FileRecord
 
 _TEXT_ROUTES = frozenset({Route.CODE, Route.MARKDOWN, Route.TEXT})
 
@@ -2192,11 +2192,11 @@ from pathlib import Path
 
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.store import FlatStore
+from omni_memory.types import ChunkKind
 
 SAMPLE = Path(__file__).resolve().parents[2] / "Sample Data"
 pytestmark = pytest.mark.skipif(not SAMPLE.is_dir(), reason="Sample Data/ is not present")
@@ -2292,8 +2292,8 @@ git commit -m "test(indexer): index the real sample folder; docs: phase 3 status
 ### Task 8: Keyword search in the store
 
 **Files:**
-- Create: `sidecar/src/agi_memory/store/keyword.py`, `sidecar/src/agi_memory/store/filters.py`
-- Modify: `sidecar/src/agi_memory/types.py`, `sidecar/src/agi_memory/store/flat.py`
+- Create: `sidecar/src/omni_memory/store/keyword.py`, `sidecar/src/omni_memory/store/filters.py`
+- Modify: `sidecar/src/omni_memory/types.py`, `sidecar/src/omni_memory/store/flat.py`
 - Test: `sidecar/tests/test_keyword.py`
 
 **Interfaces:**
@@ -2311,8 +2311,8 @@ git commit -m "test(indexer): index the real sample folder; docs: phase 3 status
 import pytest
 from helpers import make_chunk, unit_vectors
 
-from agi_memory.store.keyword import build_match
-from agi_memory.types import ChunkKind, Filters
+from omni_memory.store.keyword import build_match
+from omni_memory.types import ChunkKind, Filters
 
 
 @pytest.mark.parametrize(
@@ -2408,7 +2408,7 @@ def test_ties_are_broken_by_id(store):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_keyword.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.store.keyword`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.store.keyword`).
 
 - [ ] **Step 3: Add `KeywordHit` to `types.py`**
 
@@ -2436,7 +2436,7 @@ from __future__ import annotations
 
 import re
 
-from agi_memory.store.identifiers import split_identifiers
+from omni_memory.store.identifiers import split_identifiers
 
 _WORD = re.compile(r"\w+")
 _STOPWORDS = frozenset(
@@ -2454,14 +2454,14 @@ def build_match(query: str) -> str:
 
 - [ ] **Step 5: Implement `store/filters.py` and wire both into `FlatStore`**
 
-`sidecar/src/agi_memory/store/filters.py`:
+`sidecar/src/omni_memory/store/filters.py`:
 
 ```python
 """SQL for `Filters`, shared by vector search (row masks) and keyword search (joins)."""
 
 from __future__ import annotations
 
-from agi_memory.types import Filters
+from omni_memory.types import Filters
 
 
 def filter_clause(filters: Filters) -> tuple[str, list[object]] | None:
@@ -2487,9 +2487,9 @@ def filter_clause(filters: Filters) -> tuple[str, list[object]] | None:
     return " AND ".join(clauses), params
 ```
 
-In `sidecar/src/agi_memory/store/flat.py`:
+In `sidecar/src/omni_memory/store/flat.py`:
 
-1. Imports: add `from agi_memory.store.filters import filter_clause`, `from agi_memory.store.keyword import build_match`, and change the types import to include `KeywordHit`.
+1. Imports: add `from omni_memory.store.filters import filter_clause`, `from omni_memory.store.keyword import build_match`, and change the types import to include `KeywordHit`.
 2. Replace the whole body of `_filter_mask` with:
 
 ```python
@@ -2546,8 +2546,8 @@ git commit -m "feat(store): FTS5 keyword search with safe query building and sha
 ### Task 9: Rank fusion and the Searcher
 
 **Files:**
-- Create: `sidecar/src/agi_memory/search/__init__.py`, `fusion.py`, `searcher.py`
-- Modify: `sidecar/src/agi_memory/types.py`
+- Create: `sidecar/src/omni_memory/search/__init__.py`, `fusion.py`, `searcher.py`
+- Modify: `sidecar/src/omni_memory/types.py`
 - Test: `sidecar/tests/test_fusion.py`, `sidecar/tests/test_searcher.py`
 
 **Interfaces:**
@@ -2562,7 +2562,7 @@ git commit -m "feat(store): FTS5 keyword search with safe query building and sha
 ```python
 import pytest
 
-from agi_memory.search.fusion import reciprocal_rank_fusion
+from omni_memory.search.fusion import reciprocal_rank_fusion
 
 
 def test_an_item_ranked_well_by_both_lists_wins():
@@ -2601,12 +2601,12 @@ def test_a_repeated_id_counts_once_at_its_best_rank():
 ```python
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind, Filters
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
+from omni_memory.types import ChunkKind, Filters
 
 DIM = 64
 
@@ -2698,7 +2698,7 @@ def test_a_chunk_deleted_between_ranking_and_lookup_is_skipped(world, monkeypatc
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_fusion.py tests/test_searcher.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.search`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.search`).
 
 - [ ] **Step 3: Add `SearchHit` to `types.py`**
 
@@ -2721,13 +2721,13 @@ class SearchHit:
 
 - [ ] **Step 4: Implement fusion and the searcher**
 
-`sidecar/src/agi_memory/search/__init__.py`:
+`sidecar/src/omni_memory/search/__init__.py`:
 
 ```python
 """Search: vector + keyword retrieval fused into one ranking."""
 ```
 
-`sidecar/src/agi_memory/search/fusion.py`:
+`sidecar/src/omni_memory/search/fusion.py`:
 
 ```python
 """Reciprocal rank fusion: merge ranked lists without comparing their incompatible scores."""
@@ -2755,17 +2755,17 @@ def reciprocal_rank_fusion(
     return sorted(scores.items(), key=lambda item: (-item[1], item[0]))
 ```
 
-`sidecar/src/agi_memory/search/searcher.py`:
+`sidecar/src/omni_memory/search/searcher.py`:
 
 ```python
 """Searcher: embeds the query, runs vector and keyword search, fuses and describes the hits."""
 
 from __future__ import annotations
 
-from agi_memory.embedding.base import Embedder
-from agi_memory.search.fusion import reciprocal_rank_fusion
-from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, Filters, SearchHit
+from omni_memory.embedding.base import Embedder
+from omni_memory.search.fusion import reciprocal_rank_fusion
+from omni_memory.store import FlatStore
+from omni_memory.types import Chunk, Filters, SearchHit
 
 _SNIPPET_CHARS = 240
 
@@ -2836,7 +2836,7 @@ git commit -m "feat(search): reciprocal rank fusion and the hybrid Searcher"
 ### Task 10: Evaluation harness
 
 **Files:**
-- Create: `sidecar/src/agi_memory/eval/__init__.py`, `golden.py`, `metrics.py`, `runner.py`, `__main__.py`
+- Create: `sidecar/src/omni_memory/eval/__init__.py`, `golden.py`, `metrics.py`, `runner.py`, `__main__.py`
 - Test: `sidecar/tests/test_eval.py`
 
 **Interfaces:**
@@ -2844,7 +2844,7 @@ git commit -m "feat(search): reciprocal rank fusion and the hybrid Searcher"
 - Produces `eval.golden`: `GoldenQuery(query: str, expect: tuple[str, ...], forbid: tuple[str, ...], note: str)` and `load_golden(path: Path) -> list[GoldenQuery]` (YAML list of mappings with keys `query`, `expect`, optional `forbid`, `note`; raises `ValueError` for non-list files, missing/empty `query` or `expect`, unknown keys, non-string items, duplicate queries).
 - Produces `eval.metrics`: `first_relevant_rank(uris: Sequence[str], expect: Sequence[str]) -> int | None` (1-based rank of the first uri containing any `expect` substring); `QueryResult(query, first_rank: int | None, forbidden: tuple[str, ...], top_uris: tuple[str, ...])`; `Metrics(n, top1, recall3, recall10, mrr, forbidden_hits)` frozen dataclass; `summarize(results: Sequence[QueryResult]) -> Metrics` (`top1` = share with rank 1, `recall3`/`recall10` = share with rank <= 3 / <= 10, `mrr` = mean of 1/rank with 0 for misses, `forbidden_hits` = total forbidden matches).
 - Produces `eval.runner`: `build_index(store, embedder, settings, data_dir: Path, source_id: str = "sample") -> SyncReport`; `evaluate(golden, searcher, k: int = 10) -> list[QueryResult]` (a forbidden string counts when it appears in any top-k uri); `baseline_dict(metrics, embedder_id) -> dict[str, object]`; `compare_to_baseline(metrics, baseline, tolerance: float = 0.02) -> list[str]` (a message per metric among `top1, recall3, recall10, mrr` that fell more than `tolerance`, plus one when `forbidden_hits > 0`); `render_report(label, embedder_id, today, metrics, results, sync, golden) -> str` (Markdown); `run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: str) -> int`.
-- CLI: `uv run python -m agi_memory.eval [--data PATH] [--golden PATH] [--report-dir PATH] [--label NAME] [--cpu] [--write-baseline]`; defaults `--data "../Sample Data"`, `--golden eval/golden.yaml`, `--report-dir ../docs/eval`, `--label baseline`; writes `<report-dir>/<today>-<label>.md`; with `--write-baseline` writes `<report-dir>/baseline.json`; otherwise compares to it when present; exit status 1 on any regression or forbidden hit, else 0. BLAS threads are pinned to 1 during the run.
+- CLI: `uv run python -m omni_memory.eval [--data PATH] [--golden PATH] [--report-dir PATH] [--label NAME] [--cpu] [--write-baseline]`; defaults `--data "../Sample Data"`, `--golden eval/golden.yaml`, `--report-dir ../docs/eval`, `--label baseline`; writes `<report-dir>/<today>-<label>.md`; with `--write-baseline` writes `<report-dir>/baseline.json`; otherwise compares to it when present; exit status 1 on any regression or forbidden hit, else 0. BLAS threads are pinned to 1 during the run.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2855,10 +2855,10 @@ import json
 
 import pytest
 
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.eval.golden import GoldenQuery, load_golden
-from agi_memory.eval.metrics import Metrics, QueryResult, first_relevant_rank, summarize
-from agi_memory.eval.runner import baseline_dict, compare_to_baseline, render_report, run
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.eval.golden import GoldenQuery, load_golden
+from omni_memory.eval.metrics import Metrics, QueryResult, first_relevant_rank, summarize
+from omni_memory.eval.runner import baseline_dict, compare_to_baseline, render_report, run
 
 
 def write_golden(path, text):
@@ -3001,7 +3001,7 @@ def test_report_lists_every_query_and_misses(tmp_path):
     metrics = Metrics(2, 0.5, 0.5, 0.5, 0.5, 0)
     results = [QueryResult("found one", 1, (), ("a.js",)), QueryResult("lost one", None, (), ("z.js",))]
     golden = [GoldenQuery("found one", ("a",), (), ""), GoldenQuery("lost one", ("b",), (), "")]
-    from agi_memory.indexer import SyncReport
+    from omni_memory.indexer import SyncReport
 
     text = render_report("t", "fake", "2026-10-12", metrics, results, SyncReport(added=2), golden)
     assert "found one" in text and "lost one" in text
@@ -3011,17 +3011,17 @@ def test_report_lists_every_query_and_misses(tmp_path):
 - [ ] **Step 2: Run to see them fail**
 
 Run: `uv run pytest tests/test_eval.py -q`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.eval`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.eval`).
 
 - [ ] **Step 3: Implement `eval/golden.py` and `eval/metrics.py`**
 
-`sidecar/src/agi_memory/eval/__init__.py`:
+`sidecar/src/omni_memory/eval/__init__.py`:
 
 ```python
 """Retrieval-quality evaluation: golden queries, metrics, a runner and a CLI."""
 ```
 
-`sidecar/src/agi_memory/eval/golden.py`:
+`sidecar/src/omni_memory/eval/golden.py`:
 
 ```python
 """The golden query set: queries with known-good answers, kept in a reviewable YAML file."""
@@ -3082,7 +3082,7 @@ def load_golden(path: Path) -> list[GoldenQuery]:
     return queries
 ```
 
-`sidecar/src/agi_memory/eval/metrics.py`:
+`sidecar/src/omni_memory/eval/metrics.py`:
 
 ```python
 """Retrieval metrics over golden-query results."""
@@ -3136,7 +3136,7 @@ def summarize(results: Sequence[QueryResult]) -> Metrics:
 
 - [ ] **Step 4: Implement `eval/runner.py` and `eval/__main__.py`**
 
-`sidecar/src/agi_memory/eval/runner.py`:
+`sidecar/src/omni_memory/eval/runner.py`:
 
 ```python
 """Runs the golden queries against a real index and reports, compares and gates on quality."""
@@ -3151,13 +3151,13 @@ from pathlib import Path
 
 from threadpoolctl import threadpool_limits
 
-from agi_memory.config import Settings
-from agi_memory.embedding.base import Embedder
-from agi_memory.eval.golden import GoldenQuery, load_golden
-from agi_memory.eval.metrics import Metrics, QueryResult, first_relevant_rank, summarize
-from agi_memory.indexer import Indexer, SyncReport
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
+from omni_memory.config import Settings
+from omni_memory.embedding.base import Embedder
+from omni_memory.eval.golden import GoldenQuery, load_golden
+from omni_memory.eval.metrics import Metrics, QueryResult, first_relevant_rank, summarize
+from omni_memory.indexer import Indexer, SyncReport
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
 
 _COMPARED = ("top1", "recall3", "recall10", "mrr")
 
@@ -3241,7 +3241,7 @@ def render_report(
 
 
 def run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: str) -> int:
-    parser = argparse.ArgumentParser(prog="python -m agi_memory.eval")
+    parser = argparse.ArgumentParser(prog="python -m omni_memory.eval")
     parser.add_argument("--data", default="../Sample Data")
     parser.add_argument("--golden", default="eval/golden.yaml")
     parser.add_argument("--report-dir", default="../docs/eval")
@@ -3286,10 +3286,10 @@ def run(argv: Sequence[str], make_embedder: Callable[[bool], Embedder], today: s
     return 1 if problems else 0
 ```
 
-`sidecar/src/agi_memory/eval/__main__.py`:
+`sidecar/src/omni_memory/eval/__main__.py`:
 
 ```python
-"""Entry point: `uv run python -m agi_memory.eval` (see `runner.run` for the options)."""
+"""Entry point: `uv run python -m omni_memory.eval` (see `runner.run` for the options)."""
 
 from __future__ import annotations
 
@@ -3297,14 +3297,14 @@ import datetime
 import sys
 from pathlib import Path
 
-from agi_memory.config import Settings
-from agi_memory.embedding.base import Embedder
-from agi_memory.eval.runner import run
+from omni_memory.config import Settings
+from omni_memory.embedding.base import Embedder
+from omni_memory.eval.runner import run
 
 
 def _gemma(cpu: bool) -> Embedder:
     # Imported here so unit tests and `--help` never pay for importing torch.
-    from agi_memory.embedding.gemma import GemmaEmbedder
+    from omni_memory.embedding.gemma import GemmaEmbedder
 
     return GemmaEmbedder(Settings(index_dir=Path(".")), device="cpu" if cpu else None)
 
@@ -3438,7 +3438,7 @@ git commit -m "feat(eval): golden queries, metrics, runner and CLI with a baseli
 
 - [ ] **Step 2: Run the harness on the real model and record the baseline**
 
-Run (from `sidecar`): `uv run python -m agi_memory.eval --write-baseline`
+Run (from `sidecar`): `uv run python -m omni_memory.eval --write-baseline`
 Expected: loads EmbeddingGemma 2 on the GPU (about 15 s), indexes `Sample Data/` (about 400 chunks, about 20 s), prints a one-line summary and writes `../docs/eval/<today>-baseline.md` and `../docs/eval/baseline.json`; exit status 0 (forbid hits would make it 1: if any appear, that is a privacy defect, stop and fix it before continuing).
 
 - [ ] **Step 3: Inspect the report; judge each miss**
@@ -3455,10 +3455,10 @@ import time
 import numpy as np
 import pytest
 
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
+from omni_memory.types import Chunk, ChunkKind
 
 pytestmark = pytest.mark.perf
 
@@ -3504,7 +3504,7 @@ Create `docs/eval/perf.md` recording: date, machine (RTX 4050 laptop, CPU search
 
 - [ ] **Step 5: Phase 4 docs gate**
 
-`docs/ARCHITECTURE.md`: set the `search/` and `eval/` rows to `built`, update their jobs ("`Searcher`: vector + FTS5 keyword search, reciprocal rank fusion, filters" and "Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate"); add to "Invariants": "7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m agi_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not." `docs/STATUS.md`: phase 4 `done`, record the baseline numbers (top1, recall@3, recall@10, MRR) and the p95, and set "Next" to "Plan phase 5 (HTTP API) and phase 6 (quality iteration, driven by the weak groups in the baseline report)". `docs/README.md`: change the `eval/` row to say it exists: "Retrieval-quality reports, `baseline.json`, `perf.md`".
+`docs/ARCHITECTURE.md`: set the `search/` and `eval/` rows to `built`, update their jobs ("`Searcher`: vector + FTS5 keyword search, reciprocal rank fusion, filters" and "Golden queries, metrics, runner/CLI (`uv run python -m omni_memory.eval`), baseline gate"); add to "Invariants": "7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m omni_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not." `docs/STATUS.md`: phase 4 `done`, record the baseline numbers (top1, recall@3, recall@10, MRR) and the p95, and set "Next" to "Plan phase 5 (HTTP API) and phase 6 (quality iteration, driven by the weak groups in the baseline report)". `docs/README.md`: change the `eval/` row to say it exists: "Retrieval-quality reports, `baseline.json`, `perf.md`".
 
 - [ ] **Step 6: Final gate and commit**
 
