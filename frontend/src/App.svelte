@@ -443,9 +443,54 @@
     }
   }
 
+  // The list glides to the selected row: each frame covers a fixed share of what is left, so the motion is continuous at any
+  // key-repeat rate. (CSS smooth scrolling restarts its animation on every repeat and moves in jerks while a key is held.)
+  const GLIDE_MS = 70; // time constant: about 95% of the way in three of these
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let glideFrame = 0;
+  let glideGoal = 0;
+
   async function scrollToSelected() {
     await tick();
-    document.querySelector(".item.selected")?.scrollIntoView({ block: "nearest" });
+    const box = document.getElementById("results");
+    const row = box?.querySelector<HTMLElement>(".item.selected");
+    if (!box || !row) return;
+    // Where the list is heading counts as where it is, so a second key during a glide aims from the first one's goal.
+    const at = glideFrame ? glideGoal : box.scrollTop;
+    const shift = box.scrollTop - at;
+    const edge = 8;
+    const view = box.getBoundingClientRect();
+    const rect = row.getBoundingClientRect();
+    let goal = at;
+    if (selected === 0) goal = 0; // the first row brings its heading with it
+    else if (rect.top + shift < view.top + edge) goal = at + (rect.top + shift - view.top - edge);
+    else if (rect.bottom + shift > view.bottom - edge) goal = at + (rect.bottom + shift - view.bottom + edge);
+    goal = Math.min(Math.max(goal, 0), box.scrollHeight - box.clientHeight);
+    if (reduceMotion.matches) {
+      box.scrollTop = goal;
+      return;
+    }
+    glideTo(box, goal);
+  }
+
+  function glideTo(box: HTMLElement, goal: number) {
+    glideGoal = goal;
+    if (glideFrame) return; // the running loop takes the new goal
+    let pos = box.scrollTop;
+    let last = performance.now();
+    const frame = (now: number) => {
+      // Something else moved the list (the wheel, new results): that wins, the glide ends.
+      if (!box.isConnected || Math.abs(box.scrollTop - pos) > 2) {
+        glideFrame = 0;
+        return;
+      }
+      pos += (glideGoal - pos) * (1 - Math.exp(-Math.min(now - last, 50) / GLIDE_MS));
+      last = now;
+      if (Math.abs(glideGoal - pos) < 0.5) pos = glideGoal;
+      box.scrollTop = pos;
+      glideFrame = pos === glideGoal ? 0 : requestAnimationFrame(frame);
+    };
+    glideFrame = requestAnimationFrame(frame);
   }
 
   const optionId = (index: number) => `option-${index}`;
@@ -574,8 +619,6 @@
     inset: var(--ring);
     border-radius: calc(var(--radius) - var(--ring));
     background: var(--plate);
-    overflow: hidden;
-    isolation: isolate;
   }
   .surface::after {
     content: "";
@@ -655,43 +698,64 @@
     overflow-y: auto;
     padding: 8px 0;
   }
+  /* Rows are faded by the colour of their text, never by opacity or a transform: those make the browser draw the row as a
+     picture that is then scaled or blended, which is what made it look soft. Dimmed text is the same glyphs in a fainter
+     colour, so it stays as sharp as ever. */
   .results {
-    transition: opacity 120ms var(--ease);
+    --dim-text: color-mix(in srgb, var(--text) 45%, transparent);
+    --dim-text-3: color-mix(in srgb, var(--text-3) 55%, transparent);
   }
-  .results.stale {
-    opacity: 0.55; /* the answer to an older query, until the new one lands */
-  }
-  /* While the arrow keys move the selection (and for a moment after), the selected row lifts as a lit pane of glass and
-     the rest fade back. Only opacity and transform change. The rows are other components', hence :global. */
   .results :global(.item) {
     transition:
-      opacity 200ms var(--ease),
-      transform 240ms var(--ease),
+      background-color 200ms var(--ease),
       box-shadow 240ms var(--ease);
   }
-  .results.keying {
-    scroll-behavior: smooth;
+  .results :global(.item .name),
+  .results :global(.item .kind),
+  .results :global(.item .folder),
+  .results :global(.item .detail),
+  .results :global(.item .where),
+  .results :global(.item mark),
+  .results :global(.item .tag),
+  .results :global(.item .pin),
+  .results :global(.item .tile) {
+    transition:
+      color 200ms var(--ease),
+      opacity 200ms var(--ease);
   }
-  .results.keying :global(.item:not(.selected)) {
-    opacity: 0.45;
+  /* While a search is in flight the list shows the answer to an older query, a little fainter. While the arrow keys move the
+     selection (and for a moment after) the selected row is a lit pane of glass and the rest fade back. */
+  .results.stale :global(.item .name),
+  .results.stale :global(.item mark),
+  .results.keying :global(.item:not(.selected) .name),
+  .results.keying :global(.item:not(.selected) mark) {
+    color: var(--dim-text);
+  }
+  .results.stale :global(.item .kind),
+  .results.stale :global(.item .folder),
+  .results.stale :global(.item .detail),
+  .results.stale :global(.item .where),
+  .results.stale :global(.item .tag),
+  .results.stale :global(.item .pin),
+  .results.keying :global(.item:not(.selected) .kind),
+  .results.keying :global(.item:not(.selected) .folder),
+  .results.keying :global(.item:not(.selected) .detail),
+  .results.keying :global(.item:not(.selected) .where),
+  .results.keying :global(.item:not(.selected) .tag),
+  .results.keying :global(.item:not(.selected) .pin) {
+    color: var(--dim-text-3);
+  }
+  .results.keying :global(.item:not(.selected) .tile) {
+    opacity: 0.5; /* the tile holds no text: only an icon */
   }
   .results.keying :global(.item.selected) {
     position: relative;
     z-index: 1;
-    transform: translateY(-2px) scale(1.008);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.055));
+    background-color: rgba(255, 255, 255, 0.115);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 0 0 1px rgba(255, 255, 255, 0.07),
-      0 10px 18px -10px rgba(0, 0, 0, 0.9);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .results.keying {
-      scroll-behavior: auto;
-    }
-    .results.keying :global(.item.selected) {
-      transform: none;
-    }
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 8px 16px -8px rgba(0, 0, 0, 0.95);
   }
   .section {
     margin: 4px 24px 2px;

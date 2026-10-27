@@ -43,6 +43,15 @@ body {
   cursor: default;
 }
 
+/* Icons made of lines: sharp at any display scale (the width is set in main.ts). */
+.line-icon,
+.line-icon * {
+  vector-effect: non-scaling-stroke;
+}
+.line-icon {
+  stroke-width: var(--line-width, 1.6px);
+}
+
 ::selection {
   background: rgba(223, 228, 238, 0.28);
   color: #fff;
