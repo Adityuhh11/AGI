@@ -7,14 +7,22 @@ configurable, and what is left out. The hotkey path is untouched: nothing here r
 
 ## 1. Selection feel (the glass fade)
 
-While a person moves through the results with the arrow keys, the selected row lifts a little (1 to 2 px and a hair
-larger, with a lit edge) and the others fade to about half. A second after the last arrow key, or at once when the pointer
-moves, everything settles back. The list scrolls smoothly to the row. It is only a state of the list (`keying`), set by the
+While a person moves through the results with the arrow keys, the selected row becomes a lit pane (a brighter fill, a lit
+edge and a shadow under it) and the text of the others fades to about half. A second after the last arrow key, or at once when
+the pointer moves, everything settles back. The list glides to the row. It is only a state of the list (`keying`), set by the
 page on ArrowUp or ArrowDown and cleared by a timer, so a held key keeps it on.
 
+First version moved the row (`translateY` and `scale(1.008)`) and faded the others with `opacity`. Measured on a 125% display
+that made the selected row's edges 12% softer: a scale or a fractional move makes the browser resample the row's text. So
+nothing is moved or scaled, and rows fade by the colour of their text, never by opacity.
+
 - Setting: `[ui] selection_effect` (default on), Settings > General, "Lift the selected result when I use the arrow keys".
-- Reduced motion: no lift and no smooth scroll; the fade stays (it is not motion).
-- Cost: opacity and transform only, on at most about 12 rows; nothing runs unless an arrow key is pressed.
+- Reduced motion: no smooth scroll; the fade stays (it is not motion).
+- Scrolling: our own loop, one step per frame, each closing a fixed share (time constant 70 ms) of the distance to where the
+  selected row belongs. CSS `scroll-behavior: smooth` restarts on every key repeat and moved in jerks (12 of 16 frames moved,
+  steps of 2 to 21 px); the loop moves on 39 of 42 frames with a smooth ramp. The goal of a glide under way counts as the
+  list's position, so a second key aims from the first one's goal.
+- Cost: colour and background changes on at most about 12 rows, and one `requestAnimationFrame` loop while the list moves.
 
 ## 2. Grouped file results
 

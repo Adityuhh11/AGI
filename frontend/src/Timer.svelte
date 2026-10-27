@@ -60,13 +60,13 @@
           {/if}
         {/if}
         <button type="button" onclick={() => Timer.Stop()} aria-label={state.Finished ? "Dismiss" : "Stop"} title={state.Finished ? "Dismiss" : "Stop"}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17" /></svg>
+          <svg class="line-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17" /></svg>
         </button>
       </div>
     </div>
     <div class="caption">{caption}</div>
     <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(progress * 100)} aria-label="Progress">
-      <div class="fill" style:transform="scaleX({state.Finished ? 1 : progress})"></div>
+      <div class="fill" style:width="{(state.Finished ? 1 : progress) * 100}%"></div>
     </div>
   </div>
 {/if}
@@ -162,8 +162,7 @@
     height: 100%;
     border-radius: 2px;
     background: var(--chrome);
-    transform-origin: left;
-    transition: transform 0.4s linear;
+    transition: width 0.4s linear; /* a real width keeps the rounded end sharp; a stretched (scaleX) element smears it */
   }
   /* A finished period pulses its edge until it is dismissed; reduced motion holds it still (theme.css). */
   .finished {

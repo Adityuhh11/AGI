@@ -7,6 +7,16 @@ import App from "./App.svelte";
 import { catchUnexpected } from "./lib/oops";
 
 catchUnexpected();
+
+// Line icons are drawn with a stroke of a whole number of device pixels, the only width a screen draws sharply: at 125% a
+// 1.6 px line is a blurred 2 px one. The resize event also fires when the window moves to a screen of another scale.
+function setLineWidth() {
+  const dpr = window.devicePixelRatio || 1;
+  document.documentElement.style.setProperty("--line-width", `${Math.max(1, Math.round(1.6 * dpr)) / dpr}px`);
+}
+setLineWidth();
+window.addEventListener("resize", setLineWidth);
+
 const target = document.getElementById("app")!;
 if (location.hash.startsWith("#setup")) {
   import("./Setup.svelte").then(({ default: Setup }) => mount(Setup, { target }));
