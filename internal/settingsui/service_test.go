@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -716,11 +717,11 @@ func TestTheFeelAndTimerSettingsAreShownAndChanged(t *testing.T) {
 	if msg := h.svc.SetGroupResults(false); msg != "" || h.store.Get().Search.GroupResults {
 		t.Fatalf("SetGroupResults: %q", msg)
 	}
-	want := config.Timer{FocusMinutes: 50, ShortBreakMinutes: 10, LongBreakMinutes: 20, Rounds: 3, AutoNext: true}
-	if msg := h.svc.SaveTimer(want); msg != "" || h.store.Get().Timer != want {
+	want := config.Timer{FocusMinutes: 50, ShortBreakMinutes: 10, LongBreakMinutes: 20, Rounds: 3, AutoNext: true, PresetMinutes: []int{7, 90}}
+	if msg := h.svc.SaveTimer(want); msg != "" || !reflect.DeepEqual(h.store.Get().Timer, want) {
 		t.Fatalf("SaveTimer: %q, got %+v", msg, h.store.Get().Timer)
 	}
-	if msg := h.svc.SaveTimer(config.Timer{}); msg == "" || h.store.Get().Timer != want {
+	if msg := h.svc.SaveTimer(config.Timer{}); msg == "" || !reflect.DeepEqual(h.store.Get().Timer, want) {
 		t.Fatalf("a timer of zero was accepted: %q", msg)
 	}
 }

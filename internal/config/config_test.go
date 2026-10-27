@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -379,7 +380,7 @@ pace = 'fast'
 	if !got.UI.SelectionEffect || !got.Search.GroupResults {
 		t.Errorf("the feel settings must be on when the file lacks them: %+v %+v", got.UI, got.Search)
 	}
-	if got.Timer != (Timer{FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, Rounds: 4}) {
+	if !reflect.DeepEqual(got.Timer, Timer{FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, Rounds: 4, PresetMinutes: []int{5, 10, 25, 45}}) {
 		t.Errorf("timer = %+v, want the pomodoro defaults", got.Timer)
 	}
 }
@@ -411,6 +412,9 @@ func TestTimerLengthsMustBeSensible(t *testing.T) {
 		{"a negative long break", func(t *Timer) { t.LongBreakMinutes = -5 }},
 		{"no rounds", func(t *Timer) { t.Rounds = 0 }},
 		{"too many rounds", func(t *Timer) { t.Rounds = 13 }},
+		{"a zero-minute preset", func(t *Timer) { t.PresetMinutes = []int{5, 0} }},
+		{"a preset longer than a day", func(t *Timer) { t.PresetMinutes = []int{24*60 + 1} }},
+		{"nine presets", func(t *Timer) { t.PresetMinutes = []int{1, 2, 3, 4, 5, 6, 7, 8, 9} }},
 	}
 	for _, tt := range tests {
 		cfg := Default()

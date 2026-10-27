@@ -13,6 +13,6 @@ func Default() Config {
 			Pace: "balanced", PDFPages: PDFPageModes[0], Photos: PhotoModes[0], Videos: VideoModes[0], GroupResults: true,
 		},
 		UI:    UI{SelectionEffect: true},
-		Timer: Timer{FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, Rounds: 4},
+		Timer: Timer{FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, Rounds: 4, PresetMinutes: []int{5, 10, 25, 45}},
 	}
 }

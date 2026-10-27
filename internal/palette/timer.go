@@ -22,9 +22,6 @@ type TimerControl interface {
 	Settings() config.Timer
 }
 
-// timerPresets are the lengths offered when only "timer" is typed, in minutes.
-var timerPresets = []int{5, 10, 25, 45}
-
 // timerWords are the first words that ask for the timer. Whole words only: "time" is far too common a thing to search for.
 var timerWords = map[string]bool{"timer": true, "countdown": true}
 
@@ -46,8 +43,12 @@ func (s *Service) timerItems(text string) []Item {
 		items = append(items, s.timerControls()...)
 		if !s.x.Timer.State().Active {
 			items = append(items, s.pomodoroItem())
-			for _, m := range timerPresets {
-				items = append(items, countdownItem(time.Duration(m)*time.Minute, ""))
+			for i, m := range s.x.Timer.Settings().PresetMinutes {
+				item := countdownItem(time.Duration(m)*time.Minute, "")
+				if i == 0 { // said once, on the first quick row: any other length is typed
+					item.Subtitle = "Timer · or type your own, like timer 17 or timer 1h30 tea"
+				}
+				items = append(items, item)
 			}
 		}
 	case timerWords[first]:

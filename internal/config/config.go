@@ -66,7 +66,12 @@ type Timer struct {
 	Rounds int `toml:"rounds"`
 	// AutoNext starts the next period by itself; off, a finished period waits to be started.
 	AutoNext bool `toml:"auto_next"`
+	// PresetMinutes are the quick countdowns the bar offers when only "timer" is typed. Any other length is typed after it.
+	PresetMinutes []int `toml:"preset_minutes"`
 }
+
+// maxPresets keeps the bar's list of quick timers short enough to read at a glance.
+const maxPresets = 8
 
 // Quicklink is a web address with a place for what the user types after its trigger word.
 type Quicklink struct {
@@ -261,6 +266,14 @@ func (c Config) Validate() error {
 	} {
 		if limit.value < limit.lo || limit.value > limit.hi {
 			return fmt.Errorf("%s %d must be between %d and %d", limit.name, limit.value, limit.lo, limit.hi)
+		}
+	}
+	if len(c.Timer.PresetMinutes) > maxPresets {
+		return fmt.Errorf("timer preset_minutes has %d lengths, at most %d", len(c.Timer.PresetMinutes), maxPresets)
+	}
+	for _, minutes := range c.Timer.PresetMinutes {
+		if minutes < 1 || minutes > 24*60 {
+			return fmt.Errorf("timer preset_minutes %d must be between 1 and %d", minutes, 24*60)
 		}
 	}
 	for _, folder := range c.Exclude {

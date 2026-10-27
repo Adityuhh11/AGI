@@ -44,3 +44,6 @@ $ldflags = if ($Console) { '-w -s' } else { '-w -s -H windowsgui' }
 $ldflags += " -X main.version=$Version"
 Run go @('build', '-tags', 'production', '-trimpath', '-ldflags', $ldflags, '-o', 'bin\agi.exe', './cmd/agi')
 Write-Host "built bin\agi.exe"
+
+# A build that Windows would stretch as a picture is not a build: it fails here, not on someone's screen.
+& "$PSScriptRoot\check-dpi.ps1"

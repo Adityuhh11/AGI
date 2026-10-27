@@ -10,8 +10,9 @@ import (
 )
 
 type fakeTimer struct {
-	state timer.State
-	calls []string
+	state   timer.State
+	calls   []string
+	presets []int // the quick timers of the settings; the defaults when nil
 }
 
 func (f *fakeTimer) Start(d time.Duration, label string) {
@@ -23,7 +24,13 @@ func (f *fakeTimer) Resume()                { f.calls = append(f.calls, "resume"
 func (f *fakeTimer) Stop()                  { f.calls = append(f.calls, "stop") }
 func (f *fakeTimer) Skip()                  { f.calls = append(f.calls, "skip") }
 func (f *fakeTimer) State() timer.State     { return f.state }
-func (f *fakeTimer) Settings() config.Timer { return config.Default().Timer }
+func (f *fakeTimer) Settings() config.Timer {
+	c := config.Default().Timer
+	if f.presets != nil {
+		c.PresetMinutes = f.presets
+	}
+	return c
+}
 
 func timerService(t *testing.T) (*Service, *fakeTimer, *int) {
 	t.Helper()
@@ -90,6 +97,24 @@ func TestPlainTimerOffersPresetsWhenNothingRunsAndControlsWhenSomethingDoes(t *t
 	ft.state = timer.State{Active: true, Finished: true, Phase: timer.Focus, Next: "Short break"}
 	if got := strings.Join(ids(s.Query("timer", ModeAll)), " "); got != "timer:stop timer:skip" {
 		t.Errorf("finished rows = %s", got)
+	}
+}
+
+func TestThePresetsAreTheOnesInTheSettingsAndTheFirstSaysYouCanTypeYourOwn(t *testing.T) {
+	s, ft, _ := timerService(t)
+	ft.presets = []int{7, 90}
+	items := s.Query("timer", ModeAll).Items
+	var rows []Item
+	for _, item := range items {
+		if strings.HasPrefix(item.ID, "timer:start:") {
+			rows = append(rows, item)
+		}
+	}
+	if len(rows) != 2 || rows[0].ID != "timer:start:420:" || rows[1].ID != "timer:start:5400:" {
+		t.Fatalf("preset rows = %+v", rows)
+	}
+	if !strings.Contains(rows[0].Subtitle, "type your own") || strings.Contains(rows[1].Subtitle, "type your own") {
+		t.Errorf("the hint belongs on the first row only: %q, %q", rows[0].Subtitle, rows[1].Subtitle)
 	}
 }
 
