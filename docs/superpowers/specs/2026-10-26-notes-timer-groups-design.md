@@ -63,7 +63,8 @@ and stop. It opens when a timer starts and closes when it is stopped.
 - Pomodoro: focus, short break, focus, short break, focus, short break, focus, long break. Durations and the number
   of rounds are settings; "start the next one by itself" is a setting (off: a finished period waits for a click).
 - Settings: `[timer] focus_minutes` (25), `short_break_minutes` (5), `long_break_minutes` (15), `rounds` (4),
-  `auto_next` (false), Settings > Timer.
+  `auto_next` (false), Settings > Timer. `preset_minutes` (5, 10, 25, 45; at most 8, each 1 to 1440) are the quick countdowns
+  that plain `timer` offers; any other length is typed after the word, and the first quick row says so.
 - A finished period beeps once (the system sound) and the window pulses until dismissed. No toast: Windows toasts need
   the app registered with the shell, which an unsigned portable program is not.
 - The clock is monotonic and injected, so it is tested without waiting.
