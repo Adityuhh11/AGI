@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { FolderChoice, SearchView } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { FolderChoice, SearchView } from "../../../bindings/omni/internal/settingsui";
   import { isInside } from "../path";
   import { surveyLine } from "../settings/hints";
 
@@ -51,9 +51,9 @@
   const holds = (row: FolderChoice) => surveyLine((search.Surveys ?? []).find((s) => isInside(row.Path, s.Root) && isInside(s.Root, row.Path)));
 </script>
 
-<h2>What should AGI search?</h2>
+<h2>What should Omni search?</h2>
 <p class="lede">
-  Pick folders, and leave out the subfolders you do not need. The first pass reads everything once; after that AGI keeps up with changes as they
+  Pick folders, and leave out the subfolders you do not need. The first pass reads everything once; after that Omni keeps up with changes as they
   happen.
 </p>
 
@@ -81,7 +81,7 @@
 
 <div><button type="button" class="btn" onclick={add}>Add folder...</button></div>
 {#if error}<p class="error">{error}</p>{/if}
-<p class="help note">AGI only reads files: it never changes, moves or uploads them. Secrets such as <span class="mono">.env</span> files and keys are never read.</p>
+<p class="help note">Omni only reads files: it never changes, moves or uploads them. Secrets such as <span class="mono">.env</span> files and keys are never read.</p>
 
 <style>
   .rows {

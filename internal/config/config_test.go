@@ -25,13 +25,13 @@ func TestPathIsUnderTheUsersConfigFolder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `C:\Users\someone\AppData\Roaming\AGI\config.toml`; got != want {
+	if want := `C:\Users\someone\AppData\Roaming\Omni\config.toml`; got != want {
 		t.Fatalf("Path() = %q, want %q", got, want)
 	}
 }
 
 func TestLoadCreatesTheFileWithDefaultsWhenMissing(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "AGI", "config.toml")
+	path := filepath.Join(t.TempDir(), "Omni", "config.toml")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +172,7 @@ func TestAFreshInstallIndexesNothingAndHasFileSearchOff(t *testing.T) {
 
 func TestTheRetiredSidecarTableLoadsAndIsNotWrittenBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = 'C:\\\\dev\\\\AGI\\\\sidecar'\n")
+	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = 'C:\\\\dev\\\\Omni\\\\sidecar'\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatalf("a file with the retired [sidecar] table must still load: %v", err)
@@ -359,7 +359,7 @@ func TestSnippetsRoundTripWithManyLinesAndNoneByDefault(t *testing.T) {
 
 func TestDataDirMustBeAnAbsoluteLocalPath(t *testing.T) {
 	cfg := Default()
-	for dir, ok := range map[string]bool{"": true, `D:\Files\AGI`: true, `relative\AGI`: false, `\server\share\AGI`: false} {
+	for dir, ok := range map[string]bool{"": true, `D:\Files\Omni`: true, `relative\Omni`: false, `\server\share\Omni`: false} {
 		cfg.Search.DataDir = dir
 		if err := cfg.Validate(); (err == nil) != ok {
 			t.Errorf("data_dir %q: err = %v, want ok=%v", dir, err, ok)

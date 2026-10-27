@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { View } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { View } from "../../../bindings/omni/internal/settingsui";
 
   let { view }: { view: View } = $props();
 

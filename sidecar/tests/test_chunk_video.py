@@ -1,14 +1,14 @@
 import pytest
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.chunking.video import (
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.video import (
     FRAMES,
     Video,
     video_frame_chunks,
     video_identity,
     video_name_chunk,
 )
-from agi_memory.types import ChunkKind
+from omni_memory.types import ChunkKind
 from video_fixture import make_video
 
 
@@ -36,7 +36,7 @@ def test_any_failure_to_open_is_a_chunking_error(tmp_path, monkeypatch):
     def legacy_metadata(*args, **kwargs):
         raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
 
-    monkeypatch.setattr("agi_memory.chunking.video.av.open", legacy_metadata)
+    monkeypatch.setattr("omni_memory.chunking.video.av.open", legacy_metadata)
     with pytest.raises(ChunkingError, match="unreadable video"):
         Video(tmp_path / "camera.mp4")
 

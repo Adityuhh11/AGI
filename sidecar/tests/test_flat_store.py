@@ -4,8 +4,8 @@ import sqlite3
 import numpy as np
 import pytest
 
-from agi_memory.store import FlatStore, IndexMismatchError
 from helpers import DIM, make_chunk, unit_vectors
+from omni_memory.store import FlatStore, IndexMismatchError
 
 
 def fts_ids(directory, term):

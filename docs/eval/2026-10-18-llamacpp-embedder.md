@@ -56,7 +56,7 @@ On the owner's real index (a copy; 760 random stored chunks re-embedded and comp
 
 (`s5_real.py`. Before the image fix the same sample gave images 0.981 mean / 0.933 min and PDF pages 0.964 / 0.890.)
 
-## S3: golden eval (`python -m agi_memory.eval` flow, 92 queries, with confidence calibration)
+## S3: golden eval (`python -m omni_memory.eval` flow, 92 queries, with confidence calibration)
 
 | embedder | top1 | recall@3 | recall@10 | MRR | forbidden | false alarms | missed nones |
 |---|---|---|---|---|---|---|---|

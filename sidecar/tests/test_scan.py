@@ -2,9 +2,9 @@ import os
 
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.sources.folder import scan
-from agi_memory.sources.rules import Route
+from omni_memory.config import Settings
+from omni_memory.sources.folder import scan
+from omni_memory.sources.rules import Route
 
 
 def write(root, relative, content="x"):

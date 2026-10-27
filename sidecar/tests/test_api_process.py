@@ -8,9 +8,9 @@ import urllib.request
 
 import pytest
 
-from agi_memory.config import EMBEDDING_DIM, MODEL_ID
-from agi_memory.store import FlatStore
 from helpers import wait_for
+from omni_memory.config import EMBEDDING_DIM, MODEL_ID
+from omni_memory.store import FlatStore
 
 pytestmark = pytest.mark.model
 
@@ -53,12 +53,12 @@ def test_the_real_process_honours_the_start_ready_stop_contract(tmp_path):
     port = free_port()
     env = {
         **os.environ,
-        "AGI_SIDECAR_TOKEN": TOKEN,
-        "AGI_SIDECAR_PORT": str(port),
-        "AGI_MEMORY_DIR": str(tmp_path / "idx"),
+        "OMNI_SIDECAR_TOKEN": TOKEN,
+        "OMNI_SIDECAR_PORT": str(port),
+        "OMNI_MEMORY_DIR": str(tmp_path / "idx"),
     }
     process = subprocess.Popen(
-        [sys.executable, "-m", "agi_memory"],
+        [sys.executable, "-m", "omni_memory"],
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

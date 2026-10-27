@@ -22,10 +22,10 @@ type windowSpec struct {
 }
 
 var (
-	settingsSpec = windowSpec{name: "settings", title: "AGI Settings", route: "settings", width: 860, height: 620, minWidth: 680, minHeight: 480}
-	setupSpec    = windowSpec{name: "setup", title: "Set up AGI", route: "setup", width: 760, height: 700, minWidth: 640, minHeight: 560}
-	notesSpec    = windowSpec{name: "notes", title: "AGI Notes", route: "notes", width: 420, height: 560, minWidth: 300, minHeight: 280, onTop: true}
-	timerSpec    = windowSpec{name: "timer", title: "AGI Timer", route: "timer", width: 264, height: 92, onTop: true, overlay: true}
+	settingsSpec = windowSpec{name: "settings", title: "Omni Settings", route: "settings", width: 860, height: 620, minWidth: 680, minHeight: 480}
+	setupSpec    = windowSpec{name: "setup", title: "Set up Omni", route: "setup", width: 760, height: 700, minWidth: 640, minHeight: 560}
+	notesSpec    = windowSpec{name: "notes", title: "Omni Notes", route: "notes", width: 420, height: 560, minWidth: 300, minHeight: 280, onTop: true}
+	timerSpec    = windowSpec{name: "timer", title: "Omni Timer", route: "timer", width: 264, height: 92, onTop: true, overlay: true}
 )
 
 // overlayMargin is the gap between the timer and the right edge of the screen, and its top is a fifth of the way down.

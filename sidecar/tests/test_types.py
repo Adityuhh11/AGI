@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from agi_memory.types import Chunk, ChunkKind, chunk_id
+from omni_memory.types import Chunk, ChunkKind, chunk_id
 
 
 def make(**overrides) -> Chunk:

@@ -1,6 +1,6 @@
-// Package agi holds what has to sit at the repository root: the built frontend, embedded so the
+// Package omni holds what has to sit at the repository root: the built frontend, embedded so the
 // launcher ships as a single executable (go:embed cannot reach outside its own folder).
-package agi
+package omni
 
 import "embed"
 

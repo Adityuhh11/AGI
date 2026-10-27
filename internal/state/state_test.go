@@ -14,7 +14,7 @@ var t0 = time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
 
 func open(t *testing.T) (*Store, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "AGI", "state.json")
+	path := filepath.Join(t.TempDir(), "Omni", "state.json")
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)

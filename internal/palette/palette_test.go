@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"agi/internal/apps"
-	"agi/internal/config"
-	"agi/internal/state"
-	"agi/internal/web"
+	"omni/internal/apps"
+	"omni/internal/config"
+	"omni/internal/state"
+	"omni/internal/web"
 )
 
 // fakeBrowser records what the bar opened.

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/config"
-	"agi/internal/sidecar"
+	"omni/internal/config"
+	"omni/internal/sidecar"
 )
 
 // fakeEngine answers like the real one: each job needs two checks to finish.

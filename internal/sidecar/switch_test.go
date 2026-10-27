@@ -63,7 +63,7 @@ func TestOnStartsTheEngineAndOffStopsItAndItCanComeBack(t *testing.T) {
 
 func TestAnEngineThatGaveUpIsStartedAgainByOn(t *testing.T) {
 	w, engine, sup := newSwitch(t,
-		script{output: "agi_memory: bad\n", exitAfter: 5 * time.Millisecond, exitCode: 2}, script{})
+		script{output: "omni_memory: bad\n", exitAfter: 5 * time.Millisecond, exitCode: 2}, script{})
 	w.On()
 	waitFor(t, sup, StateFailed)
 	w.On()

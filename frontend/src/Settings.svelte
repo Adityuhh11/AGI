@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Settings } from "../bindings/agi/internal/settingsui";
-  import type { View } from "../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../bindings/omni/internal/settingsui";
+  import type { View } from "../bindings/omni/internal/settingsui";
   import "./lib/settings/forms.css";
   import About from "./lib/settings/About.svelte";
   import Clipboard from "./lib/settings/Clipboard.svelte";

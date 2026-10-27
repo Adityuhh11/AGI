@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { SearchView, View } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { SearchView, View } from "../../../bindings/omni/internal/settingsui";
   import { duration } from "../format";
   import { keycaps } from "../keycaps";
 
@@ -31,7 +31,7 @@
 <h2>You are all set</h2>
 
 <p class="lede">
-  Press {#each keycaps(view.Hotkey) as part (part)}<kbd>{part}</kbd> {/each} in any program to open the bar. AGI lives in the notification area, by the
+  Press {#each keycaps(view.Hotkey) as part (part)}<kbd>{part}</kbd> {/each} in any program to open the bar. Omni lives in the notification area, by the
   clock; closing this window does not stop anything.
 </p>
 
@@ -48,7 +48,7 @@
     </div>
     <p class="help">
       Step {search.Step} of {search.Steps}: {search.StepName}{search.Total > 0 ? ` · ${megabytes(search.Done)} of ${megabytes(search.Total)} MB` : ""}.
-      Nothing is indexed until you start it, so you can use AGI meanwhile.
+      Nothing is indexed until you start it, so you can use Omni meanwhile.
     </p>
   </div>
 {:else if search.Error}
@@ -92,7 +92,7 @@
         <div class="fill" style:transform="scaleX({search.IndexDone / search.IndexTotal})"></div>
       </div>
     {/if}
-    <p class="help">You can search right away: results fill in as AGI reads your files, newest first. The notification-area icon shows how it is going.</p>
+    <p class="help">You can search right away: results fill in as Omni reads your files, newest first. The notification-area icon shows how it is going.</p>
   </div>
 {/if}
 {#if error}<p class="error">{error}</p>{/if}

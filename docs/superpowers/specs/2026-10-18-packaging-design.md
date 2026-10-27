@@ -7,7 +7,7 @@ ADR `docs/decisions/0004-embedding-runtime.md`.
 
 ## Goal
 
-A friend (Windows 11, NVIDIA GPU, a Raycast power user) gets one zip, unpacks it, runs `agi.exe`, and has a working launcher: apps,
+A friend (Windows 11, NVIDIA GPU, a Raycast power user) gets one zip, unpacks it, runs `omni.exe`, and has a working launcher: apps,
 web search, quicklinks, tags, the hotkey he chooses. File search by meaning is something he turns on when he wants it: a button
 downloads about 1.1 GB, he picks folders one at a time, and the index builds slowly in the background at a speed he sets. Nothing
 about the machine it was built on is assumed. He sends back what works and what does not.
@@ -26,12 +26,12 @@ The same build is the first public build: nothing here is a shortcut we would re
 
 | Today | After |
 |---|---|
-| The engine is torch in `sidecar\.venv` in the repo, found by walking up from the exe (`config/defaults.go`) | The engine is installed from the app into `%LOCALAPPDATA%\AGI\engine\` and runs without torch |
+| The engine is torch in `sidecar\.venv` in the repo, found by walking up from the exe (`config/defaults.go`) | The engine is installed from the app into `%LOCALAPPDATA%\Omni\engine\` and runs without torch |
 | A missing engine is a permanent failure in the tray | No engine is a normal state: "File search is off" |
 | Settings are a file the user edits; the launcher reads them once at start | A settings window edits the same file; every setting applies without a restart |
 | First run indexes `Sample Data` from the repo | First run indexes nothing; folders are chosen by the user |
 | Indexing speed is whatever the GPU gives | Pause, resume, and a speed (Fast, Balanced, Gentle) |
-| `build.ps1` makes `bin\agi.exe` | `release.ps1` makes `dist\agi-<version>-windows-x64.zip` |
+| `build.ps1` makes `bin\omni.exe` | `release.ps1` makes `dist\omni-<version>-windows-x64.zip` |
 
 ## Design
 
@@ -39,10 +39,10 @@ The same build is the first public build: nothing here is a shortcut we would re
 
 | What | Where | Removed by |
 |---|---|---|
-| Settings | `%APPDATA%\AGI\config.toml` (unchanged), `state.json` beside it | user |
-| Index | `%LOCALAPPDATA%\AGI\memory\` (unchanged) | "Delete the index" in settings |
-| Logs, icon and thumbnail caches | `%LOCALAPPDATA%\AGI\logs\`, `icons\`, `thumbs\`, `apps.json` (unchanged) | user |
-| Engine (new) | `%LOCALAPPDATA%\AGI\engine\`: `engine.json` (what is installed), `tools\uv.exe`, `python\` and `venv\` (made by uv), `app\` (the engine's source, copied from the exe), `llama\` (llama-server and its DLLs), `models\` (the two GGUF files) | "Remove file search" in settings: one folder delete, the index stays |
+| Settings | `%APPDATA%\Omni\config.toml` (unchanged), `state.json` beside it | user |
+| Index | `%LOCALAPPDATA%\Omni\memory\` (unchanged) | "Delete the index" in settings |
+| Logs, icon and thumbnail caches | `%LOCALAPPDATA%\Omni\logs\`, `icons\`, `thumbs\`, `apps.json` (unchanged) | user |
+| Engine (new) | `%LOCALAPPDATA%\Omni\engine\`: `engine.json` (what is installed), `tools\uv.exe`, `python\` and `venv\` (made by uv), `app\` (the engine's source, copied from the exe), `llama\` (llama-server and its DLLs), `models\` (the two GGUF files) | "Remove file search" in settings: one folder delete, the index stays |
 
 `config.toml` loses `[sidecar] dir` and the repo discovery behind it. A file that still has `[sidecar]` loads (the table is ignored)
 and the next save drops it; every other unknown key is still an error.
@@ -118,7 +118,7 @@ Turning on file search runs these steps, each resumable and verified, with progr
 | Step | Source | Size |
 |---|---|---|
 | 1. uv | `astral-sh/uv` release zip on GitHub, pinned version, SHA-256 | about 20 MB |
-| 2. engine source | embedded in `agi.exe` (`//go:embed` of `sidecar/pyproject.toml`, `uv.lock`, `src/`), written to `app\` | 0 |
+| 2. engine source | embedded in `omni.exe` (`//go:embed` of `sidecar/pyproject.toml`, `uv.lock`, `src/`), written to `app\` | 0 |
 | 3. Python and libraries | `uv sync --frozen --no-dev` with `UV_PROJECT_ENVIRONMENT=venv` and `UV_PYTHON_INSTALL_DIR=python`: uv fetches its managed Python 3.12 (GitHub) and the wheels (PyPI) | about 150 MB |
 | 4. llama.cpp | `ggml-org/llama.cpp` release `b11719`, `llama-b11719-bin-win-vulkan-x64.zip`, SHA-256 | 32 MB |
 | 5. models | Hugging Face `ggml-org/embeddinggemma-2-GGUF` at a pinned commit: `embeddinggemma-2-Q8_0.gguf`, `mmproj-embeddinggemma-2-Q8_0.gguf`, SHA-256 | 865 MB |
@@ -134,7 +134,7 @@ embeds and redoes only the steps whose pinned versions differ. A developer chang
 
 ### 7. Indexing control
 
-Engine side (`sidecar/src/agi_memory/pace.py`): a `Pacer` the `Indexer` calls after every embedding call.
+Engine side (`sidecar/src/omni_memory/pace.py`): a `Pacer` the `Indexer` calls after every embedding call.
 
 - **Pause/resume:** a flag; the indexer blocks in `checkpoint()` until resumed, so a pause takes effect within one batch (under a second).
   A paused job stays `running` with `paused: true`; stopping the engine while paused loses nothing (a file is recorded last; an unfinished one is redone).
@@ -150,8 +150,8 @@ runs, not that. "Pause while on battery" is not in v1 (it is on the Next list of
 ### 8. Release
 
 `scripts/release.ps1` runs `build.ps1`, stamps the version (`-ldflags "-X main.version=..."`, from `git describe`), and writes
-`dist\agi-<version>-windows-x64.zip` holding `agi.exe` and `README.txt` (what it is, the SmartScreen click, the hotkey, where the config and the log are,
-what "Turn on file search" downloads, and what to send back: `agi.log` and the answers to a short list of questions). Publishing the
+`dist\omni-<version>-windows-x64.zip` holding `omni.exe` and `README.txt` (what it is, the SmartScreen click, the hotkey, where the config and the log are,
+what "Turn on file search" downloads, and what to send back: `omni.log` and the answers to a short list of questions). Publishing the
 zip anywhere is the owner's step.
 
 ## Decisions made here (change them in review, not in code)
@@ -163,7 +163,7 @@ zip anywhere is the owner's step.
 | uv to get Python and the libraries | the lock file already exists; the alternative (embedding a Python and pre-built wheels in the exe) means maintaining our own bundle |
 | Settings apply without a restart | a restart needs a second-instance dance with the single-instance lock; live apply is also what a person expects |
 | Folders can be chosen before search is turned on | the friend sets it up once, then presses one button |
-| The engine source ships inside `agi.exe` | one file to hand over, and the engine always matches the launcher |
+| The engine source ships inside `omni.exe` | one file to hand over, and the engine always matches the launcher |
 
 ## Verification
 
@@ -181,7 +181,7 @@ zip anywhere is the owner's step.
 | Risk | Mitigation |
 |---|---|
 | Wails v3 beta: a second window, runtime hotkey rebind | both are public APIs in the pinned version (`GlobalShortcut.Unregister`, `Window.NewWithOptions`); a spike in block B before the window is built |
-| Antivirus or SmartScreen flags `agi.exe` or the downloaded `llama-server.exe` | pinned release checksums; document it in the README; revisit signing when public |
+| Antivirus or SmartScreen flags `omni.exe` or the downloaded `llama-server.exe` | pinned release checksums; document it in the README; revisit signing when public |
 | uv or the PyTorch-free lock fails on a clean machine | the installer step 3 prints uv's last lines in the window and the log; the friend's laptop is the test |
 | A GPU or driver without Vulkan | the CPU fallback in section 5; the window says so |
 | Hugging Face rate limits or an interrupted 865 MB download | range requests resume; the pinned commit makes the URL stable |

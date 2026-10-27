@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Timer } from "../bindings/agi/internal/timer";
-  import type { State } from "../bindings/agi/internal/timer";
+  import { Service as Timer } from "../bindings/omni/internal/timer";
+  import type { State } from "../bindings/omni/internal/timer";
   import { clock } from "./lib/format";
 
   const POLL_MS = 250;

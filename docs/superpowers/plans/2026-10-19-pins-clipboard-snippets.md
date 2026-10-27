@@ -43,7 +43,7 @@ capsule) is tried and measured. The numbers go in `docs/eval/2026-10-19-pins.md`
    how long to wait for the window to be foreground; what an elevated target does. The result decides `Paste` before
    anything is built around it.
 2. `internal/clipboard`: `Source` interface (sequence number, text, formats, owner program; real one in `_windows.go`, a
-   fake for tests), the privacy filters as a table test, `Store` (the JSON file in `%LOCALAPPDATA%\AGI`, limits, dedupe,
+   fake for tests), the privacy filters as a table test, `Store` (the JSON file in `%LOCALAPPDATA%\Omni`, limits, dedupe,
    search by whole words), `Watch` (4 Hz, plus on opening), `Paste`.
 3. `config`: `[clipboard] enabled`, `ignore`; the settings switch, the ignore list and "Clear history"; the
    `cmd:clipboard` row and the `clip:` mode in `palette`; the page's Clipboard mode, rows and actions.

@@ -3,15 +3,15 @@ import io
 import pytest
 from PIL import Image
 
-from agi_memory.chunking.common import ChunkingError
-from agi_memory.chunking.pdf import (
+from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.pdf import (
     PdfPages,
     pages_as_pictures,
     pdf_page_chunks,
     pdf_text_chunks,
 )
-from agi_memory.config import Settings
-from agi_memory.types import ChunkKind
+from omni_memory.config import Settings
+from omni_memory.types import ChunkKind
 from pdf_fixture import make_text_pdf
 
 

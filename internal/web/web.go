@@ -17,7 +17,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // defaultSearch is the template used when the browser cannot search by itself and none is configured.

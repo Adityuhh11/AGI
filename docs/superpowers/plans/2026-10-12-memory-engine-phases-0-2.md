@@ -4,7 +4,7 @@
 
 **Goal:** Build the foundation of the sidecar: package, tooling and docs (phase 0), the embedding contract with a deterministic fake and the real EmbeddingGemma 2 (phase 1), and the persistent exact-search store (phase 2).
 
-**Architecture:** A Python package `agi_memory` under `sidecar/src/`. `Embedder` turns text and images into 256-d unit vectors (real model on the GPU, fake hashed model for tests). `FlatStore` keeps chunk metadata and a keyword index in one SQLite file and vectors in one memory-mapped float32 file, and answers exact top-k queries on the CPU.
+**Architecture:** A Python package `omni_memory` under `sidecar/src/`. `Embedder` turns text and images into 256-d unit vectors (real model on the GPU, fake hashed model for tests). `FlatStore` keeps chunk metadata and a keyword index in one SQLite file and vectors in one memory-mapped float32 file, and answers exact top-k queries on the CPU.
 
 **Tech Stack:** Python >= 3.12, uv, numpy, sqlite3 (FTS5), sentence-transformers 6.1 + torch (CUDA build) for the model, pytest, ruff, pyright.
 
@@ -12,11 +12,11 @@
 
 ## Global Constraints
 
-- Python `>=3.12`; environment managed by `uv`; run all commands from `C:\dev\VS_CODE\AGI\sidecar` unless a step says otherwise.
+- Python `>=3.12`; environment managed by `uv`; run all commands from `C:\dev\VS_CODE\Omni\sidecar` unless a step says otherwise.
 - Windows 11, RTX 4050 with 6 GB VRAM. The GPU hosts **only the embedding model**; index storage and search run on the CPU.
 - Embedding model id `google/embeddinggemma-2`, text + vision (no audio), vectors truncated to **256** dimensions and L2-normalised, `max_seq_length` 512, text batch size 8, image batch size 4.
 - Vector file stores **float32** rows; ids are content-derived; ranked output ties are broken by chunk id.
-- Index directory `%LOCALAPPDATA%\AGI\memory\`, override with env `AGI_MEMORY_DIR` (tests always use a temp directory).
+- Index directory `%LOCALAPPDATA%\Omni\memory\`, override with env `OMNI_MEMORY_DIR` (tests always use a temp directory).
 - Determinism: tests never need the GPU or the real model unless marked `model`; no unseeded randomness or hidden clocks in logic code.
 - Quality gate for every task: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`, `uv run pytest` all clean before commit.
 - Conventional commits, one logical change per commit, tests in the same commit as the code they cover, docs updated in the same commit as the behaviour they describe. End every commit message with the `Co-Authored-By` trailer the harness specifies.
@@ -37,7 +37,7 @@ Inputs the spec implies but its stated tests do not exercise; each has a test in
 ```
 sidecar/
   pyproject.toml                       (modify)
-  src/agi_memory/
+  src/omni_memory/
     __init__.py                        package docstring
     types.py                           Chunk, ChunkKind, Filters, VectorHit, chunk_id
     config.py                          Settings, ConfigError
@@ -76,11 +76,11 @@ Deviations from the spec found while planning (the plan fixes the spec text in t
 **Files:**
 - Modify: `sidecar/pyproject.toml`
 - Modify: `.gitignore`
-- Create: `sidecar/src/agi_memory/__init__.py`
+- Create: `sidecar/src/omni_memory/__init__.py`
 - Create: `sidecar/tests/test_smoke.py`
 
 **Interfaces:**
-- Produces: importable package `agi_memory`; commands `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`; pytest marker `model` (excluded by default, run with `-m model`).
+- Produces: importable package `omni_memory`; commands `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`; pytest marker `model` (excluded by default, run with `-m model`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -88,23 +88,23 @@ Create `sidecar/tests/test_smoke.py`:
 
 ```python
 def test_package_imports_and_documents_itself():
-    import agi_memory
+    import omni_memory
 
-    assert agi_memory.__doc__
+    assert omni_memory.__doc__
 ```
 
 - [ ] **Step 2: Run it to see it fail**
 
 Run: `uv run pytest tests/test_smoke.py -v`
-Expected: FAIL (`ModuleNotFoundError: No module named 'agi_memory'`).
+Expected: FAIL (`ModuleNotFoundError: No module named 'omni_memory'`).
 
 - [ ] **Step 3: Replace `sidecar/pyproject.toml`**
 
 ```toml
 [project]
-name = "agi-sidecar"
+name = "omni-sidecar"
 version = "0.1.0"
-description = "Local memory engine for AGI: indexing and search over localhost HTTP."
+description = "Local memory engine for Omni: indexing and search over localhost HTTP."
 requires-python = ">=3.12"
 dependencies = [
     "numpy",
@@ -122,7 +122,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/agi_memory"]
+packages = ["src/omni_memory"]
 
 # Plain PyPI ships CPU-only torch on Windows; pull the CUDA build instead.
 [tool.uv.sources]
@@ -156,10 +156,10 @@ typeCheckingMode = "standard"
 
 - [ ] **Step 4: Create the package and ignore tool caches**
 
-Create `sidecar/src/agi_memory/__init__.py`:
+Create `sidecar/src/omni_memory/__init__.py`:
 
 ```python
-"""AGI memory engine: indexes the owner's files and answers 'find the thing I mean' queries."""
+"""Omni memory engine: indexes the owner's files and answers 'find the thing I mean' queries."""
 ```
 
 Append to the repo-root `.gitignore`:
@@ -220,14 +220,14 @@ Spec: `superpowers/specs/2026-10-12-memory-engine-design.md`.
 
 ## Overview
 
-AGI is a local-first, AI-native launcher for Windows. Two processes cooperate:
+Omni is a local-first, AI-native launcher for Windows. Two processes cooperate:
 
 - the **Go launcher** (later): hotkey, UI (Wails v3 + Svelte), calls the sidecar;
 - the **Python sidecar** (`sidecar/`): the *memory engine* that indexes files and answers search queries.
 
 They talk over authenticated localhost HTTP. The GPU hosts only the embedding model; index storage and search run on the CPU.
 
-## Memory engine modules (`sidecar/src/agi_memory/`)
+## Memory engine modules (`sidecar/src/omni_memory/`)
 
 Dependencies point downward only. Status is `planned` or `built`.
 
@@ -315,18 +315,18 @@ git commit -m "docs: add docs index, architecture and status scaffold"
 ### Task 3: Shared types and settings
 
 **Files:**
-- Create: `sidecar/src/agi_memory/types.py`, `sidecar/src/agi_memory/config.py`
+- Create: `sidecar/src/omni_memory/types.py`, `sidecar/src/omni_memory/config.py`
 - Test: `sidecar/tests/test_types.py`, `sidecar/tests/test_config.py`
 - Modify: `docs/superpowers/specs/2026-10-12-memory-engine-design.md` (section 5, chunk id), `docs/ARCHITECTURE.md`, `docs/STATUS.md`
 
 **Interfaces:**
-- Produces (`agi_memory.types`):
+- Produces (`omni_memory.types`):
   - `ChunkKind` (`enum.StrEnum`): `CODE, MARKDOWN, TEXT, PDF_TEXT, PDF_PAGE, IMAGE` with values `"code","markdown","text","pdf_text","pdf_page","image"`.
   - `chunk_id(source_id: str, uri: str, locator: str, content_hash: str) -> str` (sha256 hex).
   - `Chunk(source_id, uri, kind, locator, content_hash, mtime_ns, text)`: frozen; property `.id -> str`.
   - `Filters(kinds: frozenset[ChunkKind] | None = None, source_id: str | None = None, uri_prefix: str | None = None, modified_after_ns: int | None = None)`: frozen.
   - `VectorHit(id: str, score: float)`: frozen.
-- Produces (`agi_memory.config`): `ConfigError`; `Settings(index_dir: Path, model_id: str = "google/embeddinggemma-2", dim: int = 256, max_seq_length: int = 512, text_batch_size: int = 8, image_batch_size: int = 4)`; `Settings.from_env(environ: Mapping[str, str] | None = None) -> Settings`.
+- Produces (`omni_memory.config`): `ConfigError`; `Settings(index_dir: Path, model_id: str = "google/embeddinggemma-2", dim: int = 256, max_seq_length: int = 512, text_batch_size: int = 8, image_batch_size: int = 4)`; `Settings.from_env(environ: Mapping[str, str] | None = None) -> Settings`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -337,7 +337,7 @@ import dataclasses
 
 import pytest
 
-from agi_memory.types import Chunk, ChunkKind, chunk_id
+from omni_memory.types import Chunk, ChunkKind, chunk_id
 
 
 def make(**overrides) -> Chunk:
@@ -387,21 +387,21 @@ from pathlib import Path
 
 import pytest
 
-from agi_memory.config import ConfigError, Settings
+from omni_memory.config import ConfigError, Settings
 
 
 def test_env_override_wins(tmp_path):
-    settings = Settings.from_env({"AGI_MEMORY_DIR": str(tmp_path), "LOCALAPPDATA": "C:/ignored"})
+    settings = Settings.from_env({"OMNI_MEMORY_DIR": str(tmp_path), "LOCALAPPDATA": "C:/ignored"})
     assert settings.index_dir == tmp_path
 
 
 def test_default_lives_under_localappdata():
     settings = Settings.from_env({"LOCALAPPDATA": "C:/Users/x/AppData/Local"})
-    assert settings.index_dir == Path("C:/Users/x/AppData/Local/AGI/memory")
+    assert settings.index_dir == Path("C:/Users/x/AppData/Local/Omni/memory")
 
 
 def test_missing_location_is_an_error():
-    with pytest.raises(ConfigError, match="AGI_MEMORY_DIR"):
+    with pytest.raises(ConfigError, match="OMNI_MEMORY_DIR"):
         Settings.from_env({})
 
 
@@ -419,9 +419,9 @@ def test_defaults_match_the_spec(tmp_path):
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `uv run pytest tests/test_types.py tests/test_config.py -v`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.types` / `agi_memory.config`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.types` / `omni_memory.config`).
 
-- [ ] **Step 3: Implement `sidecar/src/agi_memory/types.py`**
+- [ ] **Step 3: Implement `sidecar/src/omni_memory/types.py`**
 
 ```python
 """Plain data types shared across the memory engine: no I/O, no behaviour beyond identity."""
@@ -488,7 +488,7 @@ class VectorHit:
     score: float  # cosine similarity, because stored rows are unit length
 ```
 
-- [ ] **Step 4: Implement `sidecar/src/agi_memory/config.py`**
+- [ ] **Step 4: Implement `sidecar/src/omni_memory/config.py`**
 
 ```python
 """Settings for the memory engine: one frozen object, built once and passed explicitly."""
@@ -521,13 +521,13 @@ class Settings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
-        """Index location: `AGI_MEMORY_DIR` if set, else `%LOCALAPPDATA%\\AGI\\memory`."""
+        """Index location: `OMNI_MEMORY_DIR` if set, else `%LOCALAPPDATA%\\Omni\\memory`."""
         env = os.environ if environ is None else environ
-        if override := env.get("AGI_MEMORY_DIR"):
+        if override := env.get("OMNI_MEMORY_DIR"):
             return cls(index_dir=Path(override))
         if local := env.get("LOCALAPPDATA"):
-            return cls(index_dir=Path(local) / "AGI" / "memory")
-        raise ConfigError("cannot locate the index: set AGI_MEMORY_DIR (LOCALAPPDATA is unset)")
+            return cls(index_dir=Path(local) / "Omni" / "memory")
+        raise ConfigError("cannot locate the index: set OMNI_MEMORY_DIR (LOCALAPPDATA is unset)")
 ```
 
 - [ ] **Step 5: Fix the spec's chunk id**
@@ -557,12 +557,12 @@ git commit -m "feat(sidecar): shared types and settings; fix chunk id to include
 ### Task 4: Embedder contract and deterministic fake
 
 **Files:**
-- Create: `sidecar/src/agi_memory/embedding/__init__.py`, `base.py`, `fake.py`
+- Create: `sidecar/src/omni_memory/embedding/__init__.py`, `base.py`, `fake.py`
 - Test: `sidecar/tests/test_fake_embedder.py`
 
 **Interfaces:**
-- Produces (`agi_memory.embedding.base.Embedder`, a `Protocol`): `model_id: str` (property), `dim: int` (property), `embed_documents(texts: Sequence[str]) -> np.ndarray` shape `(len(texts), dim)` float32 unit rows, `embed_images(images: Sequence[PIL.Image.Image]) -> np.ndarray` same shape contract, `embed_query(text: str) -> np.ndarray` shape `(dim,)` float32 unit.
-- Produces (`agi_memory.embedding.fake.FakeEmbedder(dim: int = 256)`): satisfies `Embedder`; `model_id == "fake-hashed-bow-v1"`.
+- Produces (`omni_memory.embedding.base.Embedder`, a `Protocol`): `model_id: str` (property), `dim: int` (property), `embed_documents(texts: Sequence[str]) -> np.ndarray` shape `(len(texts), dim)` float32 unit rows, `embed_images(images: Sequence[PIL.Image.Image]) -> np.ndarray` same shape contract, `embed_query(text: str) -> np.ndarray` shape `(dim,)` float32 unit.
+- Produces (`omni_memory.embedding.fake.FakeEmbedder(dim: int = 256)`): satisfies `Embedder`; `model_id == "fake-hashed-bow-v1"`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -572,7 +572,7 @@ git commit -m "feat(sidecar): shared types and settings; fix chunk id to include
 import numpy as np
 from PIL import Image
 
-from agi_memory.embedding import FakeEmbedder
+from omni_memory.embedding import FakeEmbedder
 
 
 def test_rows_are_float32_unit_vectors():
@@ -624,7 +624,7 @@ def test_images_are_embedded_by_content():
 - [ ] **Step 2: Run to see it fail**
 
 Run: `uv run pytest tests/test_fake_embedder.py -v`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.embedding`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.embedding`).
 
 - [ ] **Step 3: Implement `embedding/base.py`**
 
@@ -754,11 +754,11 @@ class FakeEmbedder:
 
 `GemmaEmbedder` is deliberately not re-exported here: importing it pulls in torch, which
 tests and tools that only need the contract should not pay for. Import it from
-`agi_memory.embedding.gemma`.
+`omni_memory.embedding.gemma`.
 """
 
-from agi_memory.embedding.base import Embedder
-from agi_memory.embedding.fake import FakeEmbedder
+from omni_memory.embedding.base import Embedder
+from omni_memory.embedding.fake import FakeEmbedder
 
 __all__ = ["Embedder", "FakeEmbedder"]
 ```
@@ -776,7 +776,7 @@ git commit -m "feat(embedding): Embedder contract and deterministic FakeEmbedder
 ### Task 5: GemmaEmbedder (real model)
 
 **Files:**
-- Create: `sidecar/src/agi_memory/embedding/gemma.py`
+- Create: `sidecar/src/omni_memory/embedding/gemma.py`
 - Test: `sidecar/tests/test_gemma_embedder.py` (marked `model`)
 - Modify: `docs/ARCHITECTURE.md`, `docs/STATUS.md`
 
@@ -794,8 +794,8 @@ import pytest
 import torch
 from PIL import Image, ImageDraw
 
-from agi_memory.config import Settings
-from agi_memory.embedding.gemma import GemmaEmbedder
+from omni_memory.config import Settings
+from omni_memory.embedding.gemma import GemmaEmbedder
 
 pytestmark = pytest.mark.model
 
@@ -873,7 +873,7 @@ def test_cpu_and_gpu_vectors_agree(embedder, settings):
 - [ ] **Step 2: Run to see it fail**
 
 Run: `uv run pytest -m model tests/test_gemma_embedder.py -v`
-Expected: FAIL at collection (`ModuleNotFoundError: agi_memory.embedding.gemma`).
+Expected: FAIL at collection (`ModuleNotFoundError: omni_memory.embedding.gemma`).
 
 - [ ] **Step 3: Implement `embedding/gemma.py`**
 
@@ -894,7 +894,7 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 
-from agi_memory.config import Settings
+from omni_memory.config import Settings
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -988,7 +988,7 @@ git commit -m "feat(embedding): GemmaEmbedder on GPU with CPU fallback"
 ### Task 6: Identifier splitting for keyword search
 
 **Files:**
-- Create: `sidecar/src/agi_memory/store/__init__.py`, `sidecar/src/agi_memory/store/identifiers.py`
+- Create: `sidecar/src/omni_memory/store/__init__.py`, `sidecar/src/omni_memory/store/identifiers.py`
 - Test: `sidecar/tests/test_identifiers.py`
 
 **Interfaces:** Produces `split_identifiers(text: str) -> str`: space-separated, lowercase, de-duplicated words found inside identifiers that contain more than one word (camelCase, PascalCase, snake_case, acronyms); `""` when there are none.
@@ -1000,7 +1000,7 @@ git commit -m "feat(embedding): GemmaEmbedder on GPU with CPU fallback"
 ```python
 import pytest
 
-from agi_memory.store.identifiers import split_identifiers
+from omni_memory.store.identifiers import split_identifiers
 
 
 @pytest.mark.parametrize(
@@ -1025,17 +1025,17 @@ def test_split_identifiers(text, expected):
 - [ ] **Step 2: Run to see it fail**
 
 Run: `uv run pytest tests/test_identifiers.py -v`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.store`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.store`).
 
 - [ ] **Step 3: Implement**
 
-`sidecar/src/agi_memory/store/__init__.py`:
+`sidecar/src/omni_memory/store/__init__.py`:
 
 ```python
 """Persistent index: chunk metadata (SQLite) and vectors (memory-mapped file)."""
 ```
 
-`sidecar/src/agi_memory/store/identifiers.py`:
+`sidecar/src/omni_memory/store/identifiers.py`:
 
 ```python
 """Splits code identifiers into words so keyword search finds `addCountries` by 'countries'."""
@@ -1074,7 +1074,7 @@ git commit -m "feat(store): split code identifiers for keyword indexing"
 ### Task 7: VectorFile (memory-mapped, growable)
 
 **Files:**
-- Create: `sidecar/src/agi_memory/store/vectors.py`
+- Create: `sidecar/src/omni_memory/store/vectors.py`
 - Test: `sidecar/tests/test_vector_file.py`
 
 **Interfaces:**
@@ -1095,7 +1095,7 @@ git commit -m "feat(store): split code identifiers for keyword indexing"
 import numpy as np
 import pytest
 
-from agi_memory.store.vectors import VectorFile, VectorFileError
+from omni_memory.store.vectors import VectorFile, VectorFileError
 
 
 def rows(*vectors) -> np.ndarray:
@@ -1192,7 +1192,7 @@ def test_close_releases_the_file_and_is_idempotent(tmp_path):
 - [ ] **Step 2: Run to see it fail**
 
 Run: `uv run pytest tests/test_vector_file.py -v`
-Expected: FAIL (`ModuleNotFoundError: agi_memory.store.vectors`).
+Expected: FAIL (`ModuleNotFoundError: omni_memory.store.vectors`).
 
 - [ ] **Step 3: Implement `store/vectors.py`**
 
@@ -1218,7 +1218,7 @@ from pathlib import Path
 
 import numpy as np
 
-_MAGIC = b"AGIVEC01"
+_MAGIC = b"OMNIVEC1"
 _VERSION = 1
 _HEADER = struct.Struct("<8sIIQ")  # magic, version, dim, capacity
 HEADER_SIZE = 64
@@ -1358,13 +1358,13 @@ git commit -m "feat(store): memory-mapped growable VectorFile"
 ### Task 8: FlatStore write path (schema, upsert, delete, get, reopen)
 
 **Files:**
-- Create: `sidecar/src/agi_memory/store/schema.py`, `sidecar/src/agi_memory/store/flat.py`, `sidecar/tests/helpers.py`, `sidecar/tests/conftest.py`
-- Modify: `sidecar/src/agi_memory/store/__init__.py`, `docs/superpowers/specs/2026-10-12-memory-engine-design.md` (section 5)
+- Create: `sidecar/src/omni_memory/store/schema.py`, `sidecar/src/omni_memory/store/flat.py`, `sidecar/tests/helpers.py`, `sidecar/tests/conftest.py`
+- Modify: `sidecar/src/omni_memory/store/__init__.py`, `docs/superpowers/specs/2026-10-12-memory-engine-design.md` (section 5)
 - Test: `sidecar/tests/test_flat_store.py`
 
 **Interfaces:**
 - Consumes: `VectorFile` (Task 7), `split_identifiers` (Task 6), `Chunk`, `ChunkKind`, `Filters`, `VectorHit` (Task 3).
-- Produces `agi_memory.store.FlatStore(directory: Path, *, model_id: str, dim: int)` with:
+- Produces `omni_memory.store.FlatStore(directory: Path, *, model_id: str, dim: int)` with:
   - `upsert(chunks: Sequence[Chunk], vectors: np.ndarray) -> None` (vectors float32 `(len, dim)`, unit rows, finite; duplicate ids in the batch raise `ValueError`)
   - `delete(ids: Iterable[str]) -> int` (number that existed)
   - `get(ids: Sequence[str]) -> dict[str, Chunk]` (missing ids absent)
@@ -1379,7 +1379,7 @@ git commit -m "feat(store): memory-mapped growable VectorFile"
 ```python
 import numpy as np
 
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.types import Chunk, ChunkKind
 
 DIM = 8
 
@@ -1414,7 +1414,7 @@ def unit_vectors(n: int, seed: int = 0, dim: int = DIM) -> np.ndarray:
 import pytest
 from helpers import DIM
 
-from agi_memory.store import FlatStore
+from omni_memory.store import FlatStore
 
 
 @pytest.fixture
@@ -1436,7 +1436,7 @@ import numpy as np
 import pytest
 from helpers import DIM, make_chunk, unit_vectors
 
-from agi_memory.store import FlatStore, IndexMismatchError
+from omni_memory.store import FlatStore, IndexMismatchError
 
 
 def fts_ids(directory, term):
@@ -1570,7 +1570,7 @@ def test_closed_store_leaves_no_open_handles(tmp_path):
 - [ ] **Step 3: Run to see them fail**
 
 Run: `uv run pytest tests/test_flat_store.py -v`
-Expected: FAIL at collection (`ImportError: cannot import name 'FlatStore' from 'agi_memory.store'`).
+Expected: FAIL at collection (`ImportError: cannot import name 'FlatStore' from 'omni_memory.store'`).
 
 - [ ] **Step 4: Implement `store/schema.py`**
 
@@ -1654,10 +1654,10 @@ from pathlib import Path
 
 import numpy as np
 
-from agi_memory.store.identifiers import split_identifiers
-from agi_memory.store.schema import SCHEMA, SCHEMA_VERSION
-from agi_memory.store.vectors import VectorFile
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.store.identifiers import split_identifiers
+from omni_memory.store.schema import SCHEMA, SCHEMA_VERSION
+from omni_memory.store.vectors import VectorFile
+from omni_memory.types import Chunk, ChunkKind
 
 _UNIT_TOLERANCE = 1e-3
 _SQL_BATCH = 500  # far below SQLite's bound-variable limit
@@ -1873,12 +1873,12 @@ class FlatStore:
 
 - [ ] **Step 6: Export from the package**
 
-Replace `sidecar/src/agi_memory/store/__init__.py` with:
+Replace `sidecar/src/omni_memory/store/__init__.py` with:
 
 ```python
 """Persistent index: chunk metadata (SQLite) and vectors (memory-mapped file)."""
 
-from agi_memory.store.flat import FlatStore, IndexMismatchError
+from omni_memory.store.flat import FlatStore, IndexMismatchError
 
 __all__ = ["FlatStore", "IndexMismatchError"]
 ```
@@ -1903,7 +1903,7 @@ git commit -m "feat(store): FlatStore write path with FTS-synced metadata"
 ### Task 9: FlatStore exact search
 
 **Files:**
-- Modify: `sidecar/src/agi_memory/store/flat.py`
+- Modify: `sidecar/src/omni_memory/store/flat.py`
 - Test: `sidecar/tests/test_flat_search.py`
 
 **Interfaces:**
@@ -1921,8 +1921,8 @@ import numpy as np
 import pytest
 from helpers import DIM, make_chunk, unit_vectors
 
-from agi_memory.store import FlatStore
-from agi_memory.types import ChunkKind, Filters
+from omni_memory.store import FlatStore
+from omni_memory.types import ChunkKind, Filters
 
 
 def oracle(vectors_by_id: dict[str, np.ndarray], query: np.ndarray, n: int):
@@ -2073,10 +2073,10 @@ Expected: FAIL (`AttributeError: 'FlatStore' object has no attribute 'search_vec
 
 - [ ] **Step 3: Implement search**
 
-In `sidecar/src/agi_memory/store/flat.py` change the import line `from agi_memory.types import Chunk, ChunkKind` to:
+In `sidecar/src/omni_memory/store/flat.py` change the import line `from omni_memory.types import Chunk, ChunkKind` to:
 
 ```python
-from agi_memory.types import Chunk, ChunkKind, Filters, VectorHit
+from omni_memory.types import Chunk, ChunkKind, Filters, VectorHit
 ```
 
 Add these methods to `FlatStore`, after `count()` and before `close()`:
@@ -2188,7 +2188,7 @@ import textwrap
 import pytest
 from helpers import DIM, make_chunk, unit_vectors
 
-from agi_memory.store import FlatStore
+from omni_memory.store import FlatStore
 
 
 def test_failed_metadata_write_leaves_a_consistent_store(tmp_path, monkeypatch):
@@ -2223,8 +2223,8 @@ def test_hard_kill_between_vector_write_and_commit(tmp_path):
 
         import numpy as np
 
-        from agi_memory.store import FlatStore
-        from agi_memory.types import Chunk, ChunkKind
+        from omni_memory.store import FlatStore
+        from omni_memory.types import Chunk, ChunkKind
 
         def chunk(name):
             return Chunk("s", name + ".txt", ChunkKind.TEXT, "{{}}", name, 1, name)
@@ -2256,21 +2256,21 @@ def test_hard_kill_between_vector_write_and_commit(tmp_path):
 - [ ] **Step 2: Run the tests**
 
 Run: `uv run pytest tests/test_flat_crash.py -v`
-Expected: 2 passed. If the subprocess cannot import `agi_memory`, run `uv sync` (the editable install provides it) and retry; do not add `PYTHONPATH` hacks.
+Expected: 2 passed. If the subprocess cannot import `omni_memory`, run `uv sync` (the editable install provides it) and retry; do not add `PYTHONPATH` hacks.
 
 - [ ] **Step 3: Phase 2 docs gate**
 
 `docs/ARCHITECTURE.md`: set `store/` to `built`; replace the "On-disk format" section body with:
 
 ```markdown
-Index directory `%LOCALAPPDATA%\AGI\memory\` (tests and tools use `AGI_MEMORY_DIR`):
+Index directory `%LOCALAPPDATA%\Omni\memory\` (tests and tools use `OMNI_MEMORY_DIR`):
 
 - `meta.db` (SQLite, WAL, `synchronous=FULL`), schema version 1: `meta(key, value)` holds `schema_version`,
   `model_id`, `dim` (opening with different values raises `IndexMismatchError`: reindex required);
   `chunks(rid, id, vec_row, source_id, uri, kind, locator, content_hash, mtime_ns, text, identifiers)`;
   `chunks_fts` (FTS5 external-content over `text` and `identifiers`, kept in sync by triggers).
   Never `VACUUM` without checking the FTS mapping (it is keyed by `rid`, which is VACUUM-safe).
-- `vectors.f32`: 64-byte header (`AGIVEC01`, version, dim, capacity) then `capacity` rows of `dim`
+- `vectors.f32`: 64-byte header (`OMNIVEC1`, version, dim, capacity) then `capacity` rows of `dim`
   float32, row r at byte 64 + r*dim*4. Grows by doubling; freed rows are reused lowest-first.
 
 Write order for a batch: vectors written and flushed, then one SQLite transaction. A vector row with

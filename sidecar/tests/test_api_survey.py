@@ -2,8 +2,8 @@ import threading
 
 import pytest
 
-from agi_memory.embedding import FakeEmbedder
 from api_helpers import DIM, running_app
+from omni_memory.embedding import FakeEmbedder
 
 
 def test_a_survey_counts_what_indexing_would_read_by_kind(api, folder):

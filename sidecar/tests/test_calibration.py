@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from agi_memory.search.calibration import (
+from omni_memory.search.calibration import (
     MIN_CHUNKS,
     MIN_PROBES,
     PROBE_COUNT,
     noise_ceiling,
     probe_queries,
 )
-from agi_memory.types import VectorHit
+from omni_memory.types import VectorHit
 
 
 def test_the_probes_are_the_same_unrelated_queries_every_time():

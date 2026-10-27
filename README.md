@@ -1,4 +1,4 @@
-# AGI
+# Omni
 
 A fast, private launcher for Windows. Press a hotkey, type, and open an app, search the web, paste a snippet, or find a
 file by what it *says*, not just what it is called. Everything runs on your computer.
@@ -21,7 +21,7 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **Web and quicklinks** | `?` or `web:` searches in the browser you choose. `gh rust lifetimes` opens that search on GitHub; add your own quicklinks. |
 | **Clipboard history** *(off until you switch it on)* | `clip:` lists what you copied, newest first. Enter pastes it into the program you came from. Skips copies marked private, password managers and programs you list. |
 | **Snippets** | Text you paste often, with `{date}`, `{time}` and `{clipboard}` filled in. `snip:` or a keyword. |
-| **Notes** | `note:` lists your notes; `note: buy milk` makes one. They are markdown files in `%APPDATA%\AGI\notes`, opened in a small window that stays above other windows (and can be resized, searched and deleted). |
+| **Notes** | `note:` lists your notes; `note: buy milk` makes one. They are markdown files in `%APPDATA%\Omni\notes`, opened in a small window that stays above other windows (and can be resized, searched and deleted). |
 | **Timer and pomodoro** | `timer 25`, `timer 90s`, `timer 1h30 tea` or `pomodoro`: a small timer sits at the edge of the screen and keeps going when you close it. Lengths are in Settings > Timer. |
 | **Calculator and conversions** | `12*7+3`, `15% of 80`, `5 km in miles`, `72 f in c`: the answer is the first row; Enter copies it. |
 | **System** | `lock`, `sleep`, `task manager`, `recycle bin`, `windows settings`. Shut down and restart are left out on purpose. |
@@ -38,19 +38,19 @@ current driver (NVIDIA, AMD or Intel Arc, through Vulkan); without one it still 
 ([numbers](docs/PERFORMANCE.md#a-computer-without-a-graphics-card)). About 1.1 GB of disk and a one-time download of about 1 GB
 if you turn file search on; the launcher alone is a 13 MB file.
 
-1. Download `agi-<version>-windows-x64-setup.exe` from the [latest release](https://github.com/Adityuhh11/AGI/releases/latest) and run it.
-   It installs for you alone (no administrator rights) into `%LOCALAPPDATA%\Programs\AGI`, or the folder you choose, and adds a Start menu
-   entry. Prefer no installer? `agi-<version>-windows-x64.zip` holds the same `agi.exe`: unzip it anywhere you can write to.
+1. Download `omni-<version>-windows-x64-setup.exe` from the [latest release](https://github.com/Adityuhh11/Omni/releases/latest) and run it.
+   It installs for you alone (no administrator rights) into `%LOCALAPPDATA%\Programs\Omni`, or the folder you choose, and adds a Start menu
+   entry. Prefer no installer? `omni-<version>-windows-x64.zip` holds the same `omni.exe`: unzip it anywhere you can write to.
 2. Windows may say **"Windows protected your PC"**, because the program is not code-signed yet (see [signing](docs/DISTRIBUTION.md)):
    click **More info**, then **Run anyway**. You can check the download against the SHA-256 shown next to it on the release page, or
-   with `gh attestation verify <file> --repo Adityuhh11/AGI`, which proves it was built from this repository by its release workflow.
-3. There is no window of its own: AGI lives in the notification area (the arrow by the clock). The first start opens a short setup guide:
-   what AGI is, your hotkey and the keys, and the optional file search with its folders and options (the tray menu shows it again).
+   with `gh attestation verify <file> --repo Adityuhh11/Omni`, which proves it was built from this repository by its release workflow.
+3. There is no window of its own: Omni lives in the notification area (the arrow by the clock). The first start opens a short setup guide:
+   what Omni is, your hotkey and the keys, and the optional file search with its folders and options (the tray menu shows it again).
 4. Press **Alt+Shift+Space**. Change the hotkey in Settings > General; it tells you if another program already owns it.
    "Start when I sign in" is there too.
 
 To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
-To remove it: Settings > Apps > Installed apps > AGI > Uninstall. It asks whether to delete what AGI saved too (the engine and models,
+To remove it: Settings > Apps > Installed apps > Omni > Uninstall. It asks whether to delete what Omni saved too (the engine and models,
 the index, clipboard history and settings, up to about 1.2 GB); your own files are never touched. For the zip, quit from the tray
 icon and delete the folder and the folders under [Where things are](#where-things-are).
 
@@ -130,7 +130,7 @@ Clipboard history is off by default and stored only on your machine. See [`docs/
 
 ## Settings and where things are
 
-Everything is in Settings (`Ctrl+,`, or the tray icon). The file behind it is `%APPDATA%\AGI\config.toml`; Settings edits it
+Everything is in Settings (`Ctrl+,`, or the tray icon). The file behind it is `%APPDATA%\Omni\config.toml`; Settings edits it
 and takes effect without a restart, and a mistyped key is reported rather than ignored.
 
 ```toml
@@ -154,13 +154,13 @@ videos   = 'name'        # name | content
 
 | What | Where |
 |---|---|
-| Settings | `%APPDATA%\AGI\config.toml` |
-| Log (Settings > About opens it) | `%LOCALAPPDATA%\AGI\logs\agi.log` |
-| Search engine and models | `%LOCALAPPDATA%\AGI\engine` (only after you turn file search on); the setup guide can put it and the index on another drive |
-| The index | `%LOCALAPPDATA%\AGI\memory` |
-| Clipboard history | `%LOCALAPPDATA%\AGI\clipboard.json` (only if switched on) |
-| Notes | `%APPDATA%\AGI\notes\*.md`, one file per note |
-| What you launched, tags, pins | `%APPDATA%\AGI\state.json` |
+| Settings | `%APPDATA%\Omni\config.toml` |
+| Log (Settings > About opens it) | `%LOCALAPPDATA%\Omni\logs\omni.log` |
+| Search engine and models | `%LOCALAPPDATA%\Omni\engine` (only after you turn file search on); the setup guide can put it and the index on another drive |
+| The index | `%LOCALAPPDATA%\Omni\memory` |
+| Clipboard history | `%LOCALAPPDATA%\Omni\clipboard.json` (only if switched on) |
+| Notes | `%APPDATA%\Omni\notes\*.md`, one file per note |
+| What you launched, tags, pins | `%APPDATA%\Omni\state.json` |
 
 ## Build from source
 
@@ -169,13 +169,13 @@ Windows 11, PowerShell, and:
 - [Go](https://go.dev/dl/) 1.27 or newer
 - [Node.js](https://nodejs.org/) 24 (any current LTS should do) and npm
 - the [Wails v3 CLI](https://v3alpha.wails.io/) (`go install github.com/wailsapp/wails/v3/cmd/wails3@latest`; the project is on `v3.0.0-beta.29`)
-- [uv](https://docs.astral.sh/uv/) for the Python engine's tests (not needed to build or run the launcher: the engine's source is embedded in `agi.exe`)
+- [uv](https://docs.astral.sh/uv/) for the Python engine's tests (not needed to build or run the launcher: the engine's source is embedded in `omni.exe`)
 
 ```powershell
-git clone https://github.com/Adityuhh11/AGI.git
-cd AGI
-.\scripts\build.ps1            # bindings, frontend, then bin\agi.exe  (-Console keeps the log window)
-.\bin\agi.exe
+git clone https://github.com/Adityuhh11/Omni.git
+cd Omni
+.\scripts\build.ps1            # bindings, frontend, then bin\omni.exe  (-Console keeps the log window)
+.\bin\omni.exe
 ```
 
 Tests and checks:
@@ -184,7 +184,7 @@ Tests and checks:
 go vet ./... ; go test ./...                                  # launcher
 cd frontend ; npm test ; npm run check                        # page
 cd ..\sidecar ; uv run pytest ; uv run ruff check             # engine (add -m model to use the real model)
-uv run python -m agi_memory.eval                              # retrieval quality against docs/eval/baseline.json
+uv run python -m omni_memory.eval                              # retrieval quality against docs/eval/baseline.json
 ```
 
 `.\scripts\release.ps1 -Version X.Y.Z` makes the release zip; the full procedure is in [`docs/RELEASING.md`](docs/RELEASING.md).
@@ -193,14 +193,14 @@ uv run python -m agi_memory.eval                              # retrieval qualit
 
 | Path | What |
 |---|---|
-| `cmd/agi` | the launcher's `main`: wires everything together |
+| `cmd/omni` | the launcher's `main`: wires everything together |
 | `cmd/panelbench` | measures hotkey-to-painted latency on the real app |
 | `internal/panel`, `settingsui`, `tray` | the bar window, the Settings window, the tray icon |
 | `internal/apps`, `rank`, `palette`, `state`, `web`, `snippets`, `clipboard` | what the bar can answer instantly |
 | `internal/search`, `indexing`, `watcher`, `sidecar`, `enginesetup` | file search from the launcher's side: querying, syncing folders, running and installing the engine |
 | `internal/config`, `settings`, `update`, `autostart`, `files` | settings file and live store, update check and install, start at sign-in, opening results |
 | `frontend/` | the Svelte 5 + TypeScript page (the bar and Settings) |
-| `sidecar/` | the Python memory engine (`agi_memory`): chunking, embedding, store, search, eval |
+| `sidecar/` | the Python memory engine (`omni_memory`): chunking, embedding, store, search, eval |
 | `docs/` | architecture, status, API, decision records, specs, plans, measurements |
 
 ## Contributing

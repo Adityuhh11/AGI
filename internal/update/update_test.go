@@ -44,7 +44,7 @@ func TestCheckFindsANewerRelease(t *testing.T) {
 		if r.Header.Get("User-Agent") == "" {
 			t.Error("no User-Agent: GitHub would refuse the request")
 		}
-		w.Write([]byte(`{"tag_name":"v0.3.0","html_url":"https://github.com/Adityuhh11/AGI/releases/tag/v0.3.0"}`))
+		w.Write([]byte(`{"tag_name":"v0.3.0","html_url":"https://github.com/Adityuhh11/Omni/releases/tag/v0.3.0"}`))
 	})
 	rel, newer, err := c.Check(context.Background())
 	if err != nil || !newer || rel.Version != "0.3.0" {
@@ -87,21 +87,21 @@ const goodSum = "6f87d2b84cc83e6ecc88dc825250b6501f0a77774de585e6b6a198aca3a6ed5
 func TestTheAssetIsTheWindowsZipWithItsDigest(t *testing.T) {
 	files := []githubFile{
 		{Name: "notes.txt", URL: "https://x/notes.txt", Digest: "sha256:" + goodSum},
-		{Name: "agi-0.3.0-windows-x64.zip", URL: "https://github.com/Adityuhh11/AGI/releases/download/v0.3.0/agi-0.3.0-windows-x64.zip", Size: 5653358, Digest: "sha256:" + strings.ToUpper(goodSum)},
+		{Name: "omni-0.3.0-windows-x64.zip", URL: "https://github.com/Adityuhh11/Omni/releases/download/v0.3.0/omni-0.3.0-windows-x64.zip", Size: 5653358, Digest: "sha256:" + strings.ToUpper(goodSum)},
 	}
 	got := assetOf("0.3.0", files)
-	if got.Name != "agi-0.3.0-windows-x64.zip" || got.Size != 5653358 || got.SHA256 != goodSum || !strings.HasSuffix(got.URL, "/agi-0.3.0-windows-x64.zip") {
+	if got.Name != "omni-0.3.0-windows-x64.zip" || got.Size != 5653358 || got.SHA256 != goodSum || !strings.HasSuffix(got.URL, "/omni-0.3.0-windows-x64.zip") {
 		t.Fatalf("asset %+v (the digest is kept in lower case)", got)
 	}
 }
 
 func TestAReleaseWithoutAZipThatCanBeCheckedHasNoAsset(t *testing.T) {
 	zip := func(digest string) []githubFile {
-		return []githubFile{{Name: "agi-0.3.0-windows-x64.zip", URL: "https://x/z", Digest: digest}}
+		return []githubFile{{Name: "omni-0.3.0-windows-x64.zip", URL: "https://x/z", Digest: digest}}
 	}
 	for name, files := range map[string][]githubFile{
 		"no files":              nil,
-		"another version's zip": {{Name: "agi-0.2.0-windows-x64.zip", Digest: "sha256:" + goodSum}},
+		"another version's zip": {{Name: "omni-0.2.0-windows-x64.zip", Digest: "sha256:" + goodSum}},
 		"no digest":             zip(""),
 		"another algorithm":     zip("sha512:" + goodSum),
 		"too short":             zip("sha256:abcd"),
@@ -115,7 +115,7 @@ func TestAReleaseWithoutAZipThatCanBeCheckedHasNoAsset(t *testing.T) {
 
 func TestCheckKeepsTheAssetOfTheNewerRelease(t *testing.T) {
 	c := checker(t, "0.2.0", func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(`{"tag_name":"v0.3.0","html_url":"https://github.com/Adityuhh11/AGI/releases/tag/v0.3.0","assets":[{"name":"agi-0.3.0-windows-x64.zip","size":5653358,"digest":"sha256:` + goodSum + `","browser_download_url":"https://github.com/Adityuhh11/AGI/releases/download/v0.3.0/agi-0.3.0-windows-x64.zip"}]}`))
+		w.Write([]byte(`{"tag_name":"v0.3.0","html_url":"https://github.com/Adityuhh11/Omni/releases/tag/v0.3.0","assets":[{"name":"omni-0.3.0-windows-x64.zip","size":5653358,"digest":"sha256:` + goodSum + `","browser_download_url":"https://github.com/Adityuhh11/Omni/releases/download/v0.3.0/omni-0.3.0-windows-x64.zip"}]}`))
 	})
 	if _, newer, err := c.Check(context.Background()); err != nil || !newer {
 		t.Fatalf("newer=%v err=%v", newer, err)

@@ -6,12 +6,12 @@ import (
 	"strings"
 	"testing"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 func open(t *testing.T) (*Store, string) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "AGI", "config.toml")
+	path := filepath.Join(t.TempDir(), "Omni", "config.toml")
 	s, err := Open(path)
 	if err != nil {
 		t.Fatal(err)

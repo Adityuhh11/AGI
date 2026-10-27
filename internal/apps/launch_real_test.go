@@ -27,11 +27,11 @@ func findWindow(class, title string) uintptr {
 	return h
 }
 
-// TestRealLaunch starts real programs, so it runs only with AGI_REAL_APPS=1 (it opens, then closes, two
+// TestRealLaunch starts real programs, so it runs only with OMNI_REAL_APPS=1 (it opens, then closes, two
 // windows), and checks that every kept path-style entry resolves to a file that exists.
 func TestRealLaunch(t *testing.T) {
-	if os.Getenv("AGI_REAL_APPS") != "1" {
-		t.Skip("set AGI_REAL_APPS=1 to start real programs")
+	if os.Getenv("OMNI_REAL_APPS") != "1" {
+		t.Skip("set OMNI_REAL_APPS=1 to start real programs")
 	}
 	data, err := startApps(context.Background())
 	if err != nil {
@@ -95,12 +95,12 @@ func indexHas(apps []App, id string) (App, bool) {
 	return App{}, false
 }
 
-// TestRealFocus brings an app that is already open to the front, so it runs only with AGI_REAL_FOCUS=<name>
+// TestRealFocus brings an app that is already open to the front, so it runs only with OMNI_REAL_FOCUS=<name>
 // (the Start Menu name of a running app, such as Zed) and moves the user's windows.
 func TestRealFocus(t *testing.T) {
-	name := os.Getenv("AGI_REAL_FOCUS")
+	name := os.Getenv("OMNI_REAL_FOCUS")
 	if name == "" {
-		t.Skip("set AGI_REAL_FOCUS=<name of a running app> to focus a real window")
+		t.Skip("set OMNI_REAL_FOCUS=<name of a running app> to focus a real window")
 	}
 	start := time.Now()
 	if !focusRunning(App{Name: name}, "") {

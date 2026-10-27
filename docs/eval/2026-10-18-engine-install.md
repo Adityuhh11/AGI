@@ -1,6 +1,6 @@
 # Installing file search from the app (packaging block E, 2026-10-18)
 
-The real thing, not a fake server: `bin\agi.exe` built by `scripts\build.ps1` (the engine's source is embedded, 13 MB exe), started in a
+The real thing, not a fake server: `bin\omni.exe` built by `scripts\build.ps1` (the engine's source is embedded, 13 MB exe), started in a
 brand-new profile (`%APPDATA%` and `%LOCALAPPDATA%` empty, a config with `roots = ['...\Sample Data']` and file search off), driven with
 real key presses and clicks: hotkey, `Ctrl+,`, File search, **Download and turn on**. Network: github.com, pypi.org, files.pythonhosted.org,
 huggingface.co.

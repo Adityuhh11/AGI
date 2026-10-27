@@ -3,7 +3,7 @@ from collections.abc import Callable
 
 import numpy as np
 
-from agi_memory.types import Chunk, ChunkKind, FileRecord
+from omni_memory.types import Chunk, ChunkKind, FileRecord
 
 DIM = 8
 

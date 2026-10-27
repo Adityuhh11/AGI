@@ -8,11 +8,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.indexer import Indexer
-from agi_memory.store import FlatStore
-from agi_memory.types import LEGACY_OPTIONS, ChunkKind, IndexOptions
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.indexer import Indexer
+from omni_memory.store import FlatStore
+from omni_memory.types import LEGACY_OPTIONS, ChunkKind, IndexOptions
 from pdf_fixture import make_text_pdf
 from video_fixture import make_video
 
@@ -454,7 +454,7 @@ def test_any_failure_in_one_file_skips_that_file_and_not_the_folder(
 ):
     write(root, "bad.txt", "this one makes a library blow up")
     write(root, "fine.txt", "readable")
-    import agi_memory.indexer as module
+    import omni_memory.indexer as module
 
     real = module.chunk_text_document
 
@@ -476,7 +476,7 @@ def test_a_run_of_failures_aborts_the_sync_because_the_files_are_not_the_cause(
 ):
     for number in range(8):
         write(root, f"f{number}.txt", "x")
-    import agi_memory.indexer as module
+    import omni_memory.indexer as module
 
     def broken(*args, **kwargs):
         raise RuntimeError("the GPU is gone")

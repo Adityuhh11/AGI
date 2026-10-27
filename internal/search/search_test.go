@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/sidecar"
+	"omni/internal/sidecar"
 )
 
 type fakeEngine struct {

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { SearchView } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { SearchView } from "../../../bindings/omni/internal/settingsui";
   import ChoiceGroup from "../settings/ChoiceGroup.svelte";
   import { CHOICES, SPEEDS } from "../settings/choices";
   import { choiceHints, paceHints } from "../settings/hints";

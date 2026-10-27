@@ -37,7 +37,7 @@ func newHarness(t *testing.T) *harness {
 	t.Helper()
 	store, _ := open(t)
 	h := &harness{src: &fakeSource{seq: 7}, store: store, enabled: true, clock: t0}
-	h.watcher = NewWatcher(h.src, store, func() bool { return h.enabled }, func() []string { return h.ignore }, "agi")
+	h.watcher = NewWatcher(h.src, store, func() bool { return h.enabled }, func() []string { return h.ignore }, "omni")
 	h.watcher.now = func() time.Time { h.clock = h.clock.Add(time.Minute); return h.clock }
 	return h
 }
@@ -67,7 +67,7 @@ func TestCopiesThatStayOutOfTheHistory(t *testing.T) {
 		{"a default password manager", Clip{Text: "pw", Owner: "1Password"}},
 		{"a default password manager in another case", Clip{Text: "pw", Owner: "keepassxc"}},
 		{"a program the user listed, written with .exe", Clip{Text: "pw", Owner: "MyVault"}},
-		{"this program's own copy", Clip{Text: "C:\a\b.txt", Owner: "agi"}},
+		{"this program's own copy", Clip{Text: "C:\a\b.txt", Owner: "omni"}},
 	} {
 		h := newHarness(t)
 		h.ignore = []string{" myvault.exe "}
@@ -102,7 +102,7 @@ func TestNothingIsReadWhileTheCounterHasNotMoved(t *testing.T) {
 func TestWhatWasOnTheClipboardBeforeTheWatcherStartedIsNotHistory(t *testing.T) {
 	store, _ := open(t)
 	src := &fakeSource{seq: 41, clip: Clip{Text: "was already there"}}
-	w := NewWatcher(src, store, func() bool { return true }, func() []string { return nil }, "agi")
+	w := NewWatcher(src, store, func() bool { return true }, func() []string { return nil }, "omni")
 	w.Poll()
 	if store.Len() != 0 || src.reads != 0 {
 		t.Fatalf("%d entries, %d reads", store.Len(), src.reads)

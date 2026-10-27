@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { Browser } from "@wailsio/runtime";
-  import { Service as Notes } from "../bindings/agi/internal/notes";
-  import type { Note } from "../bindings/agi/internal/notes";
+  import { Service as Notes } from "../bindings/omni/internal/notes";
+  import type { Note } from "../bindings/omni/internal/notes";
   import "./lib/settings/forms.css";
   import { when } from "./lib/format";
   import { render, toggleTask } from "./lib/markdown";
 
   const SAVE_AFTER_MS = 400;
-  const PIN_KEY = "agi-notes-on-top";
+  const PIN_KEY = "omni-notes-on-top";
 
   let list = $state<Note[]>([]);
   let query = $state("");

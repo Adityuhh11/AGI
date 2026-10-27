@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // fakeSnips is the user's snippets, recording what the bar pasted.

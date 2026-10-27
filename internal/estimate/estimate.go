@@ -8,7 +8,7 @@ import (
 	"math"
 	"time"
 
-	"agi/internal/sidecar"
+	"omni/internal/sidecar"
 )
 
 // Rates measured on the development laptop (docs/eval/2026-10-20-indexing-choices.md): text is embedded in chunks,

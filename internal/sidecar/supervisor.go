@@ -80,7 +80,7 @@ const (
 	defaultStartup   = 3 * time.Minute
 	maxBackoff       = 30 * time.Second
 	missingVenvHint  = "turn file search off and on again in Settings to reinstall it"
-	needsReindexHint = "the saved index was built with another model, dimension or format and has to be rebuilt (move or delete the memory folder under %LOCALAPPDATA%\\AGI)"
+	needsReindexHint = "the saved index was built with another model, dimension or format and has to be rebuilt (move or delete the memory folder under %LOCALAPPDATA%\\Omni)"
 )
 
 // Supervisor starts the engine, waits for it, restarts it when it dies and stops it on request.
@@ -216,8 +216,8 @@ type outcome struct {
 
 func (s *Supervisor) spec() Spec {
 	env := append(os.Environ(),
-		"AGI_SIDECAR_TOKEN="+s.token,
-		"AGI_SIDECAR_PORT="+strconv.Itoa(s.port),
+		"OMNI_SIDECAR_TOKEN="+s.token,
+		"OMNI_SIDECAR_PORT="+strconv.Itoa(s.port),
 		"PYTHONUTF8=1",
 		"PYTHONUNBUFFERED=1",
 	)
@@ -226,7 +226,7 @@ func (s *Supervisor) spec() Spec {
 		dir, python, extra = s.opts.Locate()
 	}
 	env = append(env, extra...)
-	return Spec{Dir: dir, Exe: python, Args: []string{"-m", "agi_memory"}, Env: env}
+	return Spec{Dir: dir, Exe: python, Args: []string{"-m", "omni_memory"}, Env: env}
 }
 
 // runOnce starts the process and watches it until it ends, hangs, or ctx ends.

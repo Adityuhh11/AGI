@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"agi/internal/rank"
+	"omni/internal/rank"
 )
 
 // App is one entry of the Start Menu.

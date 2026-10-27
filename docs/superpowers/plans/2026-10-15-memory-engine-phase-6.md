@@ -12,9 +12,9 @@ trigram) and returns `SearchResult(hits, confident)`; `store/` gains schema v3 (
 
 ## Global constraints
 
-- Run commands from `C:\dev\VS_CODE\AGI\sidecar`. Quality gate before every commit: `uv run ruff check .`,
+- Run commands from `C:\dev\VS_CODE\Omni\sidecar`. Quality gate before every commit: `uv run ruff check .`,
   `uv run ruff format --check .`, `uv run pyright`, `uv run pytest` clean (check the real exit status).
-- Real-model eval after every task that changes ranking: `uv run python -m agi_memory.eval` (about a minute; uses
+- Real-model eval after every task that changes ranking: `uv run python -m omni_memory.eval` (about a minute; uses
   `Sample Data/`, git-ignored). A task that improves the numbers re-records the baseline with `--write-baseline` and
   states old and new numbers in the commit body. A task must never lower a metric by more than the gate tolerance.
 - Tests use `FakeEmbedder`; real-model tests carry `@pytest.mark.model`. Determinism: ties break by chunk id.
@@ -119,6 +119,6 @@ tests `test_searcher.py`, `test_eval.py`, `test_api_search.py`, `docs/api.md`.
 - ARCHITECTURE: invariants 10 (one blended score, comparable across kinds), 11 (indexes carry path and title; a model,
   dimension or schema change means reindex); STATUS: phase 6 done with the final table and known gaps; ADR 0001 gets a
   one-line "256-d superseded by 0002".
-- Final gate: all four checks, `uv run pytest -m model -q`, `uv run python -m agi_memory.eval` (exit 0), the real-process
+- Final gate: all four checks, `uv run pytest -m model -q`, `uv run python -m omni_memory.eval` (exit 0), the real-process
   test, `git status` clean of `Sample Data/`. Merge `feat/phase-6-fusion` to `main` fast-forward and push.
 - Commit: `docs: search quality decision record, perf and status for phase 6`.

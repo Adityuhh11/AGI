@@ -3,10 +3,10 @@ import time
 import numpy as np
 import pytest
 
-from agi_memory.embedding import FakeEmbedder
-from agi_memory.search.searcher import Searcher
-from agi_memory.store import FlatStore
-from agi_memory.types import Chunk, ChunkKind
+from omni_memory.embedding import FakeEmbedder
+from omni_memory.search.searcher import Searcher
+from omni_memory.store import FlatStore
+from omni_memory.types import Chunk, ChunkKind
 
 pytestmark = pytest.mark.perf
 

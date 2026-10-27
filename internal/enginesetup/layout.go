@@ -12,15 +12,15 @@ import (
 // Layout is the engine folder and the paths inside it, and where the index is kept.
 type Layout struct {
 	Root string
-	// Memory is the folder of the index; empty means the engine's own default, %LOCALAPPDATA%\AGI\memory.
+	// Memory is the folder of the index; empty means the engine's own default, %LOCALAPPDATA%\Omni\memory.
 	Memory string
 }
 
 // Locate returns where the engine and the index live: under dataDir (the engine in dataDir\engine, the index in
-// dataDir\memory) when the person chose a folder for them, else %LOCALAPPDATA%\AGI\engine and \memory. The folder in
-// AGI_ENGINE_DIR (for developers who keep an engine somewhere else) wins over both.
+// dataDir\memory) when the person chose a folder for them, else %LOCALAPPDATA%\Omni\engine and \memory. The folder in
+// OMNI_ENGINE_DIR (for developers who keep an engine somewhere else) wins over both.
 func Locate(dataDir string) (Layout, error) {
-	if dir := os.Getenv("AGI_ENGINE_DIR"); dir != "" {
+	if dir := os.Getenv("OMNI_ENGINE_DIR"); dir != "" {
 		return Layout{Root: dir}, nil
 	}
 	if dataDir != "" {
@@ -30,7 +30,7 @@ func Locate(dataDir string) (Layout, error) {
 	if err != nil {
 		return Layout{}, fmt.Errorf("locate the engine folder: %w", err)
 	}
-	return Layout{Root: filepath.Join(cache, "AGI", "engine")}, nil
+	return Layout{Root: filepath.Join(cache, "Omni", "engine")}, nil
 }
 
 // Index is the folder the engine keeps its index in.
@@ -42,7 +42,7 @@ func (l Layout) Index() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(cache, "AGI", "memory")
+	return filepath.Join(cache, "Omni", "memory")
 }
 
 // HasIndex reports whether an index has been built in Index.
@@ -85,9 +85,9 @@ func (l Layout) Installed() bool {
 // Env is what the engine process needs to find its llama.cpp server and its models, and the index when it is kept
 // somewhere other than the default.
 func (l Layout) Env() []string {
-	env := []string{"AGI_LLAMA_SERVER=" + l.LlamaServer(), "AGI_MODEL_DIR=" + l.Models()}
+	env := []string{"OMNI_LLAMA_SERVER=" + l.LlamaServer(), "OMNI_MODEL_DIR=" + l.Models()}
 	if l.Memory != "" {
-		env = append(env, "AGI_MEMORY_DIR="+l.Memory)
+		env = append(env, "OMNI_MEMORY_DIR="+l.Memory)
 	}
 	return env
 }

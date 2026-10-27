@@ -5,18 +5,18 @@ Spec: `superpowers/specs/2026-10-12-memory-engine-design.md`.
 
 ## Overview
 
-AGI is a local-first, AI-native launcher for Windows. Two processes cooperate:
+Omni is a local-first, AI-native launcher for Windows. Two processes cooperate:
 
-- the **Go launcher** (`cmd/agi`, `internal/`): hotkey, tray, indexing manager, UI (Wails v3 + Svelte), calls the sidecar;
+- the **Go launcher** (`cmd/omni`, `internal/`): hotkey, tray, indexing manager, UI (Wails v3 + Svelte), calls the sidecar;
 - the **Python sidecar** (`sidecar/`): the *memory engine* that indexes files and answers search queries.
 
 They talk over authenticated localhost HTTP. The GPU hosts only the embedding model, which runs in a llama.cpp server the
 engine owns (about 1.1 GB of VRAM); index storage and search run on the CPU. The engine is installed under
-`%LOCALAPPDATA%\AGI\engine\` and is optional: the launcher works without it (see `superpowers/specs/2026-10-18-packaging-design.md`).
+`%LOCALAPPDATA%\Omni\engine\` and is optional: the launcher works without it (see `superpowers/specs/2026-10-18-packaging-design.md`).
 
-## Launcher packages (`cmd/agi`, `internal/`)
+## Launcher packages (`cmd/omni`, `internal/`)
 
-`cmd/agi/main.go` is the only place that wires packages together: it loads the settings, builds each service, registers them
+`cmd/omni/main.go` is the only place that wires packages together: it loads the settings, builds each service, registers them
 with Wails (the Svelte page calls them as bound methods) and subscribes to settings changes. Everything else is one package, one
 job. The hotkey to panel path touches none of the slow parts: apps, tags, pins and the web are answered in-process, files come from
 the engine only after the page asks.
@@ -37,7 +37,7 @@ Settings changes flow one way: the page calls a `settingsui` method, which valid
 subscribers in `main.go` apply it (rebinding the hotkey is the exception: it registers first and saves only if that worked).
 Where each one-time and recurring network call happens is listed in the README's privacy table.
 
-## Memory engine modules (`sidecar/src/agi_memory/`)
+## Memory engine modules (`sidecar/src/omni_memory/`)
 
 Dependencies point downward only. Status is `planned` or `built`.
 
@@ -52,9 +52,9 @@ Dependencies point downward only. Status is `planned` or `built`.
 | `indexer.py` | `Indexer.sync`: scan, diff against the files table, chunk, embed, store, newest files first; embeds only what changed: a chunk already stored keeps its vector, and a moved, renamed or copied file takes its picture vectors (images, PDF pages, video frames) from the identical file already indexed. Takes `IndexOptions` (PDF pages, photos, videos); a change of options re-processes only the kinds concerned | built |
 | `jobs.py` | `JobManager`: one background index job at a time, with progress | built |
 | `search/` | `Searcher`: vector, bm25 and path search (the last two while the query is embedded) blended into one score (`fusion.py`), `confident` flag against a noise ceiling the index measures itself (`calibration.py`), filters | built |
-| `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m agi_memory.eval`), baseline gate | built |
+| `eval/` | Golden queries, metrics, runner/CLI (`uv run python -m omni_memory.eval`), baseline gate | built |
 | `api/` | FastAPI app: bearer auth, host check, background model load, `/health` `/sources` `/jobs` `/search` `/survey`; see `api.md` | built |
-| `__main__.py` | `python -m agi_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
+| `__main__.py` | `python -m omni_memory`: reads token and port from the environment, serves on `127.0.0.1` | built |
 
 ## Data flow
 
@@ -64,7 +64,7 @@ API: the Go launcher calls `POST /sources` (a background `JobManager` job runs t
 
 ## On-disk format
 
-Index directory `%LOCALAPPDATA%\AGI\memory\` (tests and tools use `AGI_MEMORY_DIR`):
+Index directory `%LOCALAPPDATA%\Omni\memory\` (tests and tools use `OMNI_MEMORY_DIR`):
 
 - `meta.db` (SQLite, WAL, `synchronous=FULL`), schema version 3: `meta(key, value)` holds `schema_version`,
   `model_id` and `dim` (opening with different values raises `IndexMismatchError`: reindex required);
@@ -72,7 +72,7 @@ Index directory `%LOCALAPPDATA%\AGI\memory\` (tests and tools use `AGI_MEMORY_DI
   `chunks_fts` (FTS5 external-content over `text`, `identifiers` and `path_words`, bm25 weights 1.0 / 0.5 / 2.0, kept in
   sync by triggers) and `chunks_path_tri` (FTS5 trigram over `uri`: substring match on file names and paths). The FTS table is
   keyed by `rid`, an explicit integer primary key, so it survives `VACUUM`.
-- `vectors.f32`: 64-byte header (`AGIVEC01`, version, dim, capacity) then `capacity` rows of `dim` float32, row r
+- `vectors.f32`: 64-byte header (`OMNIVEC1`, version, dim, capacity) then `capacity` rows of `dim` float32, row r
   at byte 64 + r*dim*4. Grows by doubling; freed rows are reused lowest-first. The file handle is unbuffered:
   on Windows a buffered handle makes `close()` fail after the file was mapped and fsynced.
 
@@ -100,9 +100,9 @@ Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sourc
    measured against the torch bf16 model it replaced, vectors agree to cosine 0.9999 (text) and 0.994 or better (images and
    pages), the golden set gives identical results on the GPU and on the CPU, and an index built with torch answers the same
    under the new query vectors (`eval/2026-10-18-llamacpp-embedder.md`). Real-model tests are marked `model`
-   (`AGI_LLAMA_SERVER` and `AGI_MODEL_DIR` set; `uv run pytest -m model`).
+   (`OMNI_LLAMA_SERVER` and `OMNI_MODEL_DIR` set; `uv run pytest -m model`).
 6. **Sync safety.** Denied files are never opened; links are never followed; a directory that cannot be read never causes its indexed files to be deleted; a missing source root is an error.
-7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m agi_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not.
+7. **Retrieval quality is gated.** `docs/eval/baseline.json` holds the accepted metrics; `uv run python -m omni_memory.eval` fails if any metric drops more than 0.02 or a `forbid` query surfaces a file it must not.
 8. **The API is local and authenticated.** It binds 127.0.0.1, rejects foreign `Host` headers before anything else, and refuses to start without a token of at least 16 characters; every route including `/health` needs the token.
 9. **The API never blocks on the model.** The port opens immediately; `/health` reports `ready: false` while the model loads and every other route answers 503.
 

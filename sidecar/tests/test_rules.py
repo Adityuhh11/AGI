@@ -1,7 +1,7 @@
 import pytest
 
-from agi_memory.config import Settings
-from agi_memory.sources.rules import Route, is_denied, route_for, size_limit
+from omni_memory.config import Settings
+from omni_memory.sources.rules import Route, is_denied, route_for, size_limit
 
 DENIED = [
     ".env",

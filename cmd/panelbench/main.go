@@ -28,13 +28,13 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"agi"
-	"agi/internal/apps"
-	"agi/internal/clipboard"
-	"agi/internal/config"
-	"agi/internal/palette"
-	"agi/internal/panel"
-	"agi/internal/state"
+	"omni"
+	"omni/internal/apps"
+	"omni/internal/clipboard"
+	"omni/internal/config"
+	"omni/internal/palette"
+	"omni/internal/panel"
+	"omni/internal/state"
 )
 
 const (
@@ -275,7 +275,7 @@ func main() {
 		ev.record(name)
 	})
 	if *real {
-		dist, err := fs.Sub(agi.Frontend, "frontend/dist")
+		dist, err := fs.Sub(omni.Frontend, "frontend/dist")
 		if err != nil {
 			log.Fatal(err)
 		}

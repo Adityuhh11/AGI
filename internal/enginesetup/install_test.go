@@ -46,9 +46,9 @@ func newRig(t *testing.T) *rig {
 	r := &rig{source: fstest.MapFS{
 		"pyproject.toml":                    {Data: []byte("[project]\nname='x'\n")},
 		"uv.lock":                           {Data: []byte("lock")},
-		"src/agi_memory/__init__.py":        {Data: []byte("")},
-		"src/agi_memory/__pycache__/a.pyc":  {Data: []byte("junk")},
-		"src/agi_memory/embedding/llama.py": {Data: []byte("code")},
+		"src/omni_memory/__init__.py":        {Data: []byte("")},
+		"src/omni_memory/__pycache__/a.pyc":  {Data: []byte("junk")},
+		"src/omni_memory/embedding/llama.py": {Data: []byte("code")},
 	}}
 	uvZip := zipBytes(t, map[string]string{"uv.exe": "uv"})
 	llamaZip := zipBytes(t, map[string]string{"llama-server.exe": "server", "ggml.dll": "dll"})
@@ -97,13 +97,13 @@ func TestAnInstallPutsEverythingWhereTheEngineExpectsItAndWritesTheManifestLast(
 		l.UV(), l.LlamaServer(), filepath.Join(l.Root, "llama", "ggml.dll"),
 		filepath.Join(l.Models(), "text.gguf"), filepath.Join(l.Models(), "vision.gguf"),
 		filepath.Join(l.App(), "pyproject.toml"), filepath.Join(l.App(), "uv.lock"),
-		filepath.Join(l.App(), "src", "agi_memory", "embedding", "llama.py"),
+		filepath.Join(l.App(), "src", "omni_memory", "embedding", "llama.py"),
 	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Errorf("missing %s: %v", path, err)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(l.App(), "src", "agi_memory", "__pycache__")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(l.App(), "src", "omni_memory", "__pycache__")); !os.IsNotExist(err) {
 		t.Error("compiled caches were copied into the engine")
 	}
 	for _, leftover := range []string{filepath.Join(l.Root, "uv-cache"), filepath.Join(l.Root, "tools.zip"), filepath.Join(l.Root, "llama.zip")} {
@@ -209,7 +209,7 @@ func TestAFailedStepLeavesNoManifestAndSaysWhatUvPrinted(t *testing.T) {
 
 func TestACheckThatFailsFailsTheInstall(t *testing.T) {
 	r := newRig(t)
-	r.Check = func(context.Context) error { return errors.New("ImportError: no module named agi_memory") }
+	r.Check = func(context.Context) error { return errors.New("ImportError: no module named omni_memory") }
 	err := r.install(t.Context())
 	if err == nil || !strings.Contains(err.Error(), "checking that it starts") {
 		t.Fatalf("Install error = %v", err)
@@ -262,7 +262,7 @@ func TestANewEngineSourceMakesTheInstalledOneOutOfDate(t *testing.T) {
 	if r.NeedsUpdate() {
 		t.Fatal("a fresh install is out of date")
 	}
-	r.source["src/agi_memory/embedding/llama.py"] = &fstest.MapFile{Data: []byte("new code")}
+	r.source["src/omni_memory/embedding/llama.py"] = &fstest.MapFile{Data: []byte("new code")}
 	if !r.NeedsUpdate() {
 		t.Fatal("changed engine code did not make the installed engine out of date")
 	}
@@ -272,7 +272,7 @@ func TestANewEngineSourceMakesTheInstalledOneOutOfDate(t *testing.T) {
 	if r.NeedsUpdate() {
 		t.Fatal("still out of date after updating")
 	}
-	if got, _ := os.ReadFile(filepath.Join(r.Layout.App(), "src", "agi_memory", "embedding", "llama.py")); string(got) != "new code" {
+	if got, _ := os.ReadFile(filepath.Join(r.Layout.App(), "src", "omni_memory", "embedding", "llama.py")); string(got) != "new code" {
 		t.Fatalf("the engine's code was not replaced: %q", got)
 	}
 }

@@ -17,12 +17,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"agi/internal/apps"
-	"agi/internal/clipboard"
-	"agi/internal/config"
-	"agi/internal/rank"
-	"agi/internal/state"
-	"agi/internal/web"
+	"omni/internal/apps"
+	"omni/internal/clipboard"
+	"omni/internal/config"
+	"omni/internal/rank"
+	"omni/internal/state"
+	"omni/internal/web"
 )
 
 // The modes of the bar: what a search covers. The page cycles them with Tab; a prefix typed in the text

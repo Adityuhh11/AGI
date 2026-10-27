@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { Window } from "@wailsio/runtime";
-  import { Service as Settings } from "../bindings/agi/internal/settingsui";
-  import type { SearchView, View } from "../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../bindings/omni/internal/settingsui";
+  import type { SearchView, View } from "../bindings/omni/internal/settingsui";
   import "./lib/settings/forms.css";
   import { after, before, type Step } from "./lib/setup/flow";
   import Done from "./lib/setup/Done.svelte";

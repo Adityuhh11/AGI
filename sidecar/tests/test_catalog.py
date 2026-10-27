@@ -3,8 +3,8 @@ import sqlite3
 import numpy as np
 import pytest
 
-from agi_memory.store import FlatStore, IndexMismatchError
 from helpers import DIM, file_record, make_file_chunks, unit_vectors
+from omni_memory.store import FlatStore, IndexMismatchError
 
 
 def put(store, uri, count, *, tag="v1", sha="sha1", source_id="s", mtime_ns=1):

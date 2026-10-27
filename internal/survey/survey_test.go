@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/sidecar"
+	"omni/internal/sidecar"
 )
 
 // fakeEngine plays the engine's /survey: what it was asked, and what it answers.

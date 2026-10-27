@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 const testToken = "t0ken-xxxxxxxxxxxxxxxxxxxxxxxxxx"

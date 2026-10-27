@@ -1,5 +1,5 @@
-import type { Results } from "../../bindings/agi/internal/search";
-import type { Info } from "../../bindings/agi/internal/status";
+import type { Results } from "../../bindings/omni/internal/search";
+import type { Info } from "../../bindings/omni/internal/status";
 import type { Mode } from "./modes";
 
 /** One line shown above the results; a problem is shown in the danger colour. */

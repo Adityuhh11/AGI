@@ -34,7 +34,7 @@ installers, auto-update, macOS and Linux.
 
 ## Architecture
 
-One background app, `agi.exe` (Go, Wails v3 beta pinned in `go.mod`), with a tray icon and no taskbar entry. It owns the
+One background app, `omni.exe` (Go, Wails v3 beta pinned in `go.mod`), with a tray icon and no taskbar entry. It owns the
 panel window, supervises the Python sidecar and is the only client of its API.
 
 ```
@@ -50,19 +50,19 @@ hotkey (RegisterHotKey) ──> internal/panel ──> Svelte UI (WebView2)
                               Python sidecar (memory engine)
 ```
 
-Repository layout: `cmd/agi/` (entry point), `internal/{config,sidecar,panel,search,files,indexing,tray}/`, `frontend/`
+Repository layout: `cmd/omni/` (entry point), `internal/{config,sidecar,panel,search,files,indexing,tray}/`, `frontend/`
 (Svelte), `sidecar/` unchanged. `docs/` as before.
 
 ### internal/config
 
-`%APPDATA%\AGI\config.toml`, created with defaults on first run, read at start. Parsed with `pelletier/go-toml/v2` (the
+`%APPDATA%\Omni\config.toml`, created with defaults on first run, read at start. Parsed with `pelletier/go-toml/v2` (the
 one new dependency here; the stdlib has no TOML).
 
 ```toml
 hotkey = "Alt+Shift+Space"
-roots = ["C:\\dev\\VS_CODE\\AGI\\Sample Data"]   # v1 default; real folders are added later by hand
+roots = ["C:\\dev\\VS_CODE\\Omni\\Sample Data"]   # v1 default; real folders are added later by hand
 [sidecar]
-dir = "C:\\dev\\VS_CODE\\AGI\\sidecar"   # dev: where `uv run python -m agi_memory` runs; packaging is later
+dir = "C:\\dev\\VS_CODE\\Omni\\sidecar"   # dev: where `uv run python -m omni_memory` runs; packaging is later
 ```
 
 Each root becomes a source with a stable id derived from its path (`root-` plus the first 10 hex of its SHA-256). The
@@ -72,8 +72,8 @@ whole `C:\` is deliberately never a default (AppData, Program Files and caches w
 
 ### internal/sidecar
 
-- **Supervisor**: generates a 32-byte random token per launch, starts `uv run python -m agi_memory` with
-  `AGI_SIDECAR_TOKEN`, `AGI_SIDECAR_PORT` (a free port, passed explicitly), `AGI_MEMORY_DIR`; puts the process in a
+- **Supervisor**: generates a 32-byte random token per launch, starts `uv run python -m omni_memory` with
+  `OMNI_SIDECAR_TOKEN`, `OMNI_SIDECAR_PORT` (a free port, passed explicitly), `OMNI_MEMORY_DIR`; puts the process in a
   Windows Job Object with `KILL_ON_JOB_CLOSE` so it can never outlive the launcher; polls `GET /health` until
   `ready` (cold start measured at 32 s, so the launcher starts the sidecar at launch, not at first search); on exit or
   `error` restarts with backoff (1, 2, 4, ... up to 30 s) and reports state to the UI. Exit status 2 (bad config) and an
@@ -95,7 +95,7 @@ shows "No match" above the (still returned) results in a dim colour rather than 
 
 `Open(path)` (ShellExecute, the default app), `Reveal(path)` (`explorer /select,`), and a thumbnail handler on the asset
 server: `/thumb?path=...` decodes PNG, JPEG, GIF and WebP with the standard library and `golang.org/x/image`, resizes to
-160 px on the long side, and caches the JPEG under `%LOCALAPPDATA%\AGI\thumbs` keyed by path and mtime. It serves only
+160 px on the long side, and caches the JPEG under `%LOCALAPPDATA%\Omni\thumbs` keyed by path and mtime. It serves only
 paths inside a configured root and refuses everything else. PDFs show a text snippet and the page number, no page image
 in v1.
 

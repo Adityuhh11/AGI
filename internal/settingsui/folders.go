@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"agi/internal/config"
+	"omni/internal/config"
 )
 
 // The folders the setup guide offers to search and leave out. The File search page keeps its own one-at-a-time

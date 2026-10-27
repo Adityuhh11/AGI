@@ -1,6 +1,6 @@
 import pytest
 
-from agi_memory.store.identifiers import path_words, split_identifiers
+from omni_memory.store.identifiers import path_words, split_identifiers
 
 
 @pytest.mark.parametrize(

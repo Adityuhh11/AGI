@@ -81,14 +81,14 @@ func TestCacheNamesAreStableDistinctAndSafe(t *testing.T) {
 	}
 }
 
-// TestRealIcons extracts the icon of every kept app on this machine; it runs only with AGI_REAL_APPS=1.
-// With AGI_ICON_DUMP=<folder> it also saves the PNGs there, to look at.
+// TestRealIcons extracts the icon of every kept app on this machine; it runs only with OMNI_REAL_APPS=1.
+// With OMNI_ICON_DUMP=<folder> it also saves the PNGs there, to look at.
 func TestRealIcons(t *testing.T) {
-	if os.Getenv("AGI_REAL_APPS") != "1" {
-		t.Skip("set AGI_REAL_APPS=1 to extract the real icons")
+	if os.Getenv("OMNI_REAL_APPS") != "1" {
+		t.Skip("set OMNI_REAL_APPS=1 to extract the real icons")
 	}
 	index := loadReal(t)
-	dump := os.Getenv("AGI_ICON_DUMP")
+	dump := os.Getenv("OMNI_ICON_DUMP")
 	var failed []string
 	var total, slowest time.Duration
 	count := 0

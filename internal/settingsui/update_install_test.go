@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"agi/internal/update"
+	"omni/internal/update"
 )
 
 // fakeInstaller plays the update installer: it records what it was asked to install and lets the test finish it.
@@ -29,8 +29,8 @@ func (f *fakeInstaller) Cancel()                   { f.cancels++ }
 func (f *fakeInstaller) Progress() update.Progress { return f.progress }
 
 var releaseWithZip = update.Release{
-	Version: "0.4.0", URL: "https://github.com/Adityuhh11/AGI/releases/tag/v0.4.0",
-	Asset: update.Asset{Name: "agi-0.4.0-windows-x64.zip", URL: "https://github.com/Adityuhh11/AGI/releases/download/v0.4.0/agi-0.4.0-windows-x64.zip", Size: 5000, SHA256: strings.Repeat("a", 64)},
+	Version: "0.4.0", URL: "https://github.com/Adityuhh11/Omni/releases/tag/v0.4.0",
+	Asset: update.Asset{Name: "omni-0.4.0-windows-x64.zip", URL: "https://github.com/Adityuhh11/Omni/releases/download/v0.4.0/omni-0.4.0-windows-x64.zip", Size: 5000, SHA256: strings.Repeat("a", 64)},
 }
 
 // foundRelease makes the last check have found rel.
@@ -45,7 +45,7 @@ func TestStartingAnUpdateInstallsTheFoundReleaseOverThisProgram(t *testing.T) {
 	if msg := h.svc.StartUpdate(); msg != "" {
 		t.Fatal(msg)
 	}
-	if len(h.installer.started) != 1 || h.installer.started[0] != releaseWithZip.Asset || h.installer.exe != "C:/app/agi.exe" {
+	if len(h.installer.started) != 1 || h.installer.started[0] != releaseWithZip.Asset || h.installer.exe != "C:/app/omni.exe" {
 		t.Fatalf("installer asked for %+v over %q", h.installer.started, h.installer.exe)
 	}
 	if h.restarts != 0 {

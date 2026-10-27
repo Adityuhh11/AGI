@@ -1,5 +1,5 @@
 name: Feature request
-description: Something you would like AGI to do
+description: Something you would like Omni to do
 labels: [enhancement]
 body:
   - type: markdown
@@ -12,7 +12,7 @@ body:
     id: what
     attributes:
       label: What you would like
-      description: What it would do, and where in AGI.
+      description: What it would do, and where in Omni.
     validations:
       required: true
   - type: textarea

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Settings } from "../../../bindings/agi/internal/settingsui";
-  import type { ClipboardView } from "../../../bindings/agi/internal/settingsui";
+  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { ClipboardView } from "../../../bindings/omni/internal/settingsui";
   import HotkeyField from "./HotkeyField.svelte";
 
   let page = $state<ClipboardView | null>(null);

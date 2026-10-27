@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"agi/internal/calc"
-	"agi/internal/rank"
+	"omni/internal/calc"
+	"omni/internal/rank"
 )
 
 // Extras are the parts of the bar that reach outside it: each is optional, and the bar works without them (the tests do).

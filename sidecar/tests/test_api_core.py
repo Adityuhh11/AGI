@@ -3,11 +3,11 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
-from agi_memory.api.app import create_app
-from agi_memory.config import Settings
-from agi_memory.embedding import FakeEmbedder
 from api_helpers import BASE, DIM, TOKEN, running_app, wait_ready
 from helpers import wait_for
+from omni_memory.api.app import create_app
+from omni_memory.config import Settings
+from omni_memory.embedding import FakeEmbedder
 
 
 def test_health_describes_a_ready_engine(api):

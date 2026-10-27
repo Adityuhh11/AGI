@@ -1,6 +1,6 @@
 # Performance
 
-How fast AGI is and what it costs to run, measured, with and without a graphics card. Numbers are from one machine and
+How fast Omni is and what it costs to run, measured, with and without a graphics card. Numbers are from one machine and
 are not promises: they are here so a reader can judge, and so a change that makes them worse is noticed.
 
 **The machine:** Windows 11, Intel Core i5-13420H (8 cores, 12 threads), 15.7 GB RAM, NVIDIA RTX 4050 Laptop (6 GB) plus the
@@ -29,7 +29,7 @@ Measured on the running app, idle, with file search on and an index of 46,000 ch
 
 | Process | Private memory | Notes |
 |---|---|---|
-| `agi.exe` | 64 MB | the launcher: hotkey, tray, apps, settings |
+| `omni.exe` | 64 MB | the launcher: hotkey, tray, apps, settings |
 | WebView2 (its 5 processes) | about 210 MB | the search bar and Settings pages; Windows trims their working set to about 30 MB when idle |
 | `python.exe` (memory engine) | 457 MB | store and search; the vector file is memory-mapped |
 | `llama-server.exe` | 1.77 GB committed, about 100 MB resident | the commit is the graphics driver's reservation for video memory, not RAM in use (flags that change it were tried, `eval/2026-10-20-indexing-throughput.md`) |

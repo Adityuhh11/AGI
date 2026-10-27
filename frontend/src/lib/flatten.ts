@@ -1,5 +1,5 @@
-import type { Item as Entry } from "../../bindings/agi/internal/palette";
-import type { Match, Row } from "../../bindings/agi/internal/search";
+import type { Item as Entry } from "../../bindings/omni/internal/palette";
+import type { Match, Row } from "../../bindings/omni/internal/search";
 import { arrange } from "./groups.ts";
 
 /** A line of the result list that is a file: the file itself, or (when expanded) one more match inside it. */

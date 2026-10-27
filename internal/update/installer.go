@@ -136,7 +136,7 @@ func (i *Installer) Start(asset Asset, exePath string, done func(error)) error {
 }
 
 // Install does the work of Start in the calling goroutine: check the folder can be written, download, verify,
-// unpack agi.exe next to the program, swap. Until the swap nothing that exists is changed.
+// unpack omni.exe next to the program, swap. Until the swap nothing that exists is changed.
 func (i *Installer) Install(ctx context.Context, asset Asset, exePath string) (err error) {
 	defer func() {
 		if err != nil {

@@ -19,8 +19,8 @@ import (
 )
 
 // latestURL answers with the newest release that is neither a draft nor a pre-release. A variable only so that a test
-// build can point it at a local server (-ldflags "-X agi/internal/update.latestURL=..."); the release build never does.
-var latestURL = "https://api.github.com/repos/Adityuhh11/AGI/releases/latest"
+// build can point it at a local server (-ldflags "-X omni/internal/update.latestURL=..."); the release build never does.
+var latestURL = "https://api.github.com/repos/Adityuhh11/Omni/releases/latest"
 
 // Release is a published version: its number (without the "v"), its page, and the zip that can be installed
 // from the program (empty when the release has none that can be verified: the page is all there is then).
@@ -41,7 +41,7 @@ type Asset struct {
 // assetOf picks the Windows zip of a release out of GitHub's list of its files. A zip whose digest is missing,
 // is not SHA-256 or is not 64 hex digits is left out: nothing is installed that cannot be checked.
 func assetOf(version string, files []githubFile) Asset {
-	want := "agi-" + version + "-windows-x64.zip"
+	want := "omni-" + version + "-windows-x64.zip"
 	for _, f := range files {
 		if f.Name != want {
 			continue
@@ -107,7 +107,7 @@ func (c *Checker) Check(ctx context.Context) (Release, bool, error) {
 		return Release{}, false, fmt.Errorf("build the request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "agi-launcher/"+c.current) // GitHub refuses requests without one
+	req.Header.Set("User-Agent", "omni-launcher/"+c.current) // GitHub refuses requests without one
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return Release{}, false, fmt.Errorf("ask GitHub for the latest release: %w", err)

@@ -62,7 +62,7 @@ func New(app *application.App, hotkey string) *Panel {
 	p := &Panel{app: app, keys: app.GlobalShortcut, hotkey: hotkey, heightDIP: barHeightDIP, previous: foregroundWindow()}
 	p.win = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:          "panel",
-		Title:         "AGI",
+		Title:         "Omni",
 		Width:         widthDIP,
 		Height:        barHeightDIP,
 		Frameless:     true,

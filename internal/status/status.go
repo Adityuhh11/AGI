@@ -3,9 +3,9 @@
 package status
 
 import (
-	"agi/internal/config"
-	"agi/internal/indexing"
-	"agi/internal/sidecar"
+	"omni/internal/config"
+	"omni/internal/indexing"
+	"omni/internal/sidecar"
 )
 
 // Info is the launcher's configuration and health as the UI shows it.

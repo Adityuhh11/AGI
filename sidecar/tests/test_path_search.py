@@ -1,7 +1,7 @@
 import pytest
 
-from agi_memory.types import Chunk, ChunkKind, Filters
 from helpers import unit_vectors
+from omni_memory.types import Chunk, ChunkKind, Filters
 
 
 def chunk(uri, locator="1", *, source_id="s", mtime_ns=1, kind=ChunkKind.TEXT):
@@ -75,7 +75,7 @@ def test_filters_apply(filled):
 def test_a_fragment_found_in_too_many_files_is_ignored(filled, monkeypatch):
     store, _ = filled
     assert len(uris(store, "src")) == 2
-    monkeypatch.setattr("agi_memory.store.keyword._MAX_PATH_FILES", 1)
+    monkeypatch.setattr("omni_memory.store.keyword._MAX_PATH_FILES", 1)
     assert store.path_search("src") == []  # two files match: too common to mean a name
     assert len(store.path_search("jwt.js")) == 1  # a specific name still works
     # the limit is counted inside the searched scope, so a filter can make a fragment specific
@@ -84,7 +84,7 @@ def test_a_fragment_found_in_too_many_files_is_ignored(filled, monkeypatch):
 
 def test_a_fragment_found_in_too_many_chunks_is_ignored(filled, monkeypatch):
     store, _ = filled
-    monkeypatch.setattr("agi_memory.store.keyword._MAX_PATH_CHUNKS", 1)
+    monkeypatch.setattr("omni_memory.store.keyword._MAX_PATH_CHUNKS", 1)
     assert store.path_search("emailService") == []  # one file, but two chunks
     assert len(store.path_search("jwt.js")) == 1
 

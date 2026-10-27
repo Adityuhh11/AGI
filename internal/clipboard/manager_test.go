@@ -10,7 +10,7 @@ func newManager(t *testing.T) (*Manager, *scene) {
 	t.Helper()
 	store, _ := open(t)
 	s := &scene{target: 42}
-	m := NewManager(store, NewWatcher(&fakeSource{}, store, func() bool { return true }, func() []string { return nil }, "agi"), s.paster(), func() bool { return true })
+	m := NewManager(store, NewWatcher(&fakeSource{}, store, func() bool { return true }, func() []string { return nil }, "omni"), s.paster(), func() bool { return true })
 	m.now = func() time.Time { return t0.Add(time.Hour) }
 	return m, s
 }

@@ -37,7 +37,7 @@ rows are noise. Arrow keys cross headings as if they were not there (headings ar
 ## 3. Notes
 
 Quick markdown notes, kept as plain files so they are the user's own: one `.md` file per note in
-`%APPDATA%\AGI\notes\`, the file name a time-based id, the title the first line. Nothing is indexed by the engine and
+`%APPDATA%\Omni\notes\`, the file name a time-based id, the title the first line. Nothing is indexed by the engine and
 nothing leaves the machine.
 
 - Package `internal/notes`: `Store` (list, get, save, delete, search; atomic writes; ids cannot escape the folder),

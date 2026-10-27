@@ -5,7 +5,7 @@ Date: 2026-10-24. Status: approved by the owner on 2026-10-24 with the recommend
 ## 1. Why
 
 The product is stable enough for strangers; the first ten minutes are not. A person today gets a zip, unzips it somewhere, runs an
-unsigned exe past a SmartScreen warning, and sees **Settings on the General page**. Nothing says what AGI is, what the hotkey is for, or that
+unsigned exe past a SmartScreen warning, and sees **Settings on the General page**. Nothing says what Omni is, what the hotkey is for, or that
 file search exists. If they find File search, they download 0.9 GB, wait two minutes for a bar, add folders one picker at a time without
 knowing what each will cost, and watch "41 of 96 files". Each step works; the journey does not teach.
 
@@ -66,7 +66,7 @@ Where we can be **better** than DigUp, not just equal:
 
 ## 4. The setup guide
 
-A window like Settings (`#setup`, own chunk, own Svelte file), opened on first run instead of Settings, from the tray ("Set up AGI..."), and
+A window like Settings (`#setup`, own chunk, own Svelte file), opened on first run instead of Settings, from the tray ("Set up Omni..."), and
 from Settings > About ("Run the guide again"). It is a front end over the services Settings already uses (`settingsui`), so there is one source
 of truth and the Settings pages stay the place to change things later. Existing installs (a `config.toml` already exists) do not see it unless asked.
 
@@ -80,14 +80,14 @@ Steps, each one screen with Back and Continue, progress shown in a footer (downl
 3. **Search your files too?** What it does in one example per kind; what it costs (0.9 GB download once, then offline; about 1.1 GB on disk;
    the card it will use); where it is saved and **Change folder...**; the hosts. Two buttons: **Download and continue** (starts the install at
    once, the footer shows progress) and **Not now** (skips to step 6; nothing is downloaded).
-4. **What should AGI search?** Known folders as checkboxes (Documents, Pictures, Videos, Desktop, plus Downloads off), "Add folder...", and a
+4. **What should Omni search?** Known folders as checkboxes (Documents, Pictures, Videos, Desktop, plus Downloads off), "Add folder...", and a
    "Leave out..." on each (a subfolder picker; writes `exclude`). Each row shows file counts by kind and size from the scan, and, once the
-   engine is ready, a time. "AGI only reads files: it never changes, moves or uploads them."
+   engine is ready, a time. "Omni only reads files: it never changes, moves or uploads them."
 5. **How thorough?** PDF pages, photos, videos, and how hard to work, with the total time for the chosen folders next to each option and
    the device sentence ("on your graphics card" / "on the processor: pictures are slow here"). Defaults follow the device (processor:
    Words only, photo names). This is the S2 choices block, reused.
 6. **You're set.** **Start indexing** (or, if skipped, "Open Settings > File search any time"). Then progress with time left, "you can search
-   right away, results fill in newest first", "AGI lives in the tray, closing this window does not stop it". **Done** closes the guide.
+   right away, results fill in newest first", "Omni lives in the tray, closing this window does not stop it". **Done** closes the guide.
 
 State of the guide is written to `config.toml` as the person goes (folders, choices, hotkey), so closing it half-way loses nothing. There is no
 `setup_done` key: the guide opens on the first start because there is no `config.toml` yet, which that start creates. Built in U2 with the engine
@@ -95,29 +95,29 @@ folder shown (not yet changeable: `data_dir` is U4) and no time estimates (U3).
 
 ## 5. Installing it
 
-Today: zip, run from anywhere. Wanted: **`agi-X.Y.Z-windows-x64-setup.exe`** built with Inno Setup (free, scriptable in CI, the
+Today: zip, run from anywhere. Wanted: **`omni-X.Y.Z-windows-x64-setup.exe`** built with Inno Setup (free, scriptable in CI, the
 format winget handles best):
 
-- per user, no administrator rights, default `%LOCALAPPDATA%\Programs\AGI` (writable, so the in-app update keeps working), folder page to change it;
-- Start menu shortcut, optional Desktop shortcut, "Launch AGI" on the last page;
-- closes a running AGI before upgrading;
+- per user, no administrator rights, default `%LOCALAPPDATA%\Programs\Omni` (writable, so the in-app update keeps working), folder page to change it;
+- Start menu shortcut, optional Desktop shortcut, "Launch Omni" on the last page;
+- closes a running Omni before upgrading;
 - an Apps and features entry and an uninstaller with a question, "Also delete the search engine, models and index (about 1.2 GB)?", off by default,
   never asked during an update;
 - the zip stays as the portable download.
 
 The installer does not duplicate the guide: it decides where the program lives and how it is reached; the guide decides how it behaves
 (hotkey, start at sign-in, file search). "Start when I sign in" therefore stays in the guide and Settings, and keeps using the Run key.
-The updater is unchanged for installed copies (it replaces `agi.exe` in a writable folder); the Apps and features version number would
+The updater is unchanged for installed copies (it replaces `omni.exe` in a writable folder); the Apps and features version number would
 go stale, so the updater also writes it, or later the updater downloads the installer and runs it silently (decide in the plan).
 
-The engine folder (`%LOCALAPPDATA%\AGI\engine`) and the index (`...\memory`) can move: `[search] data_dir` in `config.toml`, applied only before
-a download (or by moving the two folders and restarting); the launcher already reads `AGI_ENGINE_DIR` and the engine `AGI_MEMORY_DIR`, so this
+The engine folder (`%LOCALAPPDATA%\Omni\engine`) and the index (`...\memory`) can move: `[search] data_dir` in `config.toml`, applied only before
+a download (or by moving the two folders and restarting); the launcher already reads `OMNI_ENGINE_DIR` and the engine `OMNI_MEMORY_DIR`, so this
 is one setting that sets both.
 
 ## 6. Making the repository ready for strangers (roadmap phase S4)
 
 From DigUp, adapted: `CONTRIBUTING.md` (open an issue first; measure before and after for speed or quality changes; nothing that sends data
-elsewhere), `SECURITY.md` (private vulnerability reporting), issue forms (bug: what happened, Windows version, AGI version, computer and
+elsewhere), `SECURITY.md` (private vulnerability reporting), issue forms (bug: what happened, Windows version, Omni version, computer and
 graphics card, and the log path with a warning that logs hold file names; feature), a PR template (issue link, tests run, evals if search
 results changed), and **CI on every PR**: `go vet`, `go test ./...`, `npm test` and `svelte-check`, `uv run ruff check` and `uv run pytest` on
 a Windows runner. Release workflow on a tag: build the zip and installer, attach SHA-256s and a build-provenance attestation. The licence,
@@ -137,7 +137,7 @@ signing and the project's name stay parked at the owner's request.
 | U1 | Newest-first scan in the engine; live "time left" from throughput in the Indexing block and the tray; "search works while it indexes" line | Measure on `Sample Data` and the real index |
 | U2 | The guide's shell and steps 1, 2, 3, 6 (no estimates): first-run opens it, tray and About reopen it, `setup_done`, known-folder checklist and leave-out in step 4 | Reuses `settingsui` |
 | U3 | `internal/survey` (files and bytes by kind, same skip rules as the engine) and `estimate` (rates per device and pace, calibrated on `Sample Data` and the owner's index); folder rows and step 5 show times | Calibration is measured, in `docs/eval/` |
-| U4 | Installer (Inno Setup) and the release workflow; `data_dir` | Built (STATUS.md). The updater is unchanged: it replaces `agi.exe` in the install folder, and the Apps and features version stays at the installed one until the next installer runs |
+| U4 | Installer (Inno Setup) and the release workflow; `data_dir` | Built (STATUS.md). The updater is unchanged: it replaces `omni.exe` in the install folder, and the Apps and features version stays at the installed one until the next installer runs |
 
 ## 9. Tests
 

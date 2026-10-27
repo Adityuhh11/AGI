@@ -15,14 +15,14 @@ import (
 )
 
 // DownloadPrefix is where the zips of this project's releases live. An address from anywhere else is refused. A
-// variable only so that a test build can point it at a local server (-ldflags "-X agi/internal/update.DownloadPrefix=...").
-var DownloadPrefix = "https://github.com/Adityuhh11/AGI/releases/download/"
+// variable only so that a test build can point it at a local server (-ldflags "-X omni/internal/update.DownloadPrefix=...").
+var DownloadPrefix = "https://github.com/Adityuhh11/Omni/releases/download/"
 
 // maxZip is the most that is downloaded, and the most that is unpacked from it: the real zip is 5 MB.
 const maxZip = 200 << 20
 
 // exeName is the one file taken from a release's zip.
-const exeName = "agi.exe"
+const exeName = "omni.exe"
 
 // countingWriter reports how many bytes went through it.
 type countingWriter struct {
@@ -46,7 +46,7 @@ func (i *Installer) download(ctx context.Context, asset Asset, dir string, progr
 	if err != nil {
 		return "", fmt.Errorf("build the download request: %w", err)
 	}
-	req.Header.Set("User-Agent", "agi-launcher")
+	req.Header.Set("User-Agent", "omni-launcher")
 	resp, err := i.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("download the update: %w", err)
@@ -87,7 +87,7 @@ func (i *Installer) download(ctx context.Context, asset Asset, dir string, progr
 	return path, nil
 }
 
-// extract writes the one file named agi.exe of the zip to target. Nothing else in the zip is read or written, so a path
+// extract writes the one file named omni.exe of the zip to target. Nothing else in the zip is read or written, so a path
 // in an entry's name cannot put anything anywhere. The file must look like a Windows program.
 func (i *Installer) extract(zipPath, target string) error {
 	r, err := zip.OpenReader(zipPath)

@@ -1,4 +1,4 @@
-import type { TagInfo } from "../../bindings/agi/internal/palette";
+import type { TagInfo } from "../../bindings/omni/internal/palette";
 
 /** The tag picker's lines: every tag, ticked when the thing carries it. */
 export function tagLines(all: TagInfo[], applied: string[]) {
