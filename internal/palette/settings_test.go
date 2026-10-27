@@ -17,8 +17,8 @@ func TestTypingSettingsOffersThePagesAndOnlyTheStartOfATitleCounts(t *testing.T)
 		return strings.Join(out, "|")
 	}
 	for typed, want := range map[string]string{
-		"settings":         "Settings|Settings: Quicklinks|Settings: Snippets|Settings: File search|Settings: Clipboard|Settings: About",
-		"set":              "Settings|Settings: Quicklinks|Settings: Snippets|Settings: File search|Settings: Clipboard|Settings: About",
+		"settings":         "Settings|Settings: Quicklinks|Settings: Snippets|Settings: File search|Settings: Clipboard|Settings: Timer|Settings: About",
+		"set":              "Settings|Settings: Quicklinks|Settings: Snippets|Settings: File search|Settings: Clipboard|Settings: Timer|Settings: About",
 		"settings file":    "Settings: File search",
 		"Settings: Clip":   "Settings: Clipboard",
 		"settings   about": "Settings: About",

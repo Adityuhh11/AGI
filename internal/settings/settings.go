@@ -30,8 +30,10 @@ type Store struct {
 func Open(path string) (*Store, error) {
 	cfg, err := config.Load(path)
 	if err != nil {
+		if _, statErr := os.ReadFile(path); statErr != nil {
+			return nil, err // the file could not be read at all (in use, no permission): keeping it aside would only lose it
+		}
 		aside := filepath.Join(filepath.Dir(path), "config.unreadable.toml")
-		_ = os.Remove(aside)
 		if renameErr := os.Rename(path, aside); renameErr != nil {
 			return nil, fmt.Errorf("%w (and it could not be set aside: %v)", err, renameErr)
 		}

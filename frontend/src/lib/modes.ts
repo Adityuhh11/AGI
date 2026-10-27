@@ -1,8 +1,8 @@
 /**
  * What a search covers. Tab cycles the chip through the first five; a prefix typed in the text (`app: code`) chooses
- * one too. `clip` (what was copied) and `snip` (snippets) are reached by their prefixes and their pinned rows, not by Tab.
+ * one too. `clip` (what was copied), `snip` (snippets) and `note` (notes) are reached by their prefixes and their pinned rows, not by Tab.
  */
-export type Mode = "all" | "apps" | "files" | "web" | "tags" | "clip" | "snip";
+export type Mode = "all" | "apps" | "files" | "web" | "tags" | "clip" | "snip" | "note";
 
 const MODES: readonly Mode[] = ["all", "apps", "files", "web", "tags"];
 
@@ -16,7 +16,7 @@ export function cycle(mode: Mode, delta: 1 | -1, fileSearch = true): Mode {
 export const asksForFiles = (text: string) => /^\s*(code|img|images?|vid|videos?|pdfs?|docs?|text|notes)\s*:/i.test(text);
 
 /** What the chip says; `all` shows no chip. */
-export const label: Record<Mode, string> = { all: "", apps: "Apps", files: "Files", web: "Web", tags: "Tags", clip: "Clipboard", snip: "Snippets" };
+export const label: Record<Mode, string> = { all: "", apps: "Apps", files: "Files", web: "Web", tags: "Tags", clip: "Clipboard", snip: "Snippets", note: "Notes" };
 
 /** What Escape does: leave the mode first, then clear the text, and only then close the bar. */
 export function escapeStep(mode: Mode, text: string): "mode" | "text" | "close" {

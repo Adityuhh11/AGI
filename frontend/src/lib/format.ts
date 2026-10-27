@@ -22,3 +22,28 @@ export function size(bytes: number): string {
 export function files(count: number): string {
   return `${count.toLocaleString("en-US")} ${count === 1 ? "file" : "files"}`;
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** When a note was changed, as a person says it: the time today, "Yesterday", the weekday this week, else the date. */
+export function when(ms: number, now: Date = new Date()): string {
+  const then = new Date(ms);
+  const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((midnight(now) - midnight(then)) / 86_400_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (days <= 0) return `${pad(then.getHours())}:${pad(then.getMinutes())}`;
+  if (days === 1) return "Yesterday";
+  if (days < 7) return DAYS[then.getDay()];
+  const date = `${then.getDate()} ${MONTHS[then.getMonth()]}`;
+  return then.getFullYear() === now.getFullYear() ? date : `${date} ${then.getFullYear()}`;
+}
+
+/** Seconds as a clock: 05:00, 24:31, 1:05:00. */
+export function clock(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const h = Math.floor(s / 3600);
+  const rest = s % 3600;
+  return `${h > 0 ? `${h}:` : ""}${pad(Math.floor(rest / 60))}:${pad(rest % 60)}`;
+}

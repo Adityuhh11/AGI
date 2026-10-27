@@ -1,6 +1,6 @@
 <script lang="ts">
   interface Props {
-    name: "code" | "text" | "image" | "video" | "file" | "app" | "web" | "tag" | "pin" | "clip" | "snippet" | "settings";
+    name: "code" | "text" | "image" | "video" | "file" | "app" | "web" | "tag" | "pin" | "clip" | "snippet" | "settings" | "calc" | "system" | "note" | "timer";
     size?: number;
   }
   let { name, size = 20 }: Props = $props();
@@ -19,6 +19,10 @@
     clip: "M9 4h6v2H9z M7 5.5h-.5A1.5 1.5 0 0 0 5 7v12a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V7a1.5 1.5 0 0 0-1.5-1.5H17 M8.5 11h7 M8.5 14.5h7",
     settings: "M4 8h9 M17 8h3 M4 16h3 M11 16h9 M15 5.5v5 M9 13.5v5",
     pin: "M9 4h6 M10 4l-.6 5.6L7 12v1.5h10V12l-2.4-2.4L14 4 M12 13.5V20",
+    calc: "M7 3.5h10a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z M8.5 6.5h7v3h-7z M9 13h.01 M12 13h.01 M15 13h.01 M9 16.5h.01 M12 16.5h.01 M15 16.5h.01",
+    system: "M12 4v8 M7.2 6.8a7 7 0 1 0 9.6 0",
+    note: "M6 4h12a1 1 0 0 1 1 1v10l-4 4H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M14.5 19v-3.5a.5.5 0 0 1 .5-.5h4 M8.5 8.5h7 M8.5 12h4",
+    timer: "M12 7a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M12 11v4l2.4 1.4 M10 3.5h4 M12 3.5V7",
     app: "M5 5h5.5v5.5H5z M13.5 5H19v5.5h-5.5z M5 13.5h5.5V19H5z M13.5 13.5H19V19h-5.5z",
   };
 </script>

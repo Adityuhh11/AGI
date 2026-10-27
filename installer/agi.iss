@@ -78,7 +78,7 @@ begin
   if UninstallSilent then
     Remove := HasSwitch('/REMOVEDATA')
   else
-    Remove := MsgBox('Also delete what AGI has saved: the search engine and its models, the index of your files, the clipboard history ' +
+    Remove := MsgBox('Also delete what AGI has saved: the search engine and its models, the index of your files, the clipboard history, your notes ' +
       'and your settings (up to about 1.2 GB)?' + #13#10#13#10 + 'Choose No to keep them for a later install. Your own files are never touched.',
       mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
   if Remove then

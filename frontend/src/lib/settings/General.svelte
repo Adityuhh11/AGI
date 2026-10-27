@@ -15,6 +15,8 @@
   let searchURL = $state(view.SearchURL);
   // svelte-ignore state_referenced_locally
   let startup = $state(view.Autostart);
+  // svelte-ignore state_referenced_locally
+  let lift = $state(view.SelectionEffect);
   let browsers = $state<string[]>([]);
   let error = $state("");
   let saved = $state(false);
@@ -61,6 +63,12 @@
     return refused;
   }
 
+  async function saveLift() {
+    error = await Settings.SetSelectionEffect(lift);
+    if (error !== "") lift = !lift;
+    else flashSaved();
+  }
+
   async function saveStartup() {
     error = await Settings.SetAutostart(startup);
     if (error !== "") startup = !startup;
@@ -80,6 +88,11 @@
 <div class="field">
   <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
   <p class="help">The search bar is then ready as soon as Windows is. It starts quietly, with no window.</p>
+</div>
+
+<div class="field">
+  <label class="check"><input type="checkbox" bind:checked={lift} onchange={saveLift} /> Lift the selected result when I use the arrow keys</label>
+  <p class="help">The selected row rises a little and the others fade while you move through the list, then everything settles. Off keeps the list still.</p>
 </div>
 
 <div class="field">

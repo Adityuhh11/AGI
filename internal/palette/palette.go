@@ -37,6 +37,8 @@ const (
 	// built-in rows do).
 	ModeClip = "clip"
 	ModeSnip = "snip"
+	// ModeNotes lists the notes (`note:`), also not reached by Tab.
+	ModeNotes = "note"
 )
 
 const (
@@ -91,7 +93,7 @@ type Browser interface {
 type Item struct {
 	// ID names the thing: the kind, a colon and the kind's own id.
 	ID string
-	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag", "clip", "snippet" or "cmd". The page lists quicklinks
+	// Kind is "app", "quicklink", "web", "file" (a tagged file), "tag", "clip", "snippet", "cmd", "calc", "system", "note" or "timer". The page lists quicklinks
 	// first, then apps and files, and the web search last, as the fallback.
 	Kind     string
 	Title    string
@@ -124,6 +126,7 @@ type Service struct {
 	files   Files
 	clips   Clips
 	snips   Snippets
+	x       Extras
 	// openSettings shows the Settings window on a page (settingsui.Window.OpenAt).
 	openSettings func(section string)
 	dismiss      func()
@@ -152,10 +155,16 @@ func (s *Service) Query(raw, mode string) Answer {
 		answer.Items, answer.Note = s.snippetItems(text)
 		return answer
 	}
+	if mode == ModeNotes {
+		answer.Items, answer.Note = s.noteItems(text)
+		return answer
+	}
 	if text == "" || mode == ModeFiles {
 		return answer
 	}
 	if mode == ModeAll {
+		answer.Items = append(answer.Items, calcItems(text)...) // a sum is the answer to a sum, ahead of anything it also spells
+		answer.Items = append(answer.Items, s.timerItems(text)...)
 		answer.Items = append(answer.Items, s.keywordItems(text)...)
 	}
 	if mode == ModeAll || mode == ModeWeb {
@@ -172,6 +181,7 @@ func (s *Service) Query(raw, mode string) Answer {
 	if mode == ModeAll {
 		answer.Items = append(answer.Items, commandItems(text)...)
 		answer.Items = append(answer.Items, settingsItems(text)...)
+		answer.Items = append(answer.Items, systemItems(text)...)
 	}
 	if (mode == ModeAll || mode == ModeWeb) && utf8.RuneCountInString(text) >= webMinLength {
 		answer.Items = append(answer.Items, Item{ID: "web:" + text, Kind: "web", Title: "Search the web for “" + text + "”", Subtitle: "Web"})
@@ -204,6 +214,9 @@ func parse(raw, mode string) (string, string) {
 	if mode == ModeSnip {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "snip:"))
 	}
+	if mode == ModeNotes {
+		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "note:"))
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "app", "apps":
@@ -214,6 +227,8 @@ func parse(raw, mode string) (string, string) {
 			return ModeClip, strings.TrimSpace(rest)
 		case "snip", "snippet", "snippets":
 			return ModeSnip, strings.TrimSpace(rest)
+		case "note": // not "notes": that is the file search's Documents scope (internal/search/scope.go)
+			return ModeNotes, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -265,6 +280,18 @@ func (s *Service) Do(id, action, typed string) error {
 	}
 	if page, ok := settingsPageFor(id); ok {
 		return s.doSettings(page, action)
+	}
+	if rest, ok := strings.CutPrefix(id, "timer:"); ok {
+		return s.doTimer(rest, action)
+	}
+	if rest, ok := strings.CutPrefix(id, "note:"); ok {
+		return s.doNote(rest, action)
+	}
+	if answer, ok := strings.CutPrefix(id, "calc:"); ok {
+		return s.doCalc(answer, action)
+	}
+	if c, ok := systemCommandFor(id); ok {
+		return s.doSystem(c, action)
 	}
 	if path, ok := strings.CutPrefix(id, "file:"); ok {
 		switch action {
@@ -391,6 +418,9 @@ func (s *Service) itemFor(id string) (Item, bool) {
 	if p, ok := settingsPageFor(id); ok {
 		return p.item(), true
 	}
+	if c, ok := systemCommandFor(id); ok {
+		return c.item(), true
+	}
 	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
 		for _, snippet := range s.snips.List() {
 			if snippet.Name == name {
@@ -477,7 +507,8 @@ func (s *Service) TogglePin(id string) (bool, error) {
 	default:
 		_, command := commandFor(id)
 		_, page := settingsPageFor(id)
-		if !command && !page {
+		_, system := systemCommandFor(id)
+		if !command && !page && !system {
 			return false, fmt.Errorf("%q cannot be pinned", id)
 		}
 	}

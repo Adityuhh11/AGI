@@ -35,7 +35,7 @@ func runRemoveData() error {
 }
 
 // removeData deletes the program's own folders: appData (the engine, the index, caches, clipboard history, the log) and
-// settings (config.toml and what the bar has learned), the engine and the index inside a folder the person chose for
+// settings (config.toml, the notes and what the bar has learned), the engine and the index inside a folder the person chose for
 // them. (The start-at-sign-in entry is the installer's to remove, whatever the person answers.) The folder the person chose is never deleted whole, only the two it holds:
 // a typo in config.toml must not be able to point this at a drive.
 func removeData(appData, settings, dataDir string) error {

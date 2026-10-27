@@ -16,6 +16,8 @@ type Info struct {
 	FileSearch bool
 	// FilesInBar says files are among the results of the default search; the Files mode is there whenever FileSearch is.
 	FilesInBar bool
+	// SelectionEffect and GroupResults are the bar's two feel settings (config.UI, config.Search).
+	SelectionEffect, GroupResults bool
 	// HotkeyError is why the hotkey does not work (another app owns it), or empty.
 	HotkeyError string
 	// Engine is the search engine's state: off, starting, warming, ready, restarting, failed or stopped.
@@ -45,7 +47,8 @@ func New(settings func() config.Config, hotkeyError func() string, engine func()
 // Info returns the launcher's configuration and health.
 func (s *Service) Info() Info {
 	cfg := s.settings()
-	info := Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots, FileSearch: cfg.Search.Enabled, FilesInBar: cfg.Search.Enabled && cfg.Search.InLauncher}
+	info := Info{Hotkey: cfg.Hotkey, Roots: cfg.Roots, FileSearch: cfg.Search.Enabled, FilesInBar: cfg.Search.Enabled && cfg.Search.InLauncher,
+		SelectionEffect: cfg.UI.SelectionEffect, GroupResults: cfg.Search.GroupResults}
 	if s.hotkeyError != nil {
 		info.HotkeyError = s.hotkeyError()
 	}

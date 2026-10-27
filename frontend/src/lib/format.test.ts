@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { duration, files, size } from "./format.ts";
+import { clock, duration, files, size, when } from "./format.ts";
 
 test("a time is said in minutes, then in hours and ten minutes", () => {
   assert.equal(duration(8), "under a minute");
@@ -22,4 +22,24 @@ test("a count of files is plural except for one", () => {
   assert.equal(files(1), "1 file");
   assert.equal(files(1204), "1,204 files");
   assert.equal(files(0), "0 files");
+});
+
+test("a time of change is said as a person says it", () => {
+  const now = new Date(2026, 9, 26, 15, 0); // Monday 26 October 2026
+  const at = (...a: [number, number, number, number?, number?]) => new Date(...a).getTime();
+  assert.equal(when(at(2026, 9, 26, 9, 5), now), "09:05");
+  assert.equal(when(at(2026, 9, 25, 23, 59), now), "Yesterday");
+  assert.equal(when(at(2026, 9, 22, 12, 0), now), "Thu");
+  assert.equal(when(at(2026, 9, 19, 12, 0), now), "19 Oct");
+  assert.equal(when(at(2025, 11, 31, 12, 0), now), "31 Dec 2025");
+  assert.equal(when(at(2026, 9, 27, 1, 0), now), "01:00"); // a clock a little ahead is still "today"
+});
+
+test("seconds are shown as a clock", () => {
+  assert.equal(clock(0), "00:00");
+  assert.equal(clock(5), "00:05");
+  assert.equal(clock(24 * 60 + 31), "24:31");
+  assert.equal(clock(3600), "1:00:00");
+  assert.equal(clock(3725), "1:02:05");
+  assert.equal(clock(-3), "00:00");
 });
