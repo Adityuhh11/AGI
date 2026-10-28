@@ -89,8 +89,8 @@ type OmniAIView struct {
 	Conversations int
 	HistoryFolder string
 	// The values each choice offers, from the settings file's own lists.
-	Loads                                            []string
-	ContextChoices, UnloadChoices, HistoryChoices    []int
+	Loads                                         []string
+	ContextChoices, UnloadChoices, HistoryChoices []int
 }
 
 // historyDayChoices are the times the page offers for keeping conversations; 0 is for good.

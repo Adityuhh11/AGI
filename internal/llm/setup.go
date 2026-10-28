@@ -52,7 +52,9 @@ type Setup struct {
 
 // NewSetup returns a Setup for layout; onDone (may be nil) is called from the install's goroutine when it ends, with its
 // error (nil when it worked).
-func NewSetup(layout Layout, onDone func(error)) *Setup { return &Setup{layout: layout, onDone: onDone} }
+func NewSetup(layout Layout, onDone func(error)) *Setup {
+	return &Setup{layout: layout, onDone: onDone}
+}
 
 // Layout is where the files are now.
 func (s *Setup) Layout() Layout {
