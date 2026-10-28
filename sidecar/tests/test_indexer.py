@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from office_fixture import make_docx, make_pptx, make_xlsx, make_zip
 from omni_memory.config import Settings
 from omni_memory.embedding import FakeEmbedder
 from omni_memory.indexer import Indexer
@@ -652,12 +653,12 @@ def test_a_video_whose_frames_cannot_be_read_keeps_its_name(indexer, store, root
 def test_an_office_file_or_archive_is_found_by_its_name_and_never_read(
     indexer, store, root, embedder
 ):
-    (root / "budget 2026.xlsx").write_bytes(b"PK not read")
+    (root / "budget 2026.doc").write_bytes(b"PK not read")
     (root / "photos.zip").write_bytes(b"PK")
     report = indexer.sync("s", root)
     chunks = sorted(all_chunks(store).values(), key=lambda c: c.uri)
     assert [(c.kind, c.text) for c in chunks] == [
-        (ChunkKind.FILE, "budget 2026.xlsx"),
+        (ChunkKind.FILE, "budget 2026.doc"),
         (ChunkKind.FILE, "photos.zip"),
     ]
     assert (report.added, report.unsupported, report.errors) == (2, 0, [])
@@ -672,3 +673,62 @@ def test_a_renamed_archive_is_a_new_name_and_the_old_one_goes(indexer, store, ro
     report = indexer.sync("s", root)
     assert (report.added, report.removed) == (1, 1)
     assert [c.text for c in all_chunks(store).values()] == ["new.zip"]
+
+
+def test_an_office_file_is_found_by_what_it_says(indexer, store, root):
+    (root / "plan.docx").write_bytes(make_docx(["The lighthouse keeper's rota", "Tuesday: paint"]))
+    (root / "sheet.xlsx").write_bytes(make_xlsx({"Costs": [["rent", 1200]]}))
+    (root / "deck.pptx").write_bytes(make_pptx({1: ["Launch plan"]}))
+    report = indexer.sync("s", root)
+    by_uri = {c.uri: c for c in all_chunks(store).values()}
+    assert all(c.kind is ChunkKind.TEXT for c in by_uri.values())
+    assert by_uri["plan.docx"].text.startswith("plan.docx\n")
+    assert "lighthouse keeper" in by_uri["plan.docx"].text
+    assert "rent\t1200" in by_uri["sheet.xlsx"].text
+    assert "Launch plan" in by_uri["deck.pptx"].text
+    assert (report.added, report.errors) == (3, [])
+    again = indexer.sync("s", root)
+    assert (again.unchanged, again.added, again.updated) == (3, 0, 0)
+
+
+def test_an_edited_office_file_is_embedded_again(indexer, store, root):
+    (root / "plan.docx").write_bytes(make_docx(["old words"]))
+    indexer.sync("s", root)
+    (root / "plan.docx").write_bytes(make_docx(["new words here"]))
+    os.utime(root / "plan.docx", ns=(1, 2_000_000_000))
+    report = indexer.sync("s", root)
+    assert report.updated == 1
+    assert ["new words here" in c.text for c in all_chunks(store).values()] == [True]
+
+
+@pytest.mark.parametrize(
+    "data", [b"", b"PK\x03\x04 broken", b"\xd0\xcf\x11\xe0" + bytes(100), make_zip({"x": "y"})]
+)
+def test_an_office_file_that_cannot_be_read_keeps_its_name_and_is_reported(
+    indexer, store, root, data
+):
+    (root / "locked.docx").write_bytes(data)
+    (root / "fine.txt").write_text("still indexed")
+    report = indexer.sync("s", root)
+    chunks = {c.uri: c for c in all_chunks(store).values()}
+    assert (chunks["locked.docx"].kind, chunks["locked.docx"].text) == (
+        ChunkKind.FILE,
+        "locked.docx",
+    )
+    assert "fine.txt" in chunks
+    assert [e.uri for e in report.errors] == ["locked.docx"]
+    assert "found by its name only" in report.errors[0].message
+
+
+def test_an_office_file_with_no_text_keeps_its_name_without_an_error(indexer, store, root):
+    (root / "photos.pptx").write_bytes(make_pptx({1: []}))
+    report = indexer.sync("s", root)
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text, report.errors) == (ChunkKind.FILE, "photos.pptx", [])
+
+
+def test_audio_is_found_by_its_name(indexer, store, root):
+    (root / "voice memo.m4a").write_bytes(b"\x00\x01 not decoded")
+    report = indexer.sync("s", root)
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text, report.errors) == (ChunkKind.FILE, "voice memo.m4a", [])

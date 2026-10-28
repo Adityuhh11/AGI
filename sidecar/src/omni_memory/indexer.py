@@ -34,7 +34,7 @@ import hashlib
 import time
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import numpy as np
 from PIL.Image import Image
@@ -42,6 +42,7 @@ from PIL.Image import Image
 from omni_memory.chunking.common import ChunkingError
 from omni_memory.chunking.image import image_chunk, load_image
 from omni_memory.chunking.name import file_name_chunk, name_identity
+from omni_memory.chunking.office import office_text
 from omni_memory.chunking.pdf import PdfPages, pages_as_pictures, pdf_page_chunks, pdf_text_chunks
 from omni_memory.chunking.text import NotTextError, chunk_text_document
 from omni_memory.chunking.video import Video, video_frame_chunks, video_identity, video_name_chunk
@@ -262,11 +263,32 @@ class Indexer:
             self._index_pdf(run, record, data, is_new, donor)
         elif file.route is Route.VIDEO:
             self._index_video(run, record, file.path, is_new, donor)
+        elif file.route is Route.OFFICE:
+            self._index_office(run, record, file, data, is_new)
         elif file.route is Route.FILE:
             chunk = file_name_chunk(run.source_id, file.uri, digest, file.mtime_ns)
             run.pending.append(_Pending(record, [chunk], is_new))
         else:
             self._index_image(run, record, data, is_new, donor)
+
+    def _index_office(
+        self, run: _Run, record: FileRecord, file: ScannedFile, data: bytes, is_new: bool
+    ) -> None:
+        """An Office file is searched by its text; one with none (pictures only) or that cannot be
+        unpacked keeps its name, and the second is reported."""
+        chunks: list[Chunk] = []
+        try:
+            text = office_text(
+                data, PurePosixPath(file.uri).suffix.lower(), self._settings.max_text_file_bytes
+            )
+            chunks = chunk_text_document(
+                run.source_id, file.uri, Route.TEXT, text, file.mtime_ns, self._settings
+            )
+        except ChunkingError as error:
+            run.report.errors.append(FileError(file.uri, f"{error}; found by its name only"))
+        if not chunks:
+            chunks = [file_name_chunk(run.source_id, file.uri, record.sha256, file.mtime_ns)]
+        run.pending.append(_Pending(record, chunks, is_new))
 
     def _flush_images(self, run: _Run) -> None:
         """Embed the pending image files in one call (the embedder keeps two in flight), then

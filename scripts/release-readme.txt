@@ -91,7 +91,8 @@ WHERE THINGS ARE
 
 NOT HERE YET
 
-  Window management, system commands, searching inside Office files and archives (their names are found), what is said in a video (only what
+  Window management, system commands, searching inside archives and the older Office formats
+  (.doc, .xls, .ppt: only their names are found), what is said in audio or in a video (only what
   is seen), images in the clipboard history.
 
 WHAT I WOULD LIKE TO KNOW
