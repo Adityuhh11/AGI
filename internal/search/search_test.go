@@ -373,3 +373,34 @@ func TestAnEngineThatIsSwitchedOffAnswersOffNotWarmingOrBroken(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestAMomentInARecordingIsTimedSoAPlayerCanOpenItThere(t *testing.T) {
+	root := filepath.Join(`C:\`, "Media")
+	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
+		return sidecar.SearchFilesResponse{Confident: true, Files: []sidecar.File{
+			{SourceID: "s", URI: "talks/sleep.mp3", Kind: "audio_window", Score: 0.8, Chunks: []sidecar.Chunk{
+				chunk("audio_window", `{"t":75}`, ""), chunk("audio_window", `{"t":15}`, ""),
+			}},
+			{SourceID: "s", URI: "clips/river.mp4", Kind: "video", Score: 0.7, Chunks: []sidecar.Chunk{
+				chunk("video", `{}`, "clips/river.mp4"),
+			}},
+			{SourceID: "s", URI: "notes.md", Kind: "markdown", Score: 0.6, Chunks: []sidecar.Chunk{
+				chunk("markdown", `{"lines":[1,4]}`, "# notes"),
+			}},
+		}}, nil
+	}}
+	got := newTest(engine, map[string]string{"s": root}, ready).Search("sleep", 1)
+	talk, clip, note := got.Rows[0], got.Rows[1], got.Rows[2]
+	if talk.Kind != "audio" || !talk.Timed || talk.Seconds != 75 || talk.Matches[0].Location != "at 1:15" {
+		t.Fatalf("talk = %+v", talk)
+	}
+	if !talk.Matches[1].Timed || talk.Matches[1].Seconds != 15 {
+		t.Fatalf("second match = %+v", talk.Matches[1])
+	}
+	if clip.Timed || clip.Matches[0].Timed {
+		t.Fatalf("a video found by its name is not a moment: %+v", clip)
+	}
+	if note.Timed || note.Seconds != 0 {
+		t.Fatalf("a note has no moment: %+v", note)
+	}
+}

@@ -2,7 +2,7 @@
 // Explorer, and refuses anything that is not inside a folder the launcher indexes.
 //
 // The rule that matters: a file is opened with its default program only if that is known to be
-// harmless (documents and pictures). Windows' default action for a script (.js, .bat, .ps1,
+// harmless (documents, pictures, sounds and videos). Windows' default action for a script (.js, .bat, .ps1,
 // .hta, ...) is to RUN it, and a code search result must never do that, so everything else
 // opens in a text editor.
 package files
@@ -23,6 +23,10 @@ type opener interface {
 	Editor(path string, line int) error
 	// Reveal shows path selected in an Explorer window.
 	Reveal(path string) error
+	// SeekPlayer is the first installed program that can start a recording at a moment, if there is one.
+	SeekPlayer() (Player, bool)
+	// Player starts that program on path at a moment, in seconds.
+	Player(p Player, path string, seconds float64) error
 }
 
 // Service is bound to the frontend; its exported methods become TypeScript functions.
@@ -60,6 +64,31 @@ func (s *Service) Open(path string, line int) error {
 	}
 	s.dismiss()
 	return nil
+}
+
+// OpenAt opens a sound or a video at a moment, in seconds from its start: in VLC, mpv or Media Player Classic when one
+// is installed, since they can be asked to. Without one, or for a file that is not a recording, it opens as Open does.
+func (s *Service) OpenAt(path string, seconds float64) error {
+	if err := s.check(path); err != nil {
+		return err
+	}
+	if player, ok := s.shell.SeekPlayer(); ok && isMedia(path) {
+		if err := s.shell.Player(player, path, seconds); err != nil {
+			return fmt.Errorf("play %s in %s: %w", filepath.Base(path), player.Name, err)
+		}
+		s.dismiss()
+		return nil
+	}
+	return s.Open(path, 0)
+}
+
+// SeekPlayer names the program OpenAt would play a moment in, or is empty when there is none: the bar says which will
+// happen before Enter is pressed.
+func (s *Service) SeekPlayer() string {
+	if player, ok := s.shell.SeekPlayer(); ok {
+		return player.Name
+	}
+	return ""
 }
 
 // Reveal shows a search result in Explorer.
@@ -113,5 +142,5 @@ var defaultAppExtensions = map[string]bool{
 }
 
 func opensInDefaultApp(path string) bool {
-	return defaultAppExtensions[strings.ToLower(filepath.Ext(path))]
+	return defaultAppExtensions[strings.ToLower(filepath.Ext(path))] || isMedia(path)
 }

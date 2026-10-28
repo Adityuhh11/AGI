@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { clock, duration, files, size, when } from "./format.ts";
+import { clock, duration, files, moment, size, when } from "./format.ts";
 
 test("a time is said in minutes, then in hours and ten minutes", () => {
   assert.equal(duration(8), "under a minute");
@@ -43,3 +43,11 @@ test("seconds are shown as a clock", () => {
   assert.equal(clock(3725), "1:02:05");
   assert.equal(clock(-3), "00:00");
 });
+
+test("a moment in a recording is written as a player writes it", () => {
+  assert.equal(moment(7.9), "0:07");
+  assert.equal(moment(75), "1:15");
+  assert.equal(moment(3723.4), "1:02:03");
+  assert.equal(moment(-2), "0:00");
+});
+
