@@ -47,12 +47,17 @@ type Status struct {
 	Message string
 	// Paused says that indexing is stopped on request; a job in progress waits at its next batch.
 	Paused bool
+	// WaitingForPower says that indexing is stopped because the computer runs on its battery.
+	WaitingForPower bool
 }
 
 // String is the one-line form for the tray.
 func (s Status) String() string {
-	if s.Paused && s.State == Indexing {
+	if s.State == Indexing && s.Paused {
 		return "Indexing paused"
+	}
+	if s.State == Indexing && s.WaitingForPower {
+		return "Indexing paused on battery"
 	}
 	switch s.State {
 	case Waiting:

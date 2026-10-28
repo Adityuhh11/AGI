@@ -64,6 +64,7 @@ FILE SEARCH (optional, off until you turn it on)
     twice as long) or Gentle (about six times as long, the computer stays free). Pause and Resume
     are there too, and in the menu of the notification-area icon. Searching works throughout, on
     what is indexed so far.
+    On a laptop that is unplugged indexing waits for power (a checkbox under the speeds turns that off).
   - "Turn off" stops it and keeps the files. "Delete downloaded files" removes the engine and the
     models (about 1.1 GB on disk) and keeps the index, which works again after turning it on.
   - A new version of Omni may come with a newer search engine; Settings offers an Update button.

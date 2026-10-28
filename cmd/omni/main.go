@@ -31,6 +31,7 @@ import (
 	"omni/internal/notes"
 	"omni/internal/palette"
 	"omni/internal/panel"
+	"omni/internal/power"
 	"omni/internal/search"
 	"omni/internal/settings"
 	"omni/internal/settingsui"
@@ -243,6 +244,8 @@ func run(afterUpdate bool) error {
 	surveys.Set(cfg.Roots, cfg.Exclude)
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
+	indexer.WatchBattery(power.OnBattery)
+	indexer.SetPauseOnBattery(cfg.Search.PauseOnBattery)
 	indexer.SetOptions(indexOptions(cfg.Search))
 	browser := web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks)
 
@@ -407,6 +410,9 @@ func run(afterUpdate bool) error {
 		browser.Update(updated.Browser, updated.SearchURL, updated.Quicklinks)
 		if old.Search.Pace != updated.Search.Pace {
 			indexer.SetPace(updated.Search.Pace)
+		}
+		if old.Search.PauseOnBattery != updated.Search.PauseOnBattery {
+			indexer.SetPauseOnBattery(updated.Search.PauseOnBattery)
 		}
 		if old.Search.HoldIndexing != updated.Search.HoldIndexing {
 			refresh() // the tray says whether file search waits to be started

@@ -117,6 +117,9 @@ type Search struct {
 	// DataDir is the folder the search engine, its models and the index are kept under (in engine and memory inside
 	// it), chosen before file search is first downloaded. Empty means %LOCALAPPDATA%\Omni.
 	DataDir string `toml:"data_dir,omitempty"`
+	// PauseOnBattery holds indexing while the computer runs on its battery and goes on when it is plugged in. On by
+	// default: a big sync would drain a laptop.
+	PauseOnBattery bool `toml:"pause_on_battery"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
 	// PDFPages, Photos and Videos say what each kind of file is searched by (docs/superpowers/specs/

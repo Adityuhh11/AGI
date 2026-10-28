@@ -424,3 +424,14 @@ func TestTimerLengthsMustBeSensible(t *testing.T) {
 		}
 	}
 }
+
+func TestAConfigWithoutTheBatteryKeyWaitsForPower(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[search]\nenabled = true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil || !got.Search.PauseOnBattery {
+		t.Fatalf("Load: %v, PauseOnBattery %v; want it on unless the file says off", err, got.Search.PauseOnBattery)
+	}
+}

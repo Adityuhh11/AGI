@@ -36,18 +36,23 @@ type Manager struct {
 	// deleted says whether a root was removed from a disk that is still there; tests replace it.
 	deleted func(root string) bool
 
+	// onBattery says whether the computer is unplugged; nil means it never is.
+	onBattery func() bool
+
 	rescan chan struct{}
 	wake   chan struct{} // a folder changed on disk (see Changed)
 
-	mu      sync.Mutex
-	status  Status
-	roots   []string        // the folders to index
-	exclude []string        // folders inside the roots to leave out
-	options sidecar.IndexOptions
-	dirty   map[string]bool // roots whose folders changed since they were last synced
-	pace    string          // fast, balanced or gentle
-	paused  bool
-	states  map[string]FolderStatus // where each folder is, for the settings window
+	mu            sync.Mutex
+	status        Status
+	roots         []string // the folders to index
+	exclude       []string // folders inside the roots to leave out
+	options       sidecar.IndexOptions
+	dirty         map[string]bool // roots whose folders changed since they were last synced
+	pace          string          // fast, balanced or gentle
+	paused        bool            // the person paused indexing
+	held          bool            // indexing waits for the computer to be plugged in
+	holdOnBattery bool
+	states        map[string]FolderStatus // where each folder is, for the settings window
 }
 
 // New returns a manager for roots. ready says whether the engine can take work; onChange (may be
@@ -82,7 +87,7 @@ func (m *Manager) Folders() []FolderStatus {
 func (m *Manager) isPaused() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.paused
+	return m.paused || m.held
 }
 
 func (m *Manager) failed(root string) bool {
@@ -102,7 +107,7 @@ func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	s := m.status
-	s.Paused = m.paused
+	s.Paused, s.WaitingForPower = m.paused, m.held
 	return s
 }
 
@@ -183,6 +188,7 @@ func (m *Manager) retryPause(failures int) time.Duration {
 // Run syncs everything, then syncs again when asked: all roots on Rescan (and, after a failure,
 // when the retry pause is over), just the changed roots on Changed. It returns when ctx ends.
 func (m *Manager) Run(ctx context.Context) {
+	go m.watchPower(ctx)
 	failures := 0 // syncs in a row that failed
 	run := func(only map[string]bool) {
 		if m.cycle(ctx, only) {

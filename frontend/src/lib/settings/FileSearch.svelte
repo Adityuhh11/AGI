@@ -268,6 +268,11 @@
         {/if}
         <span class="sublabel" id="speed-label">How hard it works</span>
         <ChoiceGroup labelId="speed-label" options={SPEEDS} value={search.Pace} onpick={(id) => run(() => Settings.SetPace(id))} hints={paceHints(search.Estimate)} />
+        <label class="check">
+          <input type="checkbox" checked={search.PauseOnBattery} onchange={(e) => run(() => Settings.SetPauseOnBattery(e.currentTarget.checked))} />
+          Wait for power
+        </label>
+        <p class="help">Indexing stops while the computer runs on its battery and goes on when it is plugged in. Searching is not affected.</p>
       </div>
     </details>
   </section>
