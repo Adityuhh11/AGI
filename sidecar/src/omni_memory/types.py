@@ -18,6 +18,7 @@ class ChunkKind(enum.StrEnum):
     IMAGE = "image"
     VIDEO = "video"  # a video found by its name: the text is its path
     VIDEO_FRAME = "video_frame"  # one frame of a video, embedded as a picture
+    FILE = "file"  # an Office file or an archive found by its name: the text is its path
 
 
 @dataclass(frozen=True, slots=True)

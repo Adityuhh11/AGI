@@ -39,6 +39,13 @@ func TestTheEstimateIsWithinAThirdOfWhatSampleDataTook(t *testing.T) {
 	}
 }
 
+func TestAFileFoundByNameIsOneTextChunk(t *testing.T) {
+	w := WorkFor(map[string]sidecar.RouteCount{"file": {Files: 7, Bytes: 5 << 30}}, sidecar.IndexOptions{})
+	if w.TextChunks != 7 || w.Pictures != 0 {
+		t.Errorf("work = %+v, want 7 text chunks and no pictures", w)
+	}
+}
+
 func TestWhatEachChoiceAddsToTheWork(t *testing.T) {
 	routes := map[string]sidecar.RouteCount{
 		"pdf":   {Files: 4, Bytes: 10 << 20},

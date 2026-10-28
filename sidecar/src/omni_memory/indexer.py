@@ -41,6 +41,7 @@ from PIL.Image import Image
 
 from omni_memory.chunking.common import ChunkingError
 from omni_memory.chunking.image import image_chunk, load_image
+from omni_memory.chunking.name import file_name_chunk, name_identity
 from omni_memory.chunking.pdf import PdfPages, pages_as_pictures, pdf_page_chunks, pdf_text_chunks
 from omni_memory.chunking.text import NotTextError, chunk_text_document
 from omni_memory.chunking.video import Video, video_frame_chunks, video_identity, video_name_chunk
@@ -240,6 +241,8 @@ class Indexer:
             return
         if file.route is Route.VIDEO:
             data, digest = b"", video_identity(file.path, file.size)  # never read whole
+        elif file.route is Route.FILE:
+            data, digest = b"", name_identity(file.size)  # only the name counts
         else:
             data = file.path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()
@@ -259,6 +262,9 @@ class Indexer:
             self._index_pdf(run, record, data, is_new, donor)
         elif file.route is Route.VIDEO:
             self._index_video(run, record, file.path, is_new, donor)
+        elif file.route is Route.FILE:
+            chunk = file_name_chunk(run.source_id, file.uri, digest, file.mtime_ns)
+            run.pending.append(_Pending(record, [chunk], is_new))
         else:
             self._index_image(run, record, data, is_new, donor)
 

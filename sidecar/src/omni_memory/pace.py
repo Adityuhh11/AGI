@@ -81,7 +81,8 @@ class Pacer:
                 remaining = started + self.delay_for(busy_seconds) - time.monotonic()
                 if remaining <= 0:
                     return
-                self._cond.wait(remaining)  # a pause or a new speed arriving meanwhile wakes this up
+                # a pause or a new speed arriving meanwhile wakes this up
+                self._cond.wait(remaining)
 
 
 class PacedEmbedder:

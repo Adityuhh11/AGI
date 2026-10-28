@@ -76,6 +76,8 @@ func WorkFor(routes map[string]sidecar.RouteCount, o sidecar.IndexOptions) Work 
 			} else {
 				w.TextChunks += float64(c.Files) // its file name
 			}
+		case "file":
+			w.TextChunks += float64(c.Files) // its name
 		case "video":
 			w.TextChunks += float64(c.Files) // the name, in either choice
 			if o.Videos == "content" {

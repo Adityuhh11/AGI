@@ -647,3 +647,28 @@ def test_a_video_whose_frames_cannot_be_read_keeps_its_name(indexer, store, root
     assert chunk.kind is ChunkKind.VIDEO
     assert [e.uri for e in report.errors] == ["broken.mp4"]
     assert "found by its name only" in report.errors[0].message
+
+
+def test_an_office_file_or_archive_is_found_by_its_name_and_never_read(
+    indexer, store, root, embedder
+):
+    (root / "budget 2026.xlsx").write_bytes(b"PK not read")
+    (root / "photos.zip").write_bytes(b"PK")
+    report = indexer.sync("s", root)
+    chunks = sorted(all_chunks(store).values(), key=lambda c: c.uri)
+    assert [(c.kind, c.text) for c in chunks] == [
+        (ChunkKind.FILE, "budget 2026.xlsx"),
+        (ChunkKind.FILE, "photos.zip"),
+    ]
+    assert (report.added, report.unsupported, report.errors) == (2, 0, [])
+    again = indexer.sync("s", root)
+    assert (again.unchanged, again.added, again.updated) == (2, 0, 0)
+
+
+def test_a_renamed_archive_is_a_new_name_and_the_old_one_goes(indexer, store, root):
+    (root / "old.zip").write_bytes(b"PK1234")
+    indexer.sync("s", root)
+    (root / "old.zip").rename(root / "new.zip")
+    report = indexer.sync("s", root)
+    assert (report.added, report.removed) == (1, 1)
+    assert [c.text for c in all_chunks(store).values()] == ["new.zip"]

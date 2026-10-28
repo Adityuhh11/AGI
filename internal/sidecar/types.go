@@ -35,7 +35,7 @@ type RouteCount struct {
 }
 
 // Survey is the answer of POST /survey: what indexing a folder would read, by kind ("code", "markdown", "text",
-// "pdf", "image", "video"), counted without opening any file, and what it would skip.
+// "pdf", "image", "video", "file"), counted without opening any file, and what it would skip.
 type Survey struct {
 	Routes      map[string]RouteCount `json:"routes"`
 	Denied      int                   `json:"denied"`

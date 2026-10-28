@@ -13,12 +13,13 @@ import (
 
 // SearchView is the File search page: what is installed, how an install is going, and how the engine is.
 type SearchView struct {
-	Enabled      bool
-	InLauncher   bool // files are among the results of the default search
-	GroupResults bool // file results are shown under a heading per kind
-	Installed    bool
-	Installing   bool
-	NeedsUpdate  bool
+	Enabled        bool
+	InLauncher     bool // files are among the results of the default search
+	GroupResults   bool // file results are shown under a heading per kind
+	PauseOnBattery bool // indexing waits while the computer runs on its battery
+	Installed      bool
+	Installing     bool
+	NeedsUpdate    bool
 	// Step, Steps and StepName say where an install is; Done and Total are bytes of the download in progress.
 	Step, Steps int
 	StepName    string
@@ -71,7 +72,7 @@ func (s *Service) Search() SearchView {
 	return SearchView{
 		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
 		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
-		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, GroupResults: cfg.Search.GroupResults, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
+		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, GroupResults: cfg.Search.GroupResults, PauseOnBattery: cfg.Search.PauseOnBattery, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
@@ -218,6 +219,11 @@ func (s *Service) SetInLauncher(on bool) string {
 // SetGroupResults shows file results under a heading per kind of file with the best match first, or as one list.
 func (s *Service) SetGroupResults(on bool) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.GroupResults = on }))
+}
+
+// SetPauseOnBattery makes indexing wait while the computer runs on its battery, or lets it work there.
+func (s *Service) SetPauseOnBattery(on bool) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.PauseOnBattery = on }))
 }
 
 // SetPace sets how hard indexing works: fast, balanced or gentle.
