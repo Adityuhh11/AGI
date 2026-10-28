@@ -244,8 +244,6 @@ func run(afterUpdate bool) error {
 	surveys.Set(cfg.Roots, cfg.Exclude)
 	indexer.SetExclude(cfg.Exclude)
 	indexer.SetPace(cfg.Search.Pace)
-	indexer.WatchBattery(power.OnBattery)
-	indexer.SetPauseOnBattery(cfg.Search.PauseOnBattery)
 	indexer.SetOptions(indexOptions(cfg.Search))
 	browser := web.New(cfg.Browser, cfg.SearchURL, cfg.Quicklinks)
 
@@ -472,6 +470,9 @@ func run(afterUpdate bool) error {
 				}
 			}()
 		}
+		// Set here, not with the other indexer settings: being unplugged reports a change, and the tray is not made yet there.
+		indexer.WatchBattery(power.OnBattery)
+		indexer.SetPauseOnBattery(cfg.Search.PauseOnBattery)
 		go indexer.Run(ctx)
 		go countdown.Run(ctx)
 		go surveys.Run(ctx)
