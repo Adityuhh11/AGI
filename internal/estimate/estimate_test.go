@@ -40,7 +40,7 @@ func TestTheEstimateIsWithinAThirdOfWhatSampleDataTook(t *testing.T) {
 }
 
 func TestAFileFoundByNameIsOneTextChunk(t *testing.T) {
-	w := WorkFor(map[string]sidecar.RouteCount{"file": {Files: 7, Bytes: 5 << 30}}, sidecar.IndexOptions{})
+	w := WorkFor(map[string]sidecar.RouteCount{"file": {Files: 4, Bytes: 5 << 30}, "office": {Files: 3, Bytes: 1 << 20}}, sidecar.IndexOptions{})
 	if w.TextChunks != 7 || w.Pictures != 0 {
 		t.Errorf("work = %+v, want 7 text chunks and no pictures", w)
 	}

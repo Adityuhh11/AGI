@@ -76,6 +76,10 @@ func WorkFor(routes map[string]sidecar.RouteCount, o sidecar.IndexOptions) Work 
 			} else {
 				w.TextChunks += float64(c.Files) // its file name
 			}
+		case "office":
+			// ponytail: a file is its zip size, not its text size, so one chunk each; a huge workbook is
+			// underestimated until its cost is measured.
+			w.TextChunks += float64(c.Files)
 		case "file":
 			w.TextChunks += float64(c.Files) // its name
 		case "video":
