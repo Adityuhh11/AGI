@@ -7,6 +7,7 @@
   import Clipboard from "./lib/settings/Clipboard.svelte";
   import FileSearch from "./lib/settings/FileSearch.svelte";
   import General from "./lib/settings/General.svelte";
+  import OmniAI from "./lib/settings/OmniAI.svelte";
   import Quicklinks from "./lib/settings/Quicklinks.svelte";
   import Snippets from "./lib/settings/Snippets.svelte";
   import TimerSettings from "./lib/settings/TimerSettings.svelte";
@@ -17,6 +18,7 @@
     { id: "snippets", label: "Snippets" },
     { id: "search", label: "File search" },
     { id: "clipboard", label: "Clipboard" },
+    { id: "omni-ai", label: "Omni AI" },
     { id: "timer", label: "Timer" },
     { id: "about", label: "About" },
   ] as const;
@@ -64,6 +66,8 @@
         <FileSearch {view} {reload} />
       {:else if section === "clipboard"}
         <Clipboard />
+      {:else if section === "omni-ai"}
+        <OmniAI />
       {:else if section === "timer"}
         <TimerSettings {view} />
       {:else}

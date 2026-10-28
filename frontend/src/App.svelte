@@ -260,7 +260,7 @@
     answerNote = answer.Note ?? "";
     selected = 0;
     clearTimeout(timer);
-    if ((effective === "all" && !info?.FilesInBar && !asksForFiles(query)) || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip" || effective === "note") {
+    if ((effective === "all" && !info?.FilesInBar && !asksForFiles(query)) || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip" || effective === "note" || effective === "ask") {
       token++;
       pending = false;
       results = null;

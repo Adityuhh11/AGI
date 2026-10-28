@@ -22,6 +22,8 @@ if (location.hash.startsWith("#setup")) {
   import("./Setup.svelte").then(({ default: Setup }) => mount(Setup, { target }));
 } else if (location.hash.startsWith("#notes")) {
   import("./Notes.svelte").then(({ default: Notes }) => mount(Notes, { target }));
+} else if (location.hash.startsWith("#chat")) {
+  import("./Chat.svelte").then(({ default: Chat }) => mount(Chat, { target }));
 } else if (location.hash.startsWith("#timer")) {
   import("./Timer.svelte").then(({ default: Timer }) => mount(Timer, { target }));
 } else if (location.hash.startsWith("#settings")) {
