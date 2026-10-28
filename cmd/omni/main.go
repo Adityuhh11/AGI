@@ -23,11 +23,14 @@ import (
 	"omni"
 	"omni/internal/apps"
 	"omni/internal/autostart"
+	"omni/internal/chat"
 	"omni/internal/clipboard"
 	"omni/internal/config"
 	"omni/internal/enginesetup"
 	"omni/internal/files"
+	"omni/internal/hotkey"
 	"omni/internal/indexing"
+	"omni/internal/llm"
 	"omni/internal/notes"
 	"omni/internal/palette"
 	"omni/internal/panel"
@@ -287,6 +290,7 @@ func run(afterUpdate bool) error {
 	setupWindow := settingsui.NewSetupWindow(app)
 	notesWindow := settingsui.NewNotesWindow(app)
 	timerWindow := settingsui.NewTimerWindow(app)
+	chatWindow := settingsui.NewChatWindow(app)
 	// A notes folder that cannot be opened (read-only, a strange profile) costs the notes, not the launcher.
 	noteStore, err := notes.Open(filepath.Join(filepath.Dir(path), "notes"))
 	var noteBook palette.NoteBook
@@ -295,6 +299,65 @@ func run(afterUpdate bool) error {
 		noteStore = nil
 	} else {
 		noteBook = noteStore // not assigned when nil: a nil *Store inside the interface would not look nil to the bar
+	}
+	// Omni AI: the model's files and server (internal/llm) and the conversations (internal/chat). It is separate from file
+	// search and needs nothing of it. A chats folder that cannot be opened costs the history, not the chat.
+	chatLayout, err := llm.Locate(cfg.Search.DataDir)
+	if err != nil {
+		return err
+	}
+	var chatSvc *chat.Service // set below; the model reports to it once the app runs
+	chatSetup := llm.NewSetup(chatLayout, func(err error) {
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				log.Printf("installing Omni AI failed: %v", err)
+			}
+			return
+		}
+		log.Print("Omni AI is installed")
+		if err := store.Update(func(c *config.Config) { c.Chat.Enabled = true }); err != nil {
+			log.Printf("switching Omni AI on: %v", err)
+		}
+	})
+	chatModel := llm.NewServer(llm.Options{
+		Layout:        chatSetup.Layout,
+		ContextTokens: func() int { return store.Get().Chat.ContextTokens },
+		IdleMinutes:   func() int { return store.Get().Chat.UnloadAfterMinutes },
+		OnChange: func(st llm.Status) {
+			if chatSvc != nil {
+				chatSvc.ModelChanged(st)
+			}
+		},
+		Logf: log.Printf,
+	})
+	chatStore, err := chat.Open(filepath.Join(filepath.Dir(path), "chats"))
+	var chatHistory settingsui.ChatHistory
+	if err != nil {
+		log.Printf("conversations are not kept: %v", err)
+		chatStore = nil
+	} else {
+		chatHistory = chatStore // not assigned when nil: a nil *Store inside the interface would not look nil
+	}
+	chatSvc = chat.NewService(chat.Options{
+		Store:        chatStore,
+		Model:        chatModel,
+		Settings:     func() config.Chat { return store.Get().Chat },
+		SetThinking:  func(on bool) error { return store.Update(func(c *config.Config) { c.Chat.Thinking = on }) },
+		Installed:    func() bool { return chatSetup.Layout().Installed() },
+		Emit:         func(event string, data any) { app.Event.Emit(event, data) },
+		SetOnTop:     chatWindow.SetAlwaysOnTop,
+		OpenSettings: func(section string) { settingsWindow.OpenAt(section) },
+		Logf:         log.Printf,
+	})
+	openChat := func() {
+		chatWindow.Open()
+		chatSvc.Warm()
+	}
+	// The chat's own hotkey shows the window and closes it again when it is the one in use.
+	chatKey := hotkey.NewSlot(app.GlobalShortcut)
+	toggleChat := func() {
+		chatWindow.Toggle()
+		chatSvc.Warm()
 	}
 	// The timer lives here, not in its window: the window opens when one starts and closes when it ends.
 	countdown := timer.New(
@@ -319,7 +382,7 @@ func run(afterUpdate bool) error {
 			indexer.Pause()
 		}
 	}
-	icon = tray.New(app, bar.Show, notesWindow.Open, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
+	icon = tray.New(app, bar.Show, notesWindow.Open, openChat, settingsWindow.Open, setupWindow.Open, indexer.Rescan, togglePause)
 	for _, service := range []application.Service{
 		application.NewService(panel.NewService(bar)),
 		application.NewService(status.New(store.Get, bar.HotkeyError, engine.Status, indexer.Status)),
@@ -335,6 +398,12 @@ func run(afterUpdate bool) error {
 			RunSystem: system.Run,
 			Notes:     noteBook,
 			OpenNote:  notesWindow.OpenAt,
+			Assistant: chatSvc,
+			AskChat: func(text string) {
+				chatSvc.Ask(text)
+				chatWindow.OpenAt("new")
+			},
+			OpenChat: chatWindow.OpenAt,
 			Timer:     countdown,
 			Sound: &soundoffer.Service{
 				Settings: store, Surveys: surveys, Waivers: history, Now: time.Now,
@@ -345,6 +414,17 @@ func run(afterUpdate bool) error {
 		})),
 		application.NewService(notes.NewService(noteStore, notesWindow.SetAlwaysOnTop)),
 		application.NewService(timer.NewService(countdown)),
+		application.NewService(chatSvc),
+		application.NewService(settingsui.NewOmniAI(settingsui.OmniAIOptions{
+			Store:        store,
+			Setup:        chatSetup,
+			Model:        chatModel,
+			History:      chatHistory,
+			ClearHistory: func() error { _, err := chatSvc.ClearHistory(); return err },
+			RebindHotkey: func(accelerator string) error { return chatKey.Rebind(accelerator, toggleChat) },
+			HotkeyError:  chatKey.Error,
+			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+		})),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
 			Setup:    setup,
@@ -431,6 +511,26 @@ func run(afterUpdate bool) error {
 			surveys.Set(updated.Roots, updated.Exclude)
 			watchFolders(updated.Roots)
 		}
+		if old.Chat != updated.Chat {
+			chatSvc.Refresh()
+			icon.SetChat(updated.Chat.Enabled)
+			if old.Chat.UnloadAfterMinutes != updated.Chat.UnloadAfterMinutes {
+				chatModel.Rearm()
+			}
+			if old.Chat.Enabled && !updated.Chat.Enabled {
+				chatModel.Unload()
+			}
+			if updated.Chat.Enabled && updated.Chat.Load == "at_start" && (!old.Chat.Enabled || old.Chat.Load != "at_start") {
+				chatSvc.Warm()
+			}
+		}
+		if old.Search.DataDir != updated.Search.DataDir { // the folder chosen for the downloads holds the chat model as well
+			if layout, err := llm.Locate(updated.Search.DataDir); err != nil {
+				log.Print(err)
+			} else if err := chatSetup.Move(layout); err != nil {
+				log.Printf("Omni AI stays where it is: %v", err)
+			}
+		}
 		if want := engineWanted(updated); want != engineWanted(old) {
 			if want {
 				engineSwitch.On()
@@ -477,6 +577,22 @@ func run(afterUpdate bool) error {
 				}
 			}()
 		}
+		icon.SetChat(cfg.Chat.Enabled)
+		go chatSvc.Housekeeping()
+		if hk := cfg.Chat.Hotkey; hk != "" {
+			go func() { // like the other hotkeys: registering asks the main thread, which is running this handler
+				if err := chatKey.Rebind(hk, toggleChat); err != nil {
+					log.Print(err)
+					chatKey.SetError(err.Error())
+				}
+			}()
+		}
+		if cfg.Chat.Enabled && cfg.Chat.Load == "at_start" {
+			go func() {
+				time.Sleep(15 * time.Second) // never on the way to the first bar
+				chatSvc.Warm()
+			}()
+		}
 		// Set here, not with the other indexer settings: being unplugged reports a change, and the tray is not made yet there.
 		indexer.WatchBattery(power.OnBattery)
 		indexer.SetPauseOnBattery(cfg.Search.PauseOnBattery)
@@ -495,6 +611,7 @@ func run(afterUpdate bool) error {
 	runErr := app.Run()
 
 	stop()
+	chatModel.Unload()
 	stopped := make(chan struct{})
 	go func() { engineSwitch.Wait(); close(stopped) }()
 	select {

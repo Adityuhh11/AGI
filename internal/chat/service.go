@@ -18,6 +18,7 @@ const (
 	EventDone   = "chat:done"   // Done: the answer is finished, stopped or failed
 	EventModel  = "chat:model"  // Info: the model's state or a setting changed
 	EventAsk    = "chat:ask"    // nothing: a question is waiting for the window (TakePending)
+	EventReset  = "chat:reset"  // View: the open conversation was replaced (history cleared from Settings)
 )
 
 // Delta is a piece of an answer.
@@ -264,6 +265,13 @@ func (s *Service) Delete(id string) (View, error) {
 	return s.Current(), nil
 }
 
+// reset starts an empty conversation and tells the window, for a change that did not come from the window.
+func (s *Service) reset() View {
+	view := s.New()
+	s.o.Emit(EventReset, view)
+	return view
+}
+
 // ClearHistory deletes every saved conversation and leaves an empty one open.
 func (s *Service) ClearHistory() (View, error) {
 	if s.o.Store != nil {
@@ -271,7 +279,7 @@ func (s *Service) ClearHistory() (View, error) {
 			return View{}, err
 		}
 	}
-	return s.New(), nil
+	return s.reset(), nil
 }
 
 // SetUnsaved says whether this chat is kept. Turning it on deletes the file the chat already has; turning it off saves it.

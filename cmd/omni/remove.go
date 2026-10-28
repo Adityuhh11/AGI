@@ -35,8 +35,8 @@ func runRemoveData() error {
 }
 
 // removeData deletes the program's own folders: appData (the engine, the index, caches, clipboard history, the log) and
-// settings (config.toml, the notes and what the bar has learned), the engine and the index inside a folder the person chose for
-// them. (The start-at-sign-in entry is the installer's to remove, whatever the person answers.) The folder the person chose is never deleted whole, only the two it holds:
+// settings (config.toml, the notes, the conversations and what the bar has learned), the engine, the index and the chat model
+// inside a folder the person chose for them. (The start-at-sign-in entry is the installer's to remove, whatever the person answers.) The folder the person chose is never deleted whole, only the two it holds:
 // a typo in config.toml must not be able to point this at a drive.
 func removeData(appData, settings, dataDir string) error {
 	var errs []error
@@ -51,7 +51,7 @@ func removeData(appData, settings, dataDir string) error {
 		if !strings.EqualFold(filepath.Base(dataDir), "Omni") {
 			errs = append(errs, fmt.Errorf("%s is not an Omni folder, not deleting what is in it", dataDir))
 		} else {
-			errs = append(errs, os.RemoveAll(filepath.Join(dataDir, "engine")), os.RemoveAll(filepath.Join(dataDir, "memory")))
+			errs = append(errs, os.RemoveAll(filepath.Join(dataDir, "engine")), os.RemoveAll(filepath.Join(dataDir, "memory")), os.RemoveAll(filepath.Join(dataDir, "chat")))
 			_ = os.Remove(dataDir) // only if nothing else is in it
 		}
 	}

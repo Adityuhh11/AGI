@@ -8,7 +8,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
 
-// windowSpec is what tells the settings window, the setup guide, the notes window and the timer apart: all four are the
+// windowSpec is what tells the settings window, the setup guide, the notes window, the chat and the timer apart: all are the
 // same page host, each opened on its own route.
 type windowSpec struct {
 	name, title, route  string
@@ -25,6 +25,7 @@ var (
 	settingsSpec = windowSpec{name: "settings", title: "Omni Settings", route: "settings", width: 860, height: 620, minWidth: 680, minHeight: 480}
 	setupSpec    = windowSpec{name: "setup", title: "Set up Omni", route: "setup", width: 760, height: 700, minWidth: 640, minHeight: 560}
 	notesSpec    = windowSpec{name: "notes", title: "Omni Notes", route: "notes", width: 420, height: 560, minWidth: 300, minHeight: 280, onTop: true}
+	chatSpec     = windowSpec{name: "chat", title: "Omni AI", route: "chat", width: 460, height: 640, minWidth: 340, minHeight: 320, onTop: true}
 	timerSpec    = windowSpec{name: "timer", title: "Omni Timer", route: "timer", width: 264, height: 92, onTop: true, overlay: true}
 )
 
@@ -53,6 +54,9 @@ func NewSetupWindow(app *application.App) *Window { return &Window{app: app, spe
 
 // NewNotesWindow returns the Window of the notes: small, resizable and above other windows until the person says otherwise.
 func NewNotesWindow(app *application.App) *Window { return &Window{app: app, spec: notesSpec} }
+
+// NewChatWindow returns the Window of Omni AI: resizable and above other windows until the person says otherwise.
+func NewChatWindow(app *application.App) *Window { return &Window{app: app, spec: chatSpec} }
 
 // NewTimerWindow returns the Window of the timer overlay.
 func NewTimerWindow(app *application.App) *Window { return &Window{app: app, spec: timerSpec} }
@@ -142,6 +146,15 @@ func (w *Window) Close() {
 	if win != nil {
 		win.Close()
 	}
+}
+
+// Toggle is what a hotkey does: it closes the window when it is the one in use, and opens it otherwise.
+func (w *Window) Toggle() {
+	if win := w.current(); win != nil && win.IsFocused() {
+		w.Close()
+		return
+	}
+	w.Open()
 }
 
 // SetAlwaysOnTop keeps the window above other windows, or lets them cover it. Without an open window it does nothing.
