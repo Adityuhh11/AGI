@@ -75,13 +75,16 @@ fields are rejected. `exclude` is optional: folders below `path` to leave out, w
 an indexed source shrinks it. Each counts once in `ignored`.
 
 `options` is optional: `{"pdf_pages": "auto" | "all" | "text", "photos": "content" | "name", "videos": "name" |
-"content"}`, defaults first (spec: `superpowers/specs/2026-10-20-indexing-choices-design.md`). A sync with
-options different from the source's last ones processes every PDF, picture or video again (whichever option changed)
+"content", "audio": "name" | "content"}`, defaults first (specs: `superpowers/specs/2026-10-20-indexing-choices-design.md`,
+`superpowers/specs/2026-10-28-audio-search-design.md`). `audio: "content"` also searches what is said and played in audio
+files and in the soundtrack of videos (30 s windows every 15 s; silence is skipped). A sync with
+options different from the source's last ones processes every PDF, picture, video or audio file again (whichever option changed)
 and reuses every vector it already has, so only chunks that did not exist before are embedded. The options and the
 kinds still to redo are recorded before the first file is touched, so a sync that stops part-way leaves the redo to the
 next one, whatever options that one brings. The launcher leaves `options` out when they are the defaults, so an engine
 from before this field still indexes after a launcher update. An index
-built before options existed counts as `{"pdf_pages": "all", "photos": "content"}`.
+built before options existed counts as `{"pdf_pages": "all", "photos": "content"}`, and one built before `audio` existed
+processes its audio files again once (they were `file` chunks and are now `audio` chunks).
 
 - `202` `{"job_id": "job-1"}`
 - `400` `path` is not an absolute local path to an existing folder. Network (UNC) paths are refused.
@@ -185,7 +188,9 @@ Request:
 ```
 
 `query` is up to 4000 characters; empty or blank returns no hits. `k` is 1-100, default 10. Every filter is
-optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_text`, `pdf_page`, `image`, `video` (found by its name), `video_frame` (locator `{"t": seconds}`).
+optional, and so is `filters`. `kinds` values: `code`, `markdown`, `text`, `pdf_text`, `pdf_page`, `image`, `video` (found by its name), `video_frame` (locator `{"t": seconds}`), `audio` (an audio file found by its name),
+`audio_window` (30 s of sound, locator `{"t": seconds}`, its start; its `score` is shifted onto the scale of the other kinds, see
+ADR 0007).
 `modified_after_ns` is integer nanoseconds since the epoch (the store's unit). Unknown fields are rejected.
 
 `200`:

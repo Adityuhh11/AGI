@@ -118,5 +118,11 @@ class PacedEmbedder:
         self._pacer.checkpoint(time.monotonic() - started)
         return vectors
 
+    def embed_audio(self, clips: Sequence[np.ndarray]) -> np.ndarray:
+        started = time.monotonic()
+        vectors = self._inner.embed_audio(clips)
+        self._pacer.checkpoint(time.monotonic() - started)
+        return vectors
+
     def embed_query(self, text: str) -> np.ndarray:
         return self._inner.embed_query(text)

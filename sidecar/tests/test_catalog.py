@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import numpy as np
@@ -170,3 +171,17 @@ def test_a_deleted_source_leaves_the_list(store):
     put(store, "x.txt", 2, source_id="a")
     store.delete_source("a")
     assert store.sources() == []
+
+
+def test_options_stored_before_audio_search_redo_the_audio_files(store):
+    store.register_source("s", "C:/a")
+    old = {"pdf_pages": "auto", "photos": "content", "videos": "name", "redo": []}
+    store._db.execute(
+        "INSERT INTO source_options (source_id, options) VALUES (?, ?)", ("s", json.dumps(old))
+    )
+    options, redo = store.source_options("s")
+    assert options.audio == "name" and redo == {"audio"}
+    store.begin_options("s", options, redo)
+    assert store.source_options("s")[1] == {"audio"}  # kept until the sync that does it finishes
+    store.mark_scanned("s", 1, options)
+    assert store.source_options("s")[1] == frozenset()

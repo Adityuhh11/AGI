@@ -28,6 +28,7 @@
   <li>“the clause about pets in the lease” opens the PDF page</li>
   <li>“retry a failed call with backoff” finds the function; <kbd>code:</kbd> limits a search to code</li>
   <li>“red ball floating in a river” finds the video, and “dog on a beach” the photo</li>
+  <li>“the part about sleep” finds the moment in a recording or a video where it is talked about</li>
 </ul>
 
 <div class="field">

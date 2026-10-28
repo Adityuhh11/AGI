@@ -5,6 +5,7 @@ import { keyCommand } from "./keys.ts";
 
 const file = { kind: "row", row: { Path: "C:\\a.txt", Matches: [] } };
 const clip = { kind: "entry", entry: { ID: "clip:1", Kind: "clip" } };
+const offer = { kind: "entry", entry: { ID: "offer:sound", Kind: "offer", Actions: ["delete"] } };
 const web = { kind: "entry", entry: { ID: "web:x", Kind: "web" } };
 const press = (key, mods = {}, ctx = {}) =>
   keyCommand({ key, ctrlKey: false, shiftKey: false, altKey: false, ...mods }, { current: file, atEndOfText: true, expanded: false, ...ctx });
@@ -40,6 +41,8 @@ test("Ctrl shortcuts need a row that supports them", () => {
   assert.deepEqual(press("k", { ctrlKey: true }), { do: "actions" });
   assert.equal(press("k", { ctrlKey: true }, { current: undefined }), null);
   assert.deepEqual(press("Delete", { ctrlKey: true }, { current: clip }), { do: "run", how: "delete" });
+  assert.deepEqual(press("Delete", { ctrlKey: true }, { current: offer }), { do: "run", how: "delete" }); // not now
+  assert.deepEqual(press("Enter", { ctrlKey: true }, { current: offer }), { do: "run", how: "reveal" }); // nothing to copy: unavailable, ignored
   assert.equal(press("Delete", { ctrlKey: true }), null);
   assert.deepEqual(press(",", { ctrlKey: true }, { current: undefined }), { do: "settings" });
   assert.equal(press("x"), null);

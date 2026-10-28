@@ -17,7 +17,7 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | | |
 |---|---|
 | **Apps** | Type a few letters (`vsc`, `chr`), the first letters of each word, or part of a name. Frequently used apps rise. An app that is already open is brought to the front instead of starting twice. |
-| **Files, by meaning** *(optional)* | Describe what you want: "the diagram with the three boxes", "how I hash passwords", "t distribution table". Finds code, PDF pages, notes, photos (by what they show) and videos (by name, or by eight frames from inside them). Results show where in the file the match is. |
+| **Files, by meaning** *(optional)* | Describe what you want: "the diagram with the three boxes", "how I hash passwords", "t distribution table". Finds code, PDF pages, notes, photos (by what they show) videos (by name, or by eight frames from inside them) and, if you choose, sound: audio files and the soundtrack of videos, found by describing what is said or played ("the part where they talk about sleep", "rain on a roof"), with the moment shown. Results show where in the file the match is. |
 | **Web and quicklinks** | `?` or `web:` searches in the browser you choose. `gh rust lifetimes` opens that search on GitHub; add your own quicklinks. |
 | **Clipboard history** *(off until you switch it on)* | `clip:` lists what you copied, newest first. Enter pastes it into the program you came from. Skips copies marked private, password managers and programs you list. |
 | **Snippets** | Text you paste often, with `{date}`, `{time}` and `{clipboard}` filled in. `snip:` or a keyword. |
@@ -62,7 +62,7 @@ File search is the part that needs real resources, so it is a choice you make in
    engine (llama.cpp), its Python libraries (pinned, through `uv`) and the embedding model, about 1 GB from `github.com`,
    `pypi.org`, `files.pythonhosted.org` and `huggingface.co`. Every file is checked against a pinned SHA-256. It took about
    two minutes on a fast connection. Cancelling keeps what was downloaded.
-2. **Add folders and choose what to index** (PDF pages, photos, videos) and **how hard it works** (Fast, Balanced, Gentle).
+2. **Add folders and choose what to index** (PDF pages, photos, videos, audio and sound) and **how hard it works** (Fast, Balanced, Gentle).
    Nothing is read until you press **Start indexing**, so you choose first. Each folder shows how many files and how much it holds, and each
    option says how long indexing will take on this computer (within about a quarter; the time left takes over once it runs). The defaults are sensible; on a computer without a
    graphics card choose *Words only* for PDFs and *names* for photos.
@@ -87,7 +87,8 @@ File search is the part that needs real resources, so it is a choice you make in
 
 - **Instant things are answered by Go itself** from memory (the Start Menu list, your pins and tags), so the bar never waits.
 - **File search is hybrid.** A file is split into chunks (code by lines, Markdown by section, PDFs by page, photos and
-  video frames as pictures). Each chunk becomes a 768-number vector from a small embedding model, and a query is turned into one the
+  video frames as pictures, audio in 30-second windows a new one every 15 seconds, using the audio encoder of the same model: no speech
+  recognition, no extra download). Each chunk becomes a 768-number vector from a small embedding model, and a query is turned into one the
   same way. Results blend three signals into one score: vector similarity, keyword (BM25) matches on the text and identifiers,
   and the query appearing in the file's path. The engine also says when nothing is a *confident* match, using a noise ceiling it measures from
   its own index, so a query with no real answer returns "closest files" rather than a confident wrong one.
@@ -150,6 +151,7 @@ pace     = 'balanced'    # fast | balanced | gentle
 pdf_pages = 'auto'       # auto | all | text
 photos   = 'content'     # content | name
 videos   = 'name'        # name | content
+audio    = 'name'        # name | content: audio files and the soundtrack of videos
 ```
 
 | What | Where |

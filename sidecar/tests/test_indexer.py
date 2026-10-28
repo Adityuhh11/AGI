@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from audio_fixture import make_wav
 from office_fixture import make_docx, make_pptx, make_xlsx, make_zip
 from omni_memory.config import Settings
 from omni_memory.embedding import FakeEmbedder
@@ -26,6 +27,7 @@ class CountingEmbedder(FakeEmbedder):
         self.document_calls = 0
         self.titles: list[str] = []
         self.image_calls = 0
+        self.audio_clips = 0
 
     def embed_documents(self, texts, titles=None):
         self.document_calls += 1
@@ -35,6 +37,10 @@ class CountingEmbedder(FakeEmbedder):
     def embed_images(self, images):
         self.image_calls += 1
         return super().embed_images(images)
+
+    def embed_audio(self, clips):
+        self.audio_clips += len(clips)
+        return super().embed_audio(clips)
 
 
 @pytest.fixture
@@ -731,4 +737,160 @@ def test_audio_is_found_by_its_name(indexer, store, root):
     (root / "voice memo.m4a").write_bytes(b"\x00\x01 not decoded")
     report = indexer.sync("s", root)
     (chunk,) = all_chunks(store).values()
-    assert (chunk.kind, chunk.text, report.errors) == (ChunkKind.FILE, "voice memo.m4a", [])
+    assert (chunk.kind, chunk.text, report.errors) == (ChunkKind.AUDIO, "voice memo.m4a", [])
+
+
+def sound(store):
+    return sorted(
+        (c.locator for c in all_chunks(store).values() if c.kind is ChunkKind.AUDIO_WINDOW),
+        key=lambda locator: float(locator[5:-1]),
+    )
+
+
+def test_audio_is_never_decoded_while_it_is_found_by_its_name(indexer, store, embedder, root):
+    make_wav(root / "song.wav", 40)
+    indexer.sync("s", root)
+    (chunk,) = all_chunks(store).values()
+    assert (chunk.kind, chunk.text) == (ChunkKind.AUDIO, "song.wav")
+    assert embedder.audio_clips == 0
+
+
+def test_audio_by_content_has_its_name_and_a_window_every_fifteen_seconds(
+    indexer, store, embedder, root
+):
+    make_wav(root / "talk.wav", 40)
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    assert Counter(c.kind for c in all_chunks(store).values()) == {
+        ChunkKind.AUDIO: 1,
+        ChunkKind.AUDIO_WINDOW: 2,
+    }
+    assert sound(store) == ['{"t":0.0}', '{"t":15.0}'] and report.errors == []
+    assert (embedder.audio_clips, embedder.image_calls) == (2, 0)
+
+
+def test_windows_of_a_file_that_did_not_change_are_not_embedded_again(indexer, embedder, root):
+    make_wav(root / "talk.wav", 40)
+    options = IndexOptions(audio="content")
+    indexer.sync("s", root, options=options)
+    report = indexer.sync("s", root, options=options)
+    assert (report.unchanged, embedder.audio_clips) == (1, 2)
+
+
+def test_going_back_to_names_drops_the_windows_and_embeds_nothing(indexer, store, embedder, root):
+    make_wav(root / "talk.wav", 40)
+    indexer.sync("s", root, options=IndexOptions(audio="content"))
+    report = indexer.sync("s", root, options=IndexOptions(audio="name"))
+    assert report.updated == 1 and sound(store) == []
+    assert embedder.audio_clips == 2
+
+
+def test_a_change_of_the_audio_choice_redoes_only_audio_and_videos(indexer, embedder, root):
+    write(root, "notes.txt", "plain words " * 20)
+    make_wav(root / "talk.wav", 20)
+    make_video(root / "clip.mp4")
+    indexer.sync("s", root)
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    assert (report.updated, report.unchanged) == (2, 1)
+
+
+def test_a_moved_audio_file_takes_the_vectors_of_the_identical_one(indexer, store, embedder, root):
+    options = IndexOptions(audio="content")
+    make_wav(root / "talk.wav", 40)
+    indexer.sync("s", root, options=options)
+    (root / "talk.wav").rename(root / "renamed.wav")
+    report = indexer.sync("s", root, options=options)
+    assert (report.added, report.removed, report.reused) == (1, 1, 1)
+    assert embedder.audio_clips == 2 and sound(store) == ['{"t":0.0}', '{"t":15.0}']
+
+
+def test_a_videos_soundtrack_is_searched_when_audio_is_by_content(indexer, store, embedder, root):
+    make_video(root / "talk.mkv", seconds=2, audio_seconds=4, loud=True)
+    make_video(root / "mute.mp4")
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    kinds = Counter((c.uri, c.kind) for c in all_chunks(store).values())
+    assert kinds == {
+        ("talk.mkv", ChunkKind.VIDEO): 1,
+        ("talk.mkv", ChunkKind.AUDIO_WINDOW): 1,
+        ("mute.mp4", ChunkKind.VIDEO): 1,
+    }
+    assert (report.errors, embedder.image_calls, embedder.audio_clips) == ([], 0, 1)
+
+
+def test_a_videos_frames_and_sound_are_chosen_separately(indexer, store, root):
+    make_video(root / "talk.mkv", seconds=2, audio_seconds=4, loud=True)
+    indexer.sync("s", root, options=IndexOptions(videos="content", audio="name"))
+    assert Counter(c.kind for c in all_chunks(store).values()) == {
+        ChunkKind.VIDEO: 1,
+        ChunkKind.VIDEO_FRAME: 8,
+    }
+    indexer.sync("s", root, options=IndexOptions(videos="content", audio="content"))
+    assert Counter(c.kind for c in all_chunks(store).values()) == {
+        ChunkKind.VIDEO: 1,
+        ChunkKind.VIDEO_FRAME: 8,
+        ChunkKind.AUDIO_WINDOW: 1,
+    }
+
+
+def test_a_file_of_silence_keeps_only_its_name_and_is_not_an_error(indexer, store, embedder, root):
+    make_wav(root / "quiet.wav", 40, sounds=((0.0, 0.0),))
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    (chunk,) = all_chunks(store).values()
+    assert chunk.kind is ChunkKind.AUDIO and report.errors == [] and embedder.audio_clips == 0
+
+
+def test_audio_that_cannot_be_decoded_keeps_its_name(indexer, store, root):
+    (root / "broken.mp3").write_bytes(b"not sound" * 100)
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    (chunk,) = all_chunks(store).values()
+    assert chunk.kind is ChunkKind.AUDIO
+    assert [e.uri for e in report.errors] == ["broken.mp3"]
+    assert "found by its name only" in report.errors[0].message
+
+
+def test_an_audio_file_with_no_sound_is_reported_and_keeps_its_name(indexer, store, root):
+    make_video(root / "picture-only.mkv", seconds=2).rename(root / "voice.m4a")
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    (chunk,) = all_chunks(store).values()
+    assert chunk.kind is ChunkKind.AUDIO
+    assert "the file has no sound" in report.errors[0].message
+
+
+def test_an_index_from_before_audio_search_finds_its_audio_files_again(indexer, store, root):
+    make_wav(root / "song.wav", 20)
+    indexer.sync("s", root)
+    store._db.execute("DELETE FROM source_options")  # as an index built before the options
+    report = indexer.sync("s", root)  # the file did not change, its kind did
+    assert report.updated == 1
+
+
+def test_audio_found_by_its_name_is_not_opened_at_all(indexer, root, monkeypatch):
+    # A cloud-only OneDrive file is fetched to be read, and a locked one cannot be: by name, only
+    # the size is used.
+    make_wav(root / "song.wav", 5)
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("an audio file found by its name must not be opened")
+
+    monkeypatch.setattr("omni_memory.indexer.media_identity", refuse)
+    report = indexer.sync("s", root)
+    assert (report.added, report.errors) == (1, [])
+
+
+def test_audio_by_content_is_identified_by_its_ends_and_a_rename_still_reuses_its_vectors(
+    indexer, store, embedder, root
+):
+    make_wav(root / "talk.wav", 40)
+    indexer.sync("s", root, options=IndexOptions(audio="content"))
+    (root / "talk.wav").rename(root / "moved.wav")
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    assert (report.reused, embedder.audio_clips) == (1, 2)
+
+
+def test_a_video_whose_frames_fail_is_not_said_to_have_only_its_name_when_sound_is_searched(
+    indexer, root
+):
+    (root / "broken.mp4").write_bytes(b"not a video" * 100)
+    report = indexer.sync("s", root, options=IndexOptions(videos="content", audio="content"))
+    said = " | ".join(error.message for error in report.errors)
+    assert "its frames are not searched" in said and "found without its sound" in said
+    assert "found by its name only" not in said

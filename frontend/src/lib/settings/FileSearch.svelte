@@ -24,7 +24,7 @@
   // On an index that exists a click only changes the draft; "Save and re-index" is what starts the work. Before anything
   // is indexed (right after the download, or with no folders yet) there is nothing to protect, so a click applies at once.
   const staged = $derived(!!search && search.Indexed > 0 && !search.HoldIndexing);
-  const saved = $derived<Choices | null>(search ? { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos } : null);
+  const saved = $derived<Choices | null>(search ? { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos, Audio: search.Audio } : null);
   const shown = $derived($draft ?? saved);
   const plan = $derived(saved && $draft ? changes(saved, $draft) : []);
 
@@ -32,7 +32,7 @@
     if (!saved) return;
     const next = { ...(shown ?? saved), [kind]: id };
     if (!staged) {
-      await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos));
+      await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos, next.Audio));
       return;
     }
     $draft = changes(saved, next).length > 0 ? next : null;
@@ -42,7 +42,7 @@
     if (!$draft) return;
     const next = $draft;
     $draft = null;
-    await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos));
+    await run(() => Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos, next.Audio));
   }
 
   const refresh = async () => {
@@ -238,7 +238,7 @@
       <input type="checkbox" checked={search.GroupResults} onchange={(e) => run(() => Settings.SetGroupResults(e.currentTarget.checked))} />
       Group files by type
     </label>
-    <p class="help">Shows the best match first, then Code, Documents, PDFs, Images and Videos under their own headings. Off, files are one list in the order found.</p>
+    <p class="help">Shows the best match first, then Code, Documents, PDFs, Images, Videos and Audio under their own headings. Off, files are one list in the order found.</p>
   </section>
 
   <section class="block">

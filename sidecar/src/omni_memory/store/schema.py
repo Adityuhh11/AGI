@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 CREATE INDEX IF NOT EXISTS chunks_source ON chunks(source_id);
 CREATE INDEX IF NOT EXISTS chunks_source_uri ON chunks(source_id, uri);
+-- Covering: "which rows are of this kind" (kind scopes, the audio offset of a search) never reads
+-- the chunk rows, which carry the text.
+CREATE INDEX IF NOT EXISTS chunks_kind ON chunks(kind, vec_row);
 
 CREATE TABLE IF NOT EXISTS sources (
     id           TEXT PRIMARY KEY,

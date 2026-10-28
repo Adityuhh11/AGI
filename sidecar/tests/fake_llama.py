@@ -11,6 +11,7 @@ import base64
 import io
 import json
 import threading
+import wave
 import zlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -49,6 +50,7 @@ class FakeLlama:
         self.gpu_lost = False  # answer 500 "ErrorDeviceLost", as the real server does
         self.loading = False  # answer 503 "Loading model", as the real server does while it starts
         self.image_sizes: list[tuple[int, int]] = []
+        self.audio_clips: list[tuple[int, int, int]] = []  # (rate, channels, frames) of each WAV
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -102,7 +104,15 @@ class FakeLlama:
             return expected_for_text(item)
         if isinstance(item, list):
             return expected_for_ids(item)
-        uri = item["content"][0]["image_url"]["url"]
+        part = item["content"][0]
+        if part["type"] == "input_audio":
+            data = part["input_audio"]["data"]
+            with wave.open(io.BytesIO(base64.b64decode(data))) as clip:
+                self.audio_clips.append(
+                    (clip.getframerate(), clip.getnchannels(), clip.getnframes())
+                )
+            return vector("audio:" + data[-64:])
+        uri = part["image_url"]["url"]
         image = Image.open(io.BytesIO(base64.b64decode(uri.split(",", 1)[1])))
         self.image_sizes.append(image.size)
         return vector("image:" + uri[-64:])

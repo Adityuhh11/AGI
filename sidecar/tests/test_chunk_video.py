@@ -1,11 +1,10 @@
 import pytest
 
-from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.common import ChunkingError, media_identity
 from omni_memory.chunking.video import (
     FRAMES,
     Video,
     video_frame_chunks,
-    video_identity,
     video_name_chunk,
 )
 from omni_memory.types import ChunkKind
@@ -54,8 +53,8 @@ def test_identity_reads_the_ends_and_changes_with_the_content(tmp_path):
     one.write_bytes(b"a" * size)
     same.write_bytes(b"a" * size)
     other.write_bytes(b"a" * (size - 1) + b"b")  # the same size, the last byte differs
-    assert video_identity(one, size) == video_identity(same, size)
-    assert video_identity(one, size) != video_identity(other, size)
+    assert media_identity(one, size) == media_identity(same, size)
+    assert media_identity(one, size) != media_identity(other, size)
 
 
 def test_the_name_chunk_and_frame_chunks_have_distinct_identities():

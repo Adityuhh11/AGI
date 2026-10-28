@@ -91,9 +91,10 @@ def test_only_bulk_calls_are_paced_never_a_query():
     paced = PacedEmbedder(FakeEmbedder(DIM), recorder)  # type: ignore[arg-type]
     paced.embed_documents(["a", "b"], ["x", "y"])
     paced.embed_images([])
-    assert len(recorder.calls) == 2 and all(c >= 0 for c in recorder.calls)
+    paced.embed_audio([])
+    assert len(recorder.calls) == 3 and all(c >= 0 for c in recorder.calls)
     paced.embed_query("anything")
-    assert len(recorder.calls) == 2
+    assert len(recorder.calls) == 3
     assert (paced.model_id, paced.dim, paced.device) == ("fake-hashed-bow-v1", DIM, "cpu")
 
 

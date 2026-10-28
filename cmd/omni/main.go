@@ -37,6 +37,7 @@ import (
 	"omni/internal/settingsui"
 	"omni/internal/sidecar"
 	"omni/internal/snippets"
+	"omni/internal/soundoffer"
 	"omni/internal/state"
 	"omni/internal/status"
 	"omni/internal/survey"
@@ -335,6 +336,12 @@ func run(afterUpdate bool) error {
 			Notes:     noteBook,
 			OpenNote:  notesWindow.OpenAt,
 			Timer:     countdown,
+			Sound: &soundoffer.Service{
+				Settings: store, Surveys: surveys, Waivers: history, Now: time.Now,
+				// An engine from before audio search would refuse the sync the choice starts: it is offered after the update.
+				Ready: func() bool { return engine.Status().State == sidecar.StateReady && !setup.State().NeedsUpdate },
+				OnCPU: func() bool { return engine.Status().Device == "cpu" },
+			},
 		})),
 		application.NewService(notes.NewService(noteStore, notesWindow.SetAlwaysOnTop)),
 		application.NewService(timer.NewService(countdown)),
@@ -500,7 +507,7 @@ func run(afterUpdate bool) error {
 
 // indexOptions are the indexing choices of the settings in the engine's terms.
 func indexOptions(s config.Search) sidecar.IndexOptions {
-	return sidecar.IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos}
+	return sidecar.IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos, Audio: s.Audio}
 }
 
 // statusLine is the one sentence the tray shows about the launcher, most urgent problem first.

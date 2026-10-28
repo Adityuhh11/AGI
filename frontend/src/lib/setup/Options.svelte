@@ -4,6 +4,7 @@
   import ChoiceGroup from "../settings/ChoiceGroup.svelte";
   import { CHOICES, SPEEDS } from "../settings/choices";
   import { choiceHints, paceHints } from "../settings/hints";
+  import type { Kind } from "../indexingPlan";
 
   interface Props {
     search: SearchView;
@@ -16,16 +17,17 @@
   // An index that exists is changed on the File search page, where a change is saved before it re-indexes.
   const existing = $derived(search.Indexed > 0 && !search.HoldIndexing);
 
-  async function choose(kind: "PDFPages" | "Photos" | "Videos", id: string) {
-    const next = { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos, [kind]: id };
-    error = await Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos);
+  async function choose(kind: Kind, id: string) {
+    const next = { PDFPages: search.PDFPages, Photos: search.Photos, Videos: search.Videos, Audio: search.Audio, [kind]: id };
+    error = await Settings.SetIndexing(next.PDFPages, next.Photos, next.Videos, next.Audio);
     await refresh();
   }
 </script>
 
 <h2>How thorough?</h2>
 <p class="lede">
-  Pictures are what indexing time goes on: about 0.16 seconds each on a graphics card, about 5 seconds on a processor alone.
+  Pictures are what indexing time goes on: about 0.16 seconds each on a graphics card, about 5 seconds on a processor alone. Sound is
+  cheaper: about a minute per hour of audio on a graphics card, 15 minutes on a processor.
 </p>
 
 {#if existing}

@@ -465,17 +465,20 @@ func TestTheIndexingChoicesAreShownSavedAndValidated(t *testing.T) {
 	h := newHarness(t)
 	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady, Device: "cpu"} }
 	view := h.svc.Search()
-	if view.PDFPages != "auto" || view.Photos != "content" || view.Videos != "name" || view.Device != "cpu" {
+	if view.PDFPages != "auto" || view.Photos != "content" || view.Videos != "name" || view.Audio != "name" || view.Device != "cpu" {
 		t.Fatalf("view = %+v", view)
 	}
-	if msg := h.svc.SetIndexing("text", "name", "content"); msg != "" {
+	if msg := h.svc.SetIndexing("text", "name", "content", "content"); msg != "" {
 		t.Fatal(msg)
 	}
-	if s := h.store.Get().Search; s.PDFPages != "text" || s.Photos != "name" || s.Videos != "content" {
+	if s := h.store.Get().Search; s.PDFPages != "text" || s.Photos != "name" || s.Videos != "content" || s.Audio != "content" {
 		t.Fatalf("saved %+v", s)
 	}
-	if msg := h.svc.SetIndexing("some", "name", "content"); !strings.Contains(msg, "pdf_pages") {
+	if msg := h.svc.SetIndexing("some", "name", "content", "content"); !strings.Contains(msg, "pdf_pages") {
 		t.Fatalf("a bad choice was not refused: %q", msg)
+	}
+	if msg := h.svc.SetIndexing("auto", "name", "content", "on"); !strings.Contains(msg, "audio") {
+		t.Fatalf("a bad audio choice was not refused: %q", msg)
 	}
 }
 

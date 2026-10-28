@@ -1,7 +1,7 @@
 // Run with: node --test src/lib/actions.test.ts (Node strips the types itself)
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { actionsFor as actionsOf, filterActions } from "./actions.ts";
+import { actionsFor as actionsOf, filterActions, forgets } from "./actions.ts";
 import { tagIdOf } from "./flatten.ts";
 
 const actionsFor = (item) => actionsOf(item, tagIdOf(item) !== null);
@@ -68,3 +68,10 @@ test("a snippet offers Paste and can be pinned; a built-in row opens and can be 
   const command = { kind: "entry", entry: { ID: "cmd:snippets", Kind: "cmd", Actions: null } };
   assert.deepEqual(actionsOf(command, false, "unpin").map((a) => [a.id, a.title]), [["open", "Open"], ["pin", "Unpin"]]);
 });
+
+test("an offer can be turned on or put off, nothing else", () => {
+  const offer = { kind: "entry", entry: { ID: "offer:sound", Kind: "offer", Actions: ["delete"] } };
+  assert.deepEqual(actionsFor(offer).map((a) => [a.id, a.title]), [["open", "Turn on"], ["delete", "Not now"]]);
+  assert.ok(forgets(offer) && !forgets(file));
+});
+

@@ -21,6 +21,7 @@ import (
 	"omni/internal/clipboard"
 	"omni/internal/config"
 	"omni/internal/rank"
+	"omni/internal/soundoffer"
 	"omni/internal/state"
 	"omni/internal/web"
 )
@@ -159,13 +160,22 @@ func (s *Service) Query(raw, mode string) Answer {
 		answer.Items, answer.Note = s.noteItems(text)
 		return answer
 	}
-	if text == "" || mode == ModeFiles {
+	if mode == ModeFiles {
+		if text != "" {
+			answer.Items = s.offerItems(raw, text)
+		}
+		return answer
+	}
+	if text == "" {
 		return answer
 	}
 	if mode == ModeAll {
 		answer.Items = append(answer.Items, calcItems(text)...) // a sum is the answer to a sum, ahead of anything it also spells
 		answer.Items = append(answer.Items, s.timerItems(text)...)
 		answer.Items = append(answer.Items, s.keywordItems(text)...)
+		if soundScope.MatchString(raw) {
+			answer.Items = append(answer.Items, s.offerItems(raw, text)...)
+		}
 	}
 	if mode == ModeAll || mode == ModeWeb {
 		if link, rest, ok := s.browser.Quicklink(text); ok {
@@ -277,6 +287,9 @@ func (s *Service) Do(id, action, typed string) error {
 	}
 	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
 		return s.doSnippet(name, action)
+	}
+	if id == soundoffer.ID {
+		return s.doOffer(action)
 	}
 	if page, ok := settingsPageFor(id); ok {
 		return s.doSettings(page, action)

@@ -53,6 +53,7 @@ class IndexOptionsIn(_Request):
     pdf_pages: str = _DEFAULT_OPTIONS.pdf_pages
     photos: str = _DEFAULT_OPTIONS.photos
     videos: str = _DEFAULT_OPTIONS.videos
+    audio: str = _DEFAULT_OPTIONS.audio
 
     @model_validator(mode="after")
     def _known_values(self) -> Self:
@@ -98,6 +99,8 @@ class SurveyRequest(_Request):
 class RouteCountOut(_Response):
     files: int
     bytes: int
+    # Audio and video: the length of their sound, guessed from their sizes (a survey opens no file).
+    seconds: float = 0.0
 
 
 class SurveyOut(_Response):

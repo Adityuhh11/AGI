@@ -36,14 +36,16 @@
     return () => clearInterval(timer);
   });
 
-  // A computer with no graphics card gets the cheap choices, once, as long as the person has not changed any: pictures
-  // take seconds each there, and the dear choices are one click away.
-  let cheapened = false;
+  // Once, as long as the person has not changed any choice: a computer with no graphics card gets the cheap ones (pictures
+  // take seconds each there, sound 4 times real time) and one with a card also gets its sound searched (about a minute
+  // per hour of audio). Every choice is one click away.
+  let preset = false;
   $effect(() => {
-    if (!search || cheapened || search.Device !== "cpu" || !search.HoldIndexing) return;
-    if (search.PDFPages !== "auto" || search.Photos !== "content" || search.Videos !== "name") return;
-    cheapened = true;
-    Settings.SetIndexing("text", "name", "name").then(refreshSearch);
+    if (!search || preset || !search.Device || !search.HoldIndexing) return;
+    if (search.PDFPages !== "auto" || search.Photos !== "content" || search.Videos !== "name" || search.Audio !== "name") return;
+    preset = true;
+    const choices = search.Device === "cpu" ? ["text", "name", "name", "name"] : ["auto", "content", "name", "content"];
+    Settings.SetIndexing(choices[0], choices[1], choices[2], choices[3]).then(refreshSearch);
   });
 
   async function enable() {

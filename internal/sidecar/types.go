@@ -23,15 +23,36 @@ type IndexOptions struct {
 	PDFPages string `json:"pdf_pages,omitempty"` // auto, all or text
 	Photos   string `json:"photos,omitempty"`    // content or name
 	Videos   string `json:"videos,omitempty"`    // name or content
+	Audio    string `json:"audio,omitempty"`     // name or content: audio files and the soundtrack of videos
 }
 
 // DefaultIndexOptions are what the engine does when a request carries no options (docs/api.md).
-var DefaultIndexOptions = IndexOptions{PDFPages: "auto", Photos: "content", Videos: "name"}
+var DefaultIndexOptions = IndexOptions{PDFPages: "auto", Photos: "content", Videos: "name", Audio: "name"}
+
+// withoutDefaults blanks every choice that is the engine's default, so it is not sent.
+func (o IndexOptions) withoutDefaults() IndexOptions {
+	if o.PDFPages == DefaultIndexOptions.PDFPages {
+		o.PDFPages = ""
+	}
+	if o.Photos == DefaultIndexOptions.Photos {
+		o.Photos = ""
+	}
+	if o.Videos == DefaultIndexOptions.Videos {
+		o.Videos = ""
+	}
+	if o.Audio == DefaultIndexOptions.Audio {
+		o.Audio = ""
+	}
+	return o
+}
 
 // RouteCount is how many files of one kind a survey found and how many bytes they hold.
 type RouteCount struct {
 	Files int   `json:"files"`
 	Bytes int64 `json:"bytes"`
+	// Seconds is the length of the sound of audio files and videos, guessed from their sizes (a survey opens no file);
+	// zero for every other kind, and for an engine from before audio search.
+	Seconds float64 `json:"seconds"`
 }
 
 // Survey is the answer of POST /survey: what indexing a folder would read, by kind ("code", "markdown", "text",

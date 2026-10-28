@@ -18,6 +18,8 @@ const admin: Action = { id: "admin", title: "Run as administrator", keys: "Ctrl+
 const tag: Action = { id: "tag", title: "Add or remove a tag", keys: "Ctrl+T" };
 const pin: Action = { id: "pin", title: "Pin", keys: "Ctrl+P" };
 const unpin: Action = { id: "pin", title: "Unpin", keys: "Ctrl+P" };
+const turnOn: Action = { id: "open", title: "Turn on", keys: "Enter" };
+const notNow: Action = { id: "delete", title: "Not now", keys: "Ctrl+Delete" };
 
 /**
  * What can be done with a row: a file offers all of these; anything else offers what its entry says it can.
@@ -26,6 +28,7 @@ const unpin: Action = { id: "pin", title: "Unpin", keys: "Ctrl+P" };
  */
 export function actionsFor(item: Item, taggable: boolean, pinning: "pin" | "unpin" | null = null): Action[] {
   const offered = item.kind === "entry" ? new Set(item.entry.Actions ?? []) : new Set(["reveal", "copy-path"]);
+  if (item.kind === "entry" && item.entry.Kind === "offer") return [turnOn, notNow];
   if (item.kind === "entry" && item.entry.Kind === "clip") return [paste, ...(offered.has("copy") ? [copy] : []), ...(offered.has("delete") ? [forget] : [])];
   if (item.kind === "entry" && item.entry.Kind === "snippet") return [paste, ...(pinning === "pin" ? [pin] : pinning === "unpin" ? [unpin] : [])];
   return [
@@ -49,6 +52,9 @@ export function available(item: Item, how: Exclude<Way, "open">): boolean {
 
 /** A copied text: Ctrl+Enter copies it and Ctrl+Delete forgets it. */
 export const isClip = (item: Item) => item.kind === "entry" && item.entry.Kind === "clip";
+
+/** A row Ctrl+Delete sets aside: a copied text is forgotten, an offer is put off for a month. */
+export const forgets = (item: Item) => item.kind === "entry" && (item.entry.Kind === "clip" || item.entry.Kind === "offer");
 
 /** A row whose Enter pastes (a copied text, a snippet) instead of opening. */
 export const pastes = (item: Item) => item.kind === "entry" && (item.entry.Kind === "clip" || item.entry.Kind === "snippet");

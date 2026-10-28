@@ -10,7 +10,7 @@ func Default() Config {
 	return Config{
 		Hotkey: DefaultHotkey,
 		Search: Search{
-			Pace: "balanced", PDFPages: PDFPageModes[0], Photos: PhotoModes[0], Videos: VideoModes[0], GroupResults: true, PauseOnBattery: true,
+			Pace: "balanced", PDFPages: PDFPageModes[0], Photos: PhotoModes[0], Videos: VideoModes[0], Audio: AudioModes[0], GroupResults: true, PauseOnBattery: true,
 		},
 		UI:    UI{SelectionEffect: true},
 		Timer: Timer{FocusMinutes: 25, ShortBreakMinutes: 5, LongBreakMinutes: 15, Rounds: 4, PresetMinutes: []int{5, 10, 25, 45}},

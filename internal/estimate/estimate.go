@@ -24,6 +24,15 @@ const (
 	framesPerVideo           = 8
 )
 
+// A 30 s window of sound, one every 15 s: decoding and embedding. Measured with the graphics card to itself
+// (docs/eval/2026-10-28-audio-embedding.md: 30 minutes of video, 119 windows, 33 s, one request at a time) and on the
+// processor (3.75 s). Another large model holding the card made it six times slower.
+const (
+	secondsPerWindow     = 0.28
+	secondsPerWindowCPU  = 3.8
+	secondsBetweenWindow = 15.0
+)
+
 // Chunks and pictures per unit, from the index of 3,795 files the owner uses (docs/eval/2026-10-24-estimate.md). Text
 // is chunked by size, so it scales with bytes; a PDF's pages scale with its size too, which holds in total even though
 // single PDFs vary from one page to hundreds.
@@ -46,6 +55,7 @@ type Work struct {
 	Pictures   float64
 	Files      int
 	Videos     int // videos whose frames are read
+	Windows    float64 // 30 s windows of sound
 }
 
 // WorkFor counts the chunks and pictures that indexing a surveyed folder embeds under options.
@@ -88,6 +98,14 @@ func WorkFor(routes map[string]sidecar.RouteCount, o sidecar.IndexOptions) Work 
 				w.Pictures += float64(c.Files * framesPerVideo)
 				w.Videos += c.Files
 			}
+			if o.Audio == "content" {
+				w.Windows += soundSeconds(c, videoBytesPerSecond) / secondsBetweenWindow // a video with no sound is counted too: a ceiling
+			}
+		case "audio":
+			w.TextChunks += float64(c.Files) // the name, in either choice
+			if o.Audio == "content" {
+				w.Windows += math.Max(float64(c.Files), soundSeconds(c, audioBytesPerSecond)/secondsBetweenWindow)
+			}
 		}
 	}
 	return w
@@ -96,17 +114,34 @@ func WorkFor(routes map[string]sidecar.RouteCount, o sidecar.IndexOptions) Work 
 // Duration is how long embedding the work takes, at a speed (fast, balanced or gentle), on the graphics card or, with
 // onCPU, on the processor.
 func (w Work) Duration(pace string, onCPU bool) time.Duration {
-	textRate, pictureTime := textChunksPerSecond, secondsPerPicture
+	textRate, pictureTime, windowTime := textChunksPerSecond, secondsPerPicture, secondsPerWindow
 	if onCPU {
-		textRate, pictureTime = textChunksPerSecondCPU, secondsPerPictureCPU
+		textRate, pictureTime, windowTime = textChunksPerSecondCPU, secondsPerPictureCPU, secondsPerWindowCPU
 	}
 	seconds := w.TextChunks/textRate + w.Pictures*pictureTime + float64(w.Files)*secondsPerFile +
-		float64(w.Videos)*secondsPerVideoWithFrame
+		float64(w.Videos)*secondsPerVideoWithFrame + w.Windows*windowTime
 	factor, ok := paceFactors[pace]
 	if !ok {
 		factor = paceFactors["balanced"]
 	}
 	return time.Duration(seconds * factor * float64(time.Second))
+}
+
+// The sizes the engine guesses a sound's length from (sidecar/src/omni_memory/sources/length.py), for a survey taken by
+// an engine from before audio search: it counted the files but sent no length, and that survey stays until the launcher
+// restarts. Without this a library of 200 hours would be priced as one window a file.
+const (
+	audioBytesPerSecond = 20_000.0
+	videoBytesPerSecond = 300_000.0
+)
+
+// soundSeconds is the length of the sound of a surveyed route: the engine's guess, or one made here from the bytes when
+// the engine sent none.
+func soundSeconds(c sidecar.RouteCount, bytesPerSecond float64) float64 {
+	if c.Seconds == 0 && c.Bytes > 0 {
+		return float64(c.Bytes) / bytesPerSecond
+	}
+	return c.Seconds
 }
 
 // bySize is the chunks of a kind of file chunked by size: at least one a file.
@@ -124,6 +159,9 @@ func withDefaults(o sidecar.IndexOptions) sidecar.IndexOptions {
 	}
 	if o.Videos == "" {
 		o.Videos = sidecar.DefaultIndexOptions.Videos
+	}
+	if o.Audio == "" {
+		o.Audio = sidecar.DefaultIndexOptions.Audio
 	}
 	return o
 }

@@ -122,11 +122,13 @@ type Search struct {
 	PauseOnBattery bool `toml:"pause_on_battery"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
-	// PDFPages, Photos and Videos say what each kind of file is searched by (docs/superpowers/specs/
-	// 2026-10-20-indexing-choices-design.md): one of PDFPageModes, PhotoModes and VideoModes, the first the default.
+	// PDFPages, Photos, Videos and Audio say what each kind of file is searched by (docs/superpowers/specs/
+	// 2026-10-20-indexing-choices-design.md, 2026-10-28-audio-search-design.md): one of PDFPageModes, PhotoModes,
+	// VideoModes and AudioModes, the first the default. Audio covers audio files and the soundtrack of videos.
 	PDFPages string `toml:"pdf_pages"`
 	Photos   string `toml:"photos"`
 	Videos   string `toml:"videos"`
+	Audio    string `toml:"audio"`
 }
 
 // Paces are the allowed values of Search.Pace, from the most to the least demanding.
@@ -134,10 +136,12 @@ var Paces = []string{"fast", "balanced", "gentle"}
 
 // The allowed values of the indexing choices, the default first. PDF pages: a page's picture is searched too when
 // it looks visual (auto), always (all) or never (text). Photos and videos: by what they show (content) or by name.
+// Audio: by what is said and played (content) or by name.
 var (
 	PDFPageModes = []string{"auto", "all", "text"}
 	PhotoModes   = []string{"content", "name"}
 	VideoModes   = []string{"name", "content"}
+	AudioModes   = []string{"name", "content"}
 )
 
 type retiredSidecar struct {
@@ -253,6 +257,7 @@ func (c Config) Validate() error {
 		{"pdf_pages", c.Search.PDFPages, PDFPageModes},
 		{"photos", c.Search.Photos, PhotoModes},
 		{"videos", c.Search.Videos, VideoModes},
+		{"audio", c.Search.Audio, AudioModes},
 	} {
 		if !slices.Contains(choice.allowed, choice.value) {
 			return fmt.Errorf("%s %q must be one of %s", choice.name, choice.value, strings.Join(choice.allowed, ", "))

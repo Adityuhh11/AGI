@@ -38,8 +38,9 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 def _calibrate(searcher: Searcher) -> None:
     ceiling = searcher.calibrate()
     progress.info(
-        "confidence threshold: %s",
+        "confidence threshold: %s%s",
         f"{ceiling:.3f} (measured on this index)" if ceiling else "default (index too small)",
+        f", audio shifted by {searcher.audio_offset:+.3f}" if searcher.audio_offset else "",
     )
 
 

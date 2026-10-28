@@ -12,6 +12,31 @@ import (
 
 var t0 = time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC)
 
+func TestNotNowIsRememberedAcrossRestarts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !s.Waived("offer:sound").IsZero() {
+		t.Fatal("a waiver from nowhere")
+	}
+	at := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	if err := s.Waive("offer:sound", at); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := again.Waived("offer:sound"); !got.Equal(at) {
+		t.Fatalf("remembered %v, want %v", got, at)
+	}
+	if !again.Waived("offer:other").IsZero() {
+		t.Fatal("one offer's waiver counted for another")
+	}
+}
+
 func open(t *testing.T) (*Store, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "Omni", "state.json")

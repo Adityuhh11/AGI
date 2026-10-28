@@ -87,3 +87,50 @@ func TestSmallFoldersHaveAtLeastOneChunkAFile(t *testing.T) {
 		t.Errorf("10 tiny files are %.0f chunks, want 10", w.TextChunks)
 	}
 }
+
+func TestSoundIsOneWindowEveryFifteenSecondsAndAtLeastOneAFile(t *testing.T) {
+	routes := map[string]sidecar.RouteCount{
+		"audio": {Files: 4, Bytes: 1 << 20, Seconds: 600}, // 4 files, 10 minutes: 40 windows
+		"video": {Files: 2, Bytes: 1 << 30, Seconds: 300}, // their soundtracks: 20 windows
+	}
+	name := WorkFor(routes, sidecar.IndexOptions{})
+	if name.Windows != 0 || name.TextChunks != 6 {
+		t.Errorf("by name: %+v, want no windows and the 6 names", name)
+	}
+	content := WorkFor(routes, sidecar.IndexOptions{Audio: "content"})
+	if content.Windows != 60 {
+		t.Errorf("by content: %.0f windows, want 60", content.Windows)
+	}
+	tiny := WorkFor(map[string]sidecar.RouteCount{"audio": {Files: 5, Seconds: 8}}, sidecar.IndexOptions{Audio: "content"})
+	if tiny.Windows != 5 {
+		t.Errorf("five clips shorter than a window are %.0f windows, want 5", tiny.Windows)
+	}
+}
+
+func TestAWindowCostsMoreOnTheProcessor(t *testing.T) {
+	w := Work{Windows: 119} // 30 minutes of sound
+	gpu, cpu := w.Duration("fast", false), w.Duration("fast", true)
+	if gpu < 30*time.Second || gpu > 40*time.Second {
+		t.Errorf("30 minutes on the graphics card: %v, measured 33 s", gpu)
+	}
+	if cpu < 7*time.Minute || cpu > 8*time.Minute {
+		t.Errorf("30 minutes on the processor: %v, measured 7.4 min", cpu)
+	}
+}
+
+func TestASurveyFromAnEngineThatSentNoLengthIsPricedFromTheBytes(t *testing.T) {
+	// 10 hours of mp3 at 20 KB/s and a video library of 100 hours at 300 KB/s, as a survey taken before audio search
+	// reports them: files and bytes, no seconds. One window a file would price them as a minute.
+	routes := map[string]sidecar.RouteCount{
+		"audio": {Files: 10, Bytes: 20_000 * 3600 * 10},
+		"video": {Files: 40, Bytes: 300_000 * 3600 * 100},
+	}
+	w := WorkFor(routes, sidecar.IndexOptions{Audio: "content"})
+	if want := (10.0 + 100.0) * 3600 / 15; math.Abs(w.Windows-want) > 1 {
+		t.Errorf("%.0f windows, want %.0f", w.Windows, want)
+	}
+	known := map[string]sidecar.RouteCount{"audio": {Files: 1, Bytes: 20_000 * 3600, Seconds: 60}}
+	if got := WorkFor(known, sidecar.IndexOptions{Audio: "content"}).Windows; got != 4 {
+		t.Errorf("a length the engine gave was overruled: %.0f windows, want 4", got)
+	}
+}
