@@ -13,6 +13,9 @@ public static class Dpi { [DllImport("shcore.dll")] public static extern int Get
 
 $profileDir = Join-Path ([IO.Path]::GetTempPath()) "omni-check-dpi-$PID"
 New-Item -ItemType Directory -Force "$profileDir\roaming", "$profileDir\local" | Out-Null
+# Environment variables outlive a script that sets them: left as they are, every launcher started from the same terminal
+# afterwards ran in this empty profile (a fresh download, a fresh index). They are put back in the finally below.
+$saved = @{ APPDATA = $env:APPDATA; LOCALAPPDATA = $env:LOCALAPPDATA; OMNI_INSTANCE = $env:OMNI_INSTANCE }
 $env:APPDATA = "$profileDir\roaming"; $env:LOCALAPPDATA = "$profileDir\local"; $env:OMNI_INSTANCE = "check-dpi-$PID"
 $process = Start-Process (Resolve-Path $Exe) -PassThru
 try {
@@ -29,5 +32,8 @@ try {
     Write-Host "dpi check passed: per-monitor aware"
 } finally {
     Stop-Process $process -Force -ErrorAction SilentlyContinue
+    foreach ($name in $saved.Keys) {
+        if ($null -eq $saved[$name]) { Remove-Item "env:$name" -ErrorAction SilentlyContinue } else { Set-Item "env:$name" $saved[$name] }
+    }
     Remove-Item $profileDir -Recurse -Force -ErrorAction SilentlyContinue
 }
