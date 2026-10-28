@@ -256,7 +256,10 @@
     follow();
 
     const offs = [
-      Events.On("chat:model", (e) => (info = e.data as Info)),
+      Events.On("chat:model", (e) => {
+        info = e.data as Info;
+        now = Date.now(); // the countdown to the unload is read against this
+      }),
       Events.On("chat:status", (e) => {
         if (!live) return;
         const s = e.data as { phase: Phase; text: string };
@@ -393,10 +396,10 @@
               {#if opened[i]}<div class="thinking">{message.thinking}</div>{/if}
             {/if}
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>
+            {#if message.text}<div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>{/if}
+            {#if message.stopped}<p class="stopped">Stopped</p>{/if}
             <div class="actions">
-              {#if message.stopped}<span class="tag">Stopped</span>{/if}
-              <button type="button" class="btn quiet" onclick={() => copyAnswer(message.text)}>Copy</button>
+              {#if message.text}<button type="button" class="btn quiet" onclick={() => copyAnswer(message.text)}>Copy</button>{/if}
               {#if i === lastAnswer && canRetry}<button type="button" class="btn quiet" onclick={retry}>Try again</button>{/if}
             </div>
           </div>
@@ -523,6 +526,8 @@
   }
 
   .log {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-height: 0;
     padding: 18px 16px 8px;
@@ -532,9 +537,9 @@
   }
   .empty {
     display: grid;
+    flex: 1;
     place-content: center;
     gap: 6px;
-    height: 100%;
     padding-bottom: 40px;
     text-align: center;
   }
@@ -552,6 +557,7 @@
   }
   .row {
     display: flex;
+    flex: none;
     flex-direction: column;
     margin-bottom: 18px;
   }
@@ -671,8 +677,8 @@
     padding: 0 9px;
     font-size: 12px;
   }
-  .tag {
-    margin-left: 10px;
+  .stopped {
+    margin: 6px 0 0;
     color: var(--text-3);
     font-size: 12px;
   }

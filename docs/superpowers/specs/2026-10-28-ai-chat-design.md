@@ -1,6 +1,6 @@
 # Omni AI: a local chat window
 
-Date: 2026-10-28. Status: **owner's answers folded in (section 15); ready for approval.** Nothing is built. Branch when approved: `feat/ai-chat`, cut from `dev`.
+Date: 2026-10-28. Status: **approved by the owner; built on `feat/ai-chat`** (cut from `dev`), for the owner's review before it goes into PR 39. Where the build differs from this text: conversations cannot be renamed (the title is the first question), and the clipboard-text hotkey trial (section 13, step 7) is not built yet.
 
 The owner wants an optional local language model in Omni, first as a chat. A person types `ask` in the bar (or presses a
 hotkey), and a resizable window that stays on top opens and answers questions. The model is Liquid AI's LFM3-1.7B, quantized,

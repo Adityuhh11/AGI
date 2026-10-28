@@ -35,7 +35,7 @@ func Reserve(thinking bool, context int) int {
 // does not change during a conversation except by the date.
 func SystemPrompt(now time.Time) string {
 	return "You are Omni AI, a helpful assistant inside the Omni launcher on Windows. Be concise and direct. " +
-		"Reply in the language the person writes in. If you are not sure of a fact, say so instead of guessing. " +
+		"Reply in the language the person writes in. Write maths in plain text, not LaTeX. If you are not sure of a fact, say so instead of guessing. " +
 		"Today is " + now.Format("Monday, 2 January 2006") + "."
 }
 

@@ -87,3 +87,24 @@ Embedder 1,111 MiB + chat at 8,192 = about 2,290 MiB of 6,141 MiB, with the Wind
   tokens were fast on a fresh process). Cause unknown; most likely another program using the GPU at that moment. The window must show
   progress ("Reading…" until the first token) so a stall looks like work, and the acceptance step looks for it again.
 - The quality comparison is not the blind 30-prompt test the spec asked for; see above.
+
+## In the real app (build of `feat/ai-chat`, clean profile, `OMNI_INSTANCE`, the spike's files as `OMNI_CHAT_DIR`)
+
+Driven with real key presses and mouse clicks, windows screenshotted, on the same machine:
+
+| Checked | Result |
+|---|---|
+| Hotkey opens the chat window; the model was loaded by the warm-up the hotkey starts | A first question answered in under a second |
+| Go supervisor starting the real server (`TestRealModelAnswers`) | Ready on the graphics card in 2.3 s, one question answered, VRAM freed on unload |
+| `ask` in the bar: command row, `ask: git` chip, `Ask "git"` and a matching past chat; Enter | Opens a new chat in the window and the question is answered |
+| Thinking on (header button): live reasoning, collapsed to "Thought for 1 s" after | Works, per request, no restart |
+| History: three chats saved as JSON files and listed newest first | Works; Clear history at the bottom |
+| Chat server killed from outside, then a question | `chat: the model server ended unexpectedly` in the log, the next question started a new server (new process) and was answered |
+| Esc during an answer; hotkey while the window is in use / again | The answer stops and is kept; the hotkey closes the window, then opens it again |
+| 4,096-token context, long pasted messages (about 480 tokens each, six of them) | The meter read 1.9k / 4.1k, and the window drew "Earlier messages are no longer in the model's memory" above the first message the model still sees |
+| `panelbench -real` (hotkey to painted, 49 runs, 0 problems) | p50 32.2 ms, p95 42.5 ms: unchanged (31.0 to 36.2 ms in earlier runs) |
+
+Fixed after the first run: an empty state with a scrollbar, a countdown that read "11 min" for a 10-minute idle time, a missing "Stopped"
+marker on an answer cut short before its text, and replies written in LaTeX (the system prompt now asks for plain-text maths).
+
+Not measured: an answer while a fast sync is running (no sync was run), and a start from a cold disk cache after a reboot.
