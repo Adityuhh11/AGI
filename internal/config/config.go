@@ -120,6 +120,8 @@ type Chat struct {
 	HistoryDays int `toml:"history_days"`
 	// Thinking lets the model reason before it answers: slower, and sometimes better.
 	Thinking bool `toml:"thinking"`
+	// OnTop keeps the chat window above other windows.
+	OnTop bool `toml:"on_top"`
 }
 
 // ChatLoads are the allowed values of Chat.Load: the model starts when it is first asked, or when Omni starts.

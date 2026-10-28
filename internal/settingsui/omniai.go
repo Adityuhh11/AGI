@@ -76,6 +76,7 @@ type OmniAIView struct {
 	UnloadAfterMinutes int
 	ContextTokens      int
 	Thinking           bool
+	OnTop              bool
 	KeepHistory        bool
 	HistoryDays        int
 	Hotkey             string
@@ -105,7 +106,7 @@ func (p *OmniAI) View() OmniAIView {
 		Enabled: cfg.Enabled, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name, Done: st.Progress.Done, Total: st.Progress.Total,
 		Error: st.Error, Hosts: llm.Hosts, DownloadMB: int(llm.DownloadBytes() >> 20), LicenseURL: llm.LicenseURL,
-		Load: cfg.Load, UnloadAfterMinutes: cfg.UnloadAfterMinutes, ContextTokens: cfg.ContextTokens, Thinking: cfg.Thinking,
+		Load: cfg.Load, UnloadAfterMinutes: cfg.UnloadAfterMinutes, ContextTokens: cfg.ContextTokens, Thinking: cfg.Thinking, OnTop: cfg.OnTop,
 		KeepHistory: cfg.KeepHistory, HistoryDays: cfg.HistoryDays, Hotkey: cfg.Hotkey, HotkeyError: p.o.HotkeyError(),
 		ModelState: string(model.State), ModelMessage: model.Message, Device: model.Device,
 		Loads: config.ChatLoads, ContextChoices: config.ChatContexts, UnloadChoices: config.ChatUnloadMinutes, HistoryChoices: historyDayChoices,
@@ -183,6 +184,11 @@ func (p *OmniAI) SetBehaviour(load string, unloadAfterMinutes, contextTokens int
 // SetThinking lets the model reason before it answers, or not.
 func (p *OmniAI) SetThinking(on bool) string {
 	return reason(p.o.Store.Update(func(c *config.Config) { c.Chat.Thinking = on }))
+}
+
+// SetOnTop keeps the chat window above other windows, or lets them cover it.
+func (p *OmniAI) SetOnTop(on bool) string {
+	return reason(p.o.Store.Update(func(c *config.Config) { c.Chat.OnTop = on }))
 }
 
 // SetHistory sets whether conversations are saved and for how many days (0 is for good).

@@ -12,8 +12,10 @@
     running: boolean;
     /** What the metal is made of; it can change while the ring runs. */
     metal: Metal;
+    /** The corner radius in px of the outline the light follows: the search card's by default. */
+    radius?: number;
   }
-  let { speed, running, metal }: Props = $props();
+  let { speed, running, metal, radius = 30 }: Props = $props();
 
   // A change of speed takes about this long to settle. Typing changes the speed many times a second,
   // and a ring that lurches with every keystroke looks broken.
@@ -21,8 +23,6 @@
 
   // The shader fills the whole card; the page's own plate covers all but the outer rim, so what shows
   // is a ring of flowing metal.
-
-  const RADIUS = 30; // the card's corner radius in px (--radius in theme.css)
 
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -37,7 +37,9 @@
         {
           u_colorBack: getShaderColorFromString(metal.back),
           u_colorTint: getShaderColorFromString(metal.tint),
-          u_radius: RADIUS,
+          // Read once: a ring does not change its shape (a composer that grows keeps its corners).
+          // svelte-ignore state_referenced_locally
+          u_radius: radius,
         },
         undefined,
         0, // stopped until the ring is told it is running

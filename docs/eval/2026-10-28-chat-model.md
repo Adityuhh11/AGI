@@ -108,3 +108,21 @@ Fixed after the first run: an empty state with a scrollbar, a countdown that rea
 marker on an answer cut short before its text, and replies written in LaTeX (the system prompt now asks for plain-text maths).
 
 Not measured: an answer while a fast sync is running (no sync was run), and a start from a cold disk cache after a reboot.
+
+## Found by the owner after the first build (2026-10-29)
+
+**An oversized grey oval where the header's status dot should be.** It appeared whenever the model was not loaded (or Omni AI was off).
+The dot carried the class `off` for that state, and the "Omni AI is off" card was also styled `.off` (`flex: 1`, large padding) in the same
+component, so the 8 px dot stretched into an oval across the free space of the header. Reproduced with a profile whose model folder
+did not exist. Fixed by naming the dot's states `tone-off`, `tone-ready`, `tone-busy` and `tone-bad` and the card `.unavailable`. Not covered by a test
+(it is a stylesheet collision); the check is looking at the window with the model unloaded.
+
+Found while reworking the layout the same day, and fixed:
+
+- The text box was one row too tall after a message was sent: it had the default content-box sizing, so the auto-grow (height = `scrollHeight`) counted its padding twice.
+- A window that was already in front never put the keyboard in its text box (focus was only taken on a focus event), so the first keystrokes went nowhere. The box now takes focus when the window is ready.
+
+Measured for the ring around the composer (the search card's shader, one WebGL canvas the size of the box), same machine, the WebView
+processes of the clean profile: about 0.8% of one core while the ring moves (only while the box has the keyboard or an answer is coming), 0% while it
+rests. Kept. Frameless windows (no title bar, no minimise, no border) still resize from their edges (corner drag: 137 x 82 of 150 x 90 px asked) and
+move by their header (110 x 55 of 120 x 60).

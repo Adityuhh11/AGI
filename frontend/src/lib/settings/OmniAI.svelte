@@ -152,6 +152,10 @@
       <p class="help">Slower, and sometimes better for puzzles and code. The chat window has a Think button for the same switch.</p>
     </div>
     <div class="field">
+      <label class="check"><input type="checkbox" checked={page.OnTop} onchange={(e) => run(() => OmniAI.SetOnTop(e.currentTarget.checked))} /> Keep the chat above other windows</label>
+      <p class="help">Off, other windows can cover it and it comes back when you open it again.</p>
+    </div>
+    <div class="field">
       <span class="label" id="ai-hotkey-label">Hotkey</span>
       <HotkeyField labelId="ai-hotkey-label" value={page.Hotkey} clearable onsave={(accelerator) => OmniAI.SetHotkey(accelerator).then(async (refused) => { await refresh(); return refused; })} />
       {#if page.HotkeyError}<p class="error">{page.HotkeyError}</p>{/if}

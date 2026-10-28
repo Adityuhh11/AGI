@@ -290,7 +290,7 @@ func run(afterUpdate bool) error {
 	setupWindow := settingsui.NewSetupWindow(app)
 	notesWindow := settingsui.NewNotesWindow(app)
 	timerWindow := settingsui.NewTimerWindow(app)
-	chatWindow := settingsui.NewChatWindow(app)
+	chatWindow := settingsui.NewChatWindow(app, func() bool { return store.Get().Chat.OnTop })
 	// A notes folder that cannot be opened (read-only, a strange profile) costs the notes, not the launcher.
 	noteStore, err := notes.Open(filepath.Join(filepath.Dir(path), "notes"))
 	var noteBook palette.NoteBook
@@ -345,7 +345,6 @@ func run(afterUpdate bool) error {
 		SetThinking:  func(on bool) error { return store.Update(func(c *config.Config) { c.Chat.Thinking = on }) },
 		Installed:    func() bool { return chatSetup.Layout().Installed() },
 		Emit:         func(event string, data any) { app.Event.Emit(event, data) },
-		SetOnTop:     chatWindow.SetAlwaysOnTop,
 		OpenSettings: func(section string) { settingsWindow.OpenAt(section) },
 		Logf:         log.Printf,
 	})
@@ -519,6 +518,9 @@ func run(afterUpdate bool) error {
 			}
 			if old.Chat.Enabled && !updated.Chat.Enabled {
 				chatModel.Unload()
+			}
+			if old.Chat.OnTop != updated.Chat.OnTop {
+				chatWindow.SetAlwaysOnTop(updated.Chat.OnTop)
 			}
 			if updated.Chat.Enabled && updated.Chat.Load == "at_start" && (!old.Chat.Enabled || old.Chat.Load != "at_start") {
 				chatSvc.Warm()

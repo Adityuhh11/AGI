@@ -16,16 +16,20 @@ type windowSpec struct {
 	minWidth, minHeight int
 	// onTop keeps the window above other windows.
 	onTop bool
+	// card makes a window with no frame, title bar or buttons: a clear window whose page draws its own rounded card, edge,
+	// close button and the part that drags it. It stays resizable (the page's edges do that).
+	card bool
 	// overlay makes a small window with no frame and no taskbar button that sits at the right edge of the screen: the
 	// timer. The page draws its own rounded outline on the clear window and says which part drags it.
 	overlay bool
 }
 
 var (
-	settingsSpec = windowSpec{name: "settings", title: "Omni Settings", route: "settings", width: 860, height: 620, minWidth: 680, minHeight: 480}
+	settingsSpec = windowSpec{name: "settings", title: "Omni Settings", route: "settings", width: 860, height: 620, minWidth: 680, minHeight: 480, card: true}
 	setupSpec    = windowSpec{name: "setup", title: "Set up Omni", route: "setup", width: 760, height: 700, minWidth: 640, minHeight: 560}
-	notesSpec    = windowSpec{name: "notes", title: "Omni Notes", route: "notes", width: 420, height: 560, minWidth: 300, minHeight: 280, onTop: true}
-	chatSpec     = windowSpec{name: "chat", title: "Omni AI", route: "chat", width: 460, height: 640, minWidth: 340, minHeight: 320, onTop: true}
+	// The notes and the chat are as wide as the search bar (720) and shorter than they are wide.
+	notesSpec = windowSpec{name: "notes", title: "Omni Notes", route: "notes", width: 720, height: 520, minWidth: 480, minHeight: 340, onTop: true, card: true}
+	chatSpec  = windowSpec{name: "chat", title: "Omni AI", route: "chat", width: 720, height: 540, minWidth: 520, minHeight: 380, onTop: true, card: true}
 	timerSpec    = windowSpec{name: "timer", title: "Omni Timer", route: "timer", width: 264, height: 92, onTop: true, overlay: true}
 )
 
@@ -38,6 +42,8 @@ const overlayMargin = 16
 type Window struct {
 	app  *application.App
 	spec windowSpec
+	// onTop, when set, decides whether the window is above other windows each time it is built; the spec's choice otherwise.
+	onTop func() bool
 
 	build sync.Mutex // one window is made at a time, so two requests at once cannot make two
 
@@ -56,7 +62,9 @@ func NewSetupWindow(app *application.App) *Window { return &Window{app: app, spe
 func NewNotesWindow(app *application.App) *Window { return &Window{app: app, spec: notesSpec} }
 
 // NewChatWindow returns the Window of Omni AI: resizable and above other windows until the person says otherwise.
-func NewChatWindow(app *application.App) *Window { return &Window{app: app, spec: chatSpec} }
+func NewChatWindow(app *application.App, onTop func() bool) *Window {
+	return &Window{app: app, spec: chatSpec, onTop: onTop}
+}
 
 // NewTimerWindow returns the Window of the timer overlay.
 func NewTimerWindow(app *application.App) *Window { return &Window{app: app, spec: timerSpec} }
@@ -101,10 +109,16 @@ func (w *Window) OpenAt(section string) {
 		Height:           w.spec.height,
 		MinWidth:         w.spec.minWidth,
 		MinHeight:        w.spec.minHeight,
-		AlwaysOnTop:      w.spec.onTop,
+		AlwaysOnTop:      w.spec.onTop && (w.onTop == nil || w.onTop()),
 		URL:              url,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 255),
 		Windows:          application.WindowsWindow{Theme: application.Dark},
+	}
+	if w.spec.card {
+		options.Frameless = true
+		options.BackgroundType = application.BackgroundTypeTransparent
+		options.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
+		options.Windows = application.WindowsWindow{DisableFramelessWindowDecorations: true}
 	}
 	if w.spec.overlay {
 		options.Frameless = true

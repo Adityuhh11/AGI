@@ -88,9 +88,8 @@ type Options struct {
 	Settings    func() config.Chat
 	SetThinking func(on bool) error
 	Installed   func() bool
-	// Emit sends an event to the chat window; SetOnTop keeps it above other windows; OpenSettings opens Settings on a page.
+	// Emit sends an event to the chat window; OpenSettings opens Settings on a page.
 	Emit         func(event string, data any)
-	SetOnTop     func(on bool)
 	OpenSettings func(section string)
 	Now          func() time.Time
 	Logf         func(format string, args ...any)
@@ -175,13 +174,6 @@ func (s *Service) SetThinking(on bool) error {
 	}
 	s.Refresh()
 	return nil
-}
-
-// SetOnTop keeps the chat window above other windows (on) or lets other windows cover it (off).
-func (s *Service) SetOnTop(on bool) {
-	if s.o.SetOnTop != nil {
-		s.o.SetOnTop(on)
-	}
 }
 
 // OpenSettings opens Settings on the Omni AI page.

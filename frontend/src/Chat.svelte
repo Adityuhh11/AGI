@@ -4,12 +4,15 @@
   import { Service as Chat } from "../bindings/omni/internal/chat";
   import type { Info, Summary, View } from "../bindings/omni/internal/chat";
   import "./lib/settings/forms.css";
+  import Card from "./lib/Card.svelte";
+  import LiquidRing from "./lib/LiquidRing.svelte";
+  import RoundButton from "./lib/RoundButton.svelte";
+  import { METALS } from "./lib/palettes";
   import { dot, escapeStep, lastQuestion, meter, sends, thoughtFor, unloadsIn, waiting, type Phase } from "./lib/chat/chat";
   import { copyable } from "./lib/chat/copy";
   import { when } from "./lib/format";
   import { render } from "./lib/markdown";
 
-  const PIN_KEY = "omni-chat-on-top";
   const EMPTY: View = { id: "", title: "", messages: [], memory_start: 0, used: 0, room: 8192, unsaved: false, busy: false };
 
   let view = $state<View>(EMPTY);
@@ -18,7 +21,7 @@
   let error = $state("");
   // The answer being written: it is shown from the events, and replaced by the finished message when the answer ends.
   let live = $state<{ text: string; thinking: string; phase: Phase; status: string } | null>(null);
-  let onTop = $state(true);
+  let focused = $state(false); // the composer has the keyboard: its ring moves
   let historyOpen = $state(false);
   let history = $state<Summary[]>([]);
   let historyQuery = $state("");
@@ -162,16 +165,6 @@
     await loadHistory();
   }
 
-  async function togglePin() {
-    onTop = !onTop;
-    Chat.SetOnTop(onTop);
-    try {
-      localStorage.setItem(PIN_KEY, String(onTop));
-    } catch {
-      // a window without storage forgets the choice; it still works
-    }
-  }
-
   async function toggleSaved() {
     const next = await run(() => Chat.SetUnsaved(!view.unsaved));
     if (next) view = next;
@@ -245,15 +238,10 @@
   }
 
   onMount(() => {
-    document.documentElement.dataset.surface = "settings";
-    try {
-      onTop = localStorage.getItem(PIN_KEY) !== "false";
-    } catch {
-      onTop = true;
-    }
-    Chat.SetOnTop(onTop);
+    document.documentElement.dataset.surface = "card";
     Chat.Info().then((i) => (info = i));
-    follow();
+    // The box has the keyboard as soon as the window is up: a window that is already in front gets no focus event to do it.
+    follow().then(() => tick().then(() => box?.focus()));
 
     const offs = [
       Events.On("chat:model", (e) => {
@@ -309,176 +297,187 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<main>
-  <header>
-    <span class="dot {status.tone}" class:pulse={status.busy} title={status.label} role="img" aria-label={status.label}></span>
-    <h1>Omni AI</h1>
-    <div class="tools">
-      <button
-        type="button"
-        class="btn quiet"
-        class:on={info?.thinking}
-        aria-pressed={info?.thinking ?? false}
-        disabled={off}
-        onclick={() => Chat.SetThinking(!info?.thinking)}
-        title="Let the model reason before it answers: slower, sometimes better"
-      >
-        Think
-      </button>
-      <button type="button" class="btn quiet" onclick={newChat} title="New chat (Ctrl+N)" aria-label="New chat">New</button>
-      <button type="button" class="btn quiet" class:on={historyOpen} aria-pressed={historyOpen} onclick={showHistory} title="Past chats (Ctrl+H)">History</button>
-      <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">On top</button>
-    </div>
-  </header>
+<Card>
+  <main>
+    <header>
+      <span class="dot tone-{status.tone}" class:pulse={status.busy} title={status.label} role="img" aria-label={status.label}></span>
+      <h1>Omni AI</h1>
+      <div class="tools">
+        <RoundButton icon="plus" label="New chat" title="New chat (Ctrl+N)" onclick={newChat} />
+        <RoundButton icon="history" label="Past chats" title="Past chats (Ctrl+H)" on={historyOpen} pressed={historyOpen} onclick={showHistory} />
+        <RoundButton icon="close" label="Close" title="Close (Esc)" onclick={() => Window.Close()} />
+      </div>
+    </header>
 
-  {#if historyOpen}
-    <section class="history" aria-label="Past chats">
-      <input
-        type="text"
-        bind:value={historyQuery}
-        oninput={loadHistory}
-        placeholder="Search past chats"
-        aria-label="Search past chats"
-        spellcheck="false"
-        autocomplete="off"
-      />
-      {#if history.length > 0}
-        <ul>
-          {#each history as chat (chat.id)}
-            <li class:open={chat.id === view.id}>
-              <button type="button" class="pick" onclick={() => openChat(chat.id)}>
-                <span class="title">{chat.title}</span>
-                <span class="when">{when(chat.modified)}</span>
-              </button>
-              <button type="button" class="btn quiet gone" class:danger={confirm === chat.id} onclick={() => removeChat(chat.id)} aria-label="Delete {chat.title}">
-                {confirm === chat.id ? "Delete?" : "Delete"}
-              </button>
-            </li>
-          {/each}
-        </ul>
-        <div class="clear">
-          <button type="button" class="btn quiet" class:danger={confirm === "all"} onclick={clearAll}>{confirm === "all" ? "Clear all past chats?" : "Clear history"}</button>
-          {#if confirm}<button type="button" class="btn quiet" onclick={() => (confirm = "")}>Keep</button>{/if}
-        </div>
-      {:else}
-        <p class="none">{historyQuery ? `No chat has “${historyQuery}” in it.` : "No past chats yet."}</p>
-      {/if}
-    </section>
-  {/if}
-
-  {#if off}
-    <div class="off" role="status">
-      <h2>Omni AI is off</h2>
-      <p>A small language model that runs on this computer. Turning it on downloads about 1 GB, once; nothing you ask leaves the computer.</p>
-      <button type="button" class="btn primary" onclick={() => Chat.OpenSettings()}>Open Settings</button>
-    </div>
-  {:else}
-    <div class="log" bind:this={log} onscroll={onScroll} role="log" aria-live="polite" aria-label="Conversation">
-      {#if messages.length === 0 && !live}
-        <div class="empty">
-          <p class="hello">Ask anything.</p>
-          <p class="note">It runs on this computer. It is a small model: check anything that matters.</p>
-        </div>
-      {/if}
-      {#each messages as message, i (i)}
-        {#if i === view.memory_start && i > 0}
-          <div class="memory" role="separator"><span>Earlier messages are no longer in the model's memory</span></div>
-        {/if}
-        {#if message.role === "user"}
-          <div class="row user"><div class="bubble">{message.text}</div></div>
+    {#if historyOpen}
+      <section class="history" aria-label="Past chats">
+        <input
+          type="text"
+          bind:value={historyQuery}
+          oninput={loadHistory}
+          placeholder="Search past chats"
+          aria-label="Search past chats"
+          spellcheck="false"
+          autocomplete="off"
+        />
+        {#if history.length > 0}
+          <ul>
+            {#each history as chat (chat.id)}
+              <li class:open={chat.id === view.id}>
+                <button type="button" class="pick" onclick={() => openChat(chat.id)}>
+                  <span class="title">{chat.title}</span>
+                  <span class="when">{when(chat.modified)}</span>
+                </button>
+                <button type="button" class="btn quiet gone" class:danger={confirm === chat.id} onclick={() => removeChat(chat.id)} aria-label="Delete {chat.title}">
+                  {confirm === chat.id ? "Delete?" : "Delete"}
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <div class="clear">
+            <button type="button" class="btn quiet" class:danger={confirm === "all"} onclick={clearAll}>{confirm === "all" ? "Clear all past chats?" : "Clear history"}</button>
+            {#if confirm}<button type="button" class="btn quiet" onclick={() => (confirm = "")}>Keep</button>{/if}
+          </div>
         {:else}
-          {@const html = render(message.text)}
-          <div class="row ai">
-            {#if message.thinking}
-              <button type="button" class="thought" aria-expanded={!!opened[i]} onclick={() => (opened[i] = !opened[i])}>
-                <span class="chev" class:down={opened[i]} aria-hidden="true">›</span>{thoughtFor(message.thinking_ms ?? 0)}
-              </button>
-              {#if opened[i]}<div class="thinking">{message.thinking}</div>{/if}
-            {/if}
-            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            {#if message.text}<div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>{/if}
-            {#if message.stopped}<p class="stopped">Stopped</p>{/if}
-            <div class="actions">
-              {#if message.text}<button type="button" class="btn quiet" onclick={() => copyAnswer(message.text)}>Copy</button>{/if}
-              {#if i === lastAnswer && canRetry}<button type="button" class="btn quiet" onclick={retry}>Try again</button>{/if}
-            </div>
+          <p class="none">{historyQuery ? `No chat has “${historyQuery}” in it.` : "No past chats yet."}</p>
+        {/if}
+      </section>
+    {/if}
+
+    {#if off}
+      <div class="unavailable" role="status">
+        <h2>Omni AI is off</h2>
+        <p>A small language model that runs on this computer. Turning it on downloads about 1 GB, once; nothing you ask leaves the computer.</p>
+        <button type="button" class="btn primary" onclick={() => Chat.OpenSettings()}>Open Settings</button>
+      </div>
+    {:else}
+      <div class="log" bind:this={log} onscroll={onScroll} role="log" aria-live="polite" aria-label="Conversation">
+        {#if messages.length === 0 && !live}
+          <div class="empty">
+            <p class="hello">Ask anything.</p>
+            <p class="note">It runs on this computer. It is a small model: check anything that matters.</p>
           </div>
         {/if}
-      {/each}
-      {#if live}
-        {@const html = render(live.text)}
-        <div class="row ai">
-          {#if live.thinking && !live.text}<div class="thinking live">{live.thinking}</div>{/if}
-          {#if live.text}
-            <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-            <div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>
+        {#each messages as message, i (i)}
+          {#if i === view.memory_start && i > 0}
+            <div class="memory" role="separator"><span>Earlier messages are no longer in the model's memory</span></div>
+          {/if}
+          {#if message.role === "user"}
+            <div class="row user"><div class="bubble">{message.text}</div></div>
           {:else}
-            <p class="waiting"><span class="pip" aria-hidden="true"></span>{waiting(live.phase, live.status)}</p>
+            {@const html = render(message.text)}
+            <div class="row ai">
+              {#if message.thinking}
+                <button type="button" class="thought" aria-expanded={!!opened[i]} onclick={() => (opened[i] = !opened[i])}>
+                  <span class="chev" class:down={opened[i]} aria-hidden="true">›</span>{thoughtFor(message.thinking_ms ?? 0)}
+                </button>
+                {#if opened[i]}<div class="thinking">{message.thinking}</div>{/if}
+              {/if}
+              {#if message.text}
+                <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+                <div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>
+              {/if}
+              {#if message.stopped}<p class="stopped">Stopped</p>{/if}
+              <div class="actions">
+                {#if message.text}<button type="button" class="btn quiet" onclick={() => copyAnswer(message.text)}>Copy</button>{/if}
+                {#if i === lastAnswer && canRetry}<button type="button" class="btn quiet" onclick={retry}>Try again</button>{/if}
+              </div>
+            </div>
+          {/if}
+        {/each}
+        {#if live}
+          {@const html = render(live.text)}
+          <div class="row ai">
+            {#if live.thinking && !live.text}<div class="thinking live">{live.thinking}</div>{/if}
+            {#if live.text}
+              <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+              <div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>
+            {:else}
+              <p class="waiting"><span class="pip" aria-hidden="true"></span>{waiting(live.phase, live.status)}</p>
+            {/if}
+          </div>
+        {:else if error}
+          <div class="row ai">
+            <p class="error">{error}</p>
+            {#if canRetry}<div class="actions"><button type="button" class="btn quiet" onclick={retry}>Try again</button></div>{/if}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <div class="fade-top" aria-hidden="true"></div>
+    <div class="fade" aria-hidden="true"></div>
+    <div class="dock">
+      <!-- The composer floats over the end of the conversation. Its rim is the search card's ring; it moves only while the box
+           has the keyboard or an answer is coming, and rests as a still metal edge otherwise. -->
+      <form class="composer" onsubmit={(event) => { event.preventDefault(); submit(); }}>
+        <LiquidRing speed={busy ? 1.5 : 0.6} running={focused || busy} metal={METALS[0]} radius={27} />
+        <div class="plate">
+          <RoundButton
+            icon="brain"
+            look="tile"
+            label="Think"
+            title="Think before answering: slower, sometimes better"
+            on={info?.thinking}
+            pressed={info?.thinking ?? false}
+            disabled={off}
+            onclick={() => Chat.SetThinking(!info?.thinking)}
+          />
+          <textarea
+            bind:this={box}
+            bind:value={draft}
+            oninput={grow}
+            onkeydown={onBoxKey}
+            onfocus={() => (focused = true)}
+            onblur={() => (focused = false)}
+            rows="1"
+            placeholder={off ? "Turn Omni AI on to ask" : "Ask anything…"}
+            disabled={off}
+            spellcheck="true"
+            aria-label="Message"
+          ></textarea>
+          {#if busy}
+            <RoundButton icon="stop" look="solid" label="Stop (Esc)" onclick={stop} />
+          {:else}
+            <RoundButton icon="send" look="solid" type="submit" label="Send (Enter)" disabled={off || draft.trim() === ""} />
           {/if}
         </div>
-      {:else if error}
-        <div class="row ai">
-          <p class="error">{error}</p>
-          {#if canRetry}<div class="actions"><button type="button" class="btn quiet" onclick={retry}>Try again</button></div>{/if}
-        </div>
-      {/if}
+      </form>
+      <div class="under">
+        <button
+          type="button"
+          class="saved"
+          class:unsaved={view.unsaved}
+          disabled={off || (info !== null && !info.keep_history)}
+          aria-pressed={view.unsaved}
+          onclick={toggleSaved}
+          title={info && !info.keep_history ? "History is off in Settings" : view.unsaved ? "Save this chat" : "Do not save this chat"}
+        >
+          {view.unsaved ? "Not saved" : "Saved"}
+        </button>
+        <span class="meter" title="How much of the model's memory this chat uses">{meter(view.used, view.room)}{unload ? ` · ${unload}` : ""}</span>
+      </div>
     </div>
-  {/if}
-
-  <form class="composer" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-    <textarea
-      bind:this={box}
-      bind:value={draft}
-      oninput={grow}
-      onkeydown={onBoxKey}
-      rows="1"
-      placeholder={off ? "Turn Omni AI on to ask" : "Ask anything…"}
-      disabled={off}
-      spellcheck="true"
-      aria-label="Message"
-    ></textarea>
-    {#if busy}
-      <button type="button" class="send" onclick={stop} aria-label="Stop (Esc)" title="Stop (Esc)">
-        <svg class="line-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-      </button>
-    {:else}
-      <button type="submit" class="send" disabled={off || draft.trim() === ""} aria-label="Send (Enter)" title="Send (Enter)">
-        <svg class="line-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V6 M6.5 11.5 12 6l5.5 5.5" /></svg>
-      </button>
-    {/if}
-  </form>
-  <footer>
-    <button
-      type="button"
-      class="saved"
-      class:off={view.unsaved}
-      disabled={off || (info !== null && !info.keep_history)}
-      aria-pressed={view.unsaved}
-      onclick={toggleSaved}
-      title={info && !info.keep_history ? "History is off in Settings" : view.unsaved ? "Save this chat" : "Do not save this chat"}
-    >
-      {view.unsaved ? "Not saved" : "Saved"}
-    </button>
-    <span class="meter" title="How much of the model's memory this chat uses">{meter(view.used, view.room)}{unload ? ` · ${unload}` : ""}</span>
-  </footer>
-</main>
+  </main>
+</Card>
 
 <style>
   main {
     position: relative;
     display: flex;
+    flex: 1;
     flex-direction: column;
-    height: 100vh;
+    min-height: 0;
     max-width: none;
-    background: var(--plate);
     color: var(--text);
   }
   header {
     display: flex;
     align-items: center;
-    gap: 9px;
-    padding: 9px 10px 9px 16px;
-    border-bottom: 1px solid var(--line);
+    gap: 10px;
+    padding: 12px 14px 8px 24px;
+    --wails-draggable: drag; /* the window is moved by holding the header anywhere but on a button */
+    user-select: none;
   }
   h1 {
     margin: 0;
@@ -487,17 +486,8 @@
   }
   .tools {
     display: flex;
-    gap: 2px;
+    gap: 4px;
     margin-left: auto;
-  }
-  :global(main .tools .btn) {
-    height: 30px;
-    padding: 0 10px;
-    font-size: 12.5px;
-  }
-  :global(main .btn.quiet.on) {
-    color: var(--text);
-    background: var(--lift);
   }
   .dot {
     flex: none;
@@ -506,14 +496,14 @@
     border-radius: 50%;
     background: var(--text-3);
   }
-  .dot.ready {
+  .dot.tone-ready {
     background: var(--chrome);
     box-shadow: 0 0 0 3px rgba(230, 232, 236, 0.15);
   }
-  .dot.busy {
+  .dot.tone-busy {
     background: var(--text-2);
   }
-  .dot.bad {
+  .dot.tone-bad {
     background: var(--danger);
   }
   .dot.pulse {
@@ -527,10 +517,10 @@
 
   .log {
     display: flex;
-    flex-direction: column;
     flex: 1;
+    flex-direction: column;
     min-height: 0;
-    padding: 18px 16px 8px;
+    padding: 12px max(24px, calc((100% - 640px) / 2)) 170px;
     overflow-y: auto;
     user-select: text;
     cursor: auto;
@@ -540,17 +530,16 @@
     flex: 1;
     place-content: center;
     gap: 6px;
-    padding-bottom: 40px;
+    padding-bottom: 60px;
     text-align: center;
   }
   .hello {
     margin: 0;
-    font: 560 18px/1.3 var(--display);
+    font: 560 20px/1.3 var(--display);
     letter-spacing: -0.01em;
   }
   .note {
     margin: 0;
-    max-width: 30ch;
     color: var(--text-3);
     font-size: 12.5px;
     line-height: 1.5;
@@ -566,8 +555,8 @@
   }
   .bubble {
     max-width: 88%;
-    padding: 9px 13px;
-    border-radius: 16px 16px 5px 16px;
+    padding: 9px 14px;
+    border-radius: 18px 18px 6px 18px;
     background: var(--lift);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -614,7 +603,7 @@
     position: relative;
     padding: 12px 14px;
     border: 1px solid var(--line);
-    border-radius: 10px;
+    border-radius: 12px;
     background: var(--tile);
     overflow-x: auto;
   }
@@ -632,7 +621,7 @@
     height: 24px;
     padding: 0 8px;
     border: 0;
-    border-radius: 7px;
+    border-radius: 12px;
     background: var(--lift);
     color: var(--text-2);
     font: 560 11.5px/1 var(--sans);
@@ -742,6 +731,7 @@
   }
   .memory {
     display: flex;
+    flex: none;
     align-items: center;
     gap: 10px;
     margin: 4px 0 18px;
@@ -756,89 +746,100 @@
     background: var(--line);
   }
 
-  .off {
+  .unavailable {
     flex: 1;
     display: grid;
     place-content: center;
     justify-items: center;
     gap: 10px;
-    padding: 24px 32px 48px;
+    padding: 24px 32px 120px;
     text-align: center;
   }
-  .off h2 {
+  .unavailable h2 {
     margin: 0;
     font: 620 17px/1.3 var(--sans);
   }
-  .off p {
+  .unavailable p {
     margin: 0 0 6px;
-    max-width: 34ch;
+    max-width: 38ch;
     color: var(--text-2);
     font-size: 13px;
     line-height: 1.55;
   }
 
+  /* Messages scroll up under the header through a soft edge, not a hard cut. */
+  .fade-top {
+    position: absolute;
+    top: 54px;
+    right: 0;
+    left: 0;
+    z-index: 1;
+    height: 22px;
+    background: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0));
+    pointer-events: none;
+  }
+  /* The end of the conversation fades under the composer. Its corners follow the card's, or they would paint over the clear window. */
+  .fade {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 150px;
+    border-radius: 0 0 26px 26px;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0), #000 62%);
+    pointer-events: none;
+  }
+  .dock {
+    position: absolute;
+    right: 0;
+    bottom: 10px;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    pointer-events: none;
+  }
+  .dock > * {
+    width: min(580px, calc(100% - 80px));
+    pointer-events: auto;
+  }
   .composer {
+    position: relative;
+    padding: 2.5px; /* the metal of the ring around the plate */
+    border-radius: 29px;
+  }
+  .plate {
+    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 8px;
-    margin: 6px 12px 0;
-    padding: 6px 6px 6px 14px;
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--tile);
-    transition: border-color 0.12s;
-  }
-  .composer:focus-within {
-    border-color: rgba(230, 232, 236, 0.45);
+    padding: 6px;
+    border-radius: 26.5px;
+    background: #0d0d0e;
   }
   textarea {
     flex: 1;
+    box-sizing: border-box; /* grow() sets the height to scrollHeight, which already holds the padding */
     min-width: 0;
     max-height: 150px;
-    padding: 7px 0;
+    padding: 8px 2px;
     border: 0;
     outline: 0;
     resize: none;
     background: transparent;
     color: var(--text);
     font: 450 14px/1.45 var(--sans);
+    user-select: text;
   }
   textarea::placeholder {
     color: var(--text-3);
   }
-  .send {
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    border: 0;
-    border-radius: 50%;
-    background: var(--chrome);
-    color: #000;
-    cursor: pointer;
-    transition: background-color 0.12s;
-  }
-  .send:hover:not(:disabled) {
-    background: #fff;
-  }
-  .send:disabled {
-    background: var(--lift);
-    color: var(--text-3);
-    cursor: default;
-  }
-  .send:focus-visible,
-  .saved:focus-visible,
-  .pick:focus-visible,
-  .thought:focus-visible {
-    outline: 1px solid var(--chrome);
-    outline-offset: 2px;
-  }
-  footer {
+  .under {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 16px 8px;
+    padding: 0 12px;
     color: var(--text-3);
     font-size: 11.5px;
     font-variant-numeric: tabular-nums;
@@ -854,21 +855,28 @@
   .saved:hover:not(:disabled) {
     color: var(--text-2);
   }
-  .saved.off {
+  .saved.unsaved {
     color: var(--text-2);
   }
   .saved:disabled {
     cursor: default;
   }
+  .saved:focus-visible,
+  .pick:focus-visible,
+  .thought:focus-visible {
+    outline: 1px solid var(--chrome);
+    outline-offset: 2px;
+  }
 
   .history {
     position: absolute;
-    inset: 49px 0 0;
-    z-index: 2;
+    inset: 56px 0 0;
+    z-index: 3;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px 10px 8px;
+    padding: 6px 18px 14px;
+    border-radius: 0 0 26px 26px;
     background: var(--plate);
   }
   .history ul {
@@ -882,7 +890,7 @@
   .history li {
     display: flex;
     align-items: center;
-    border-radius: 10px;
+    border-radius: 12px;
   }
   .history li:hover,
   .history li.open {

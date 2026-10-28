@@ -173,4 +173,10 @@ func TestHistorySettingsAndClearing(t *testing.T) {
 	if msg := r.page.SetThinking(true); msg != "" || !r.store.Get().Chat.Thinking {
 		t.Fatalf("SetThinking: %q", msg)
 	}
+	if !r.page.View().OnTop {
+		t.Fatal("the chat window stays on top by default")
+	}
+	if msg := r.page.SetOnTop(false); msg != "" || r.store.Get().Chat.OnTop || r.page.View().OnTop {
+		t.Fatalf("SetOnTop: %q", msg)
+	}
 }

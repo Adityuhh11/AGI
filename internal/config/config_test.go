@@ -442,7 +442,7 @@ func TestOmniAIIsOffByDefaultLoadsOnDemandAndKeepsHistory(t *testing.T) {
 	if got.Enabled || got.Hotkey != "" || got.Thinking {
 		t.Fatalf("chat must start off, with no hotkey and no thinking: %+v", got)
 	}
-	if got.Load != "when_asked" || got.UnloadAfterMinutes != 10 || got.ContextTokens != 8192 || !got.KeepHistory || got.HistoryDays != 90 {
+	if got.Load != "when_asked" || got.UnloadAfterMinutes != 10 || got.ContextTokens != 8192 || !got.KeepHistory || got.HistoryDays != 90 || !got.OnTop {
 		t.Fatalf("defaults = %+v", got)
 	}
 }
@@ -450,7 +450,7 @@ func TestOmniAIIsOffByDefaultLoadsOnDemandAndKeepsHistory(t *testing.T) {
 func TestChatSettingsRoundTripAndAreValidated(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	cfg := Default()
-	cfg.Chat = Chat{Enabled: true, Hotkey: "Ctrl+Alt+A", Load: "at_start", UnloadAfterMinutes: 0, ContextTokens: 16384, KeepHistory: false, HistoryDays: 0, Thinking: true}
+	cfg.Chat = Chat{Enabled: true, Hotkey: "Ctrl+Alt+A", Load: "at_start", UnloadAfterMinutes: 0, ContextTokens: 16384, KeepHistory: false, HistoryDays: 0, Thinking: true, OnTop: false}
 	if err := cfg.Save(path); err != nil {
 		t.Fatal(err)
 	}

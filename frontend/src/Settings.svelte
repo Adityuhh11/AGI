@@ -3,6 +3,9 @@
   import { Service as Settings } from "../bindings/omni/internal/settingsui";
   import type { View } from "../bindings/omni/internal/settingsui";
   import "./lib/settings/forms.css";
+  import { Window } from "@wailsio/runtime";
+  import Card from "./lib/Card.svelte";
+  import RoundButton from "./lib/RoundButton.svelte";
   import About from "./lib/settings/About.svelte";
   import Clipboard from "./lib/settings/Clipboard.svelte";
   import FileSearch from "./lib/settings/FileSearch.svelte";
@@ -38,14 +41,17 @@
   };
 
   onMount(() => {
-    document.documentElement.dataset.surface = "settings";
+    document.documentElement.dataset.surface = "card";
     reload();
     window.addEventListener("hashchange", follow);
     return () => window.removeEventListener("hashchange", follow);
   });
 </script>
 
+<Card>
 <div class="settings">
+  <div class="drag" aria-hidden="true"></div>
+  <div class="close"><RoundButton icon="close" label="Close" onclick={() => Window.Close()} /></div>
   <nav aria-label="Settings sections">
     <h1>Settings</h1>
     {#each SECTIONS as s (s.id)}
@@ -76,21 +82,40 @@
     {/if}
   </main>
 </div>
+</Card>
 
 <style>
   .settings {
+    position: relative;
     display: grid;
+    flex: 1;
     grid-template-columns: 196px minmax(0, 1fr);
-    min-height: 100vh;
-    background: var(--plate);
+    min-height: 0;
     color: var(--text);
+  }
+  /* The top of the window drags it; the close button sits above that strip. */
+  .drag {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1;
+    height: 46px;
+    --wails-draggable: drag;
+  }
+  .close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    z-index: 2;
   }
   nav {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 22px 12px;
+    padding: 24px 12px;
     border-right: 1px solid var(--line);
+    overflow-y: auto;
   }
   nav h1 {
     margin: 0 0 14px;
@@ -128,7 +153,11 @@
     outline-offset: -1px;
   }
   main {
-    padding: 28px 40px 48px;
+    min-height: 0;
+    padding: 36px 40px 48px;
+    overflow-y: auto;
+  }
+  main > :global(*) {
     max-width: 640px;
   }
 </style>

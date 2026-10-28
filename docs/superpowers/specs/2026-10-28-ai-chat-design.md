@@ -1,6 +1,6 @@
 # Omni AI: a local chat window
 
-Date: 2026-10-28. Status: **approved by the owner; built on `feat/ai-chat`** (cut from `dev`), for the owner's review before it goes into PR 39. Where the build differs from this text: conversations cannot be renamed (the title is the first question), and the clipboard-text hotkey trial (section 13, step 7) is not built yet.
+Date: 2026-10-28. Status: **approved by the owner; built on `feat/ai-chat`** (cut from `dev`), for the owner's review before it goes into PR 39. Where the build differs from this text: conversations cannot be renamed (the title is the first question), the clipboard-text hotkey trial (section 13, step 7) is not built yet, and the window was redesigned on 2026-10-29 (the note at the start of section 4 replaces its sketch).
 
 The owner wants an optional local language model in Omni, first as a chat. A person types `ask` in the bar (or presses a
 hotkey), and a resizable window that stays on top opens and answers questions. The model is Liquid AI's LFM3-1.7B, quantized,
@@ -89,7 +89,15 @@ top_k 50, repeat penalty 1.1), which the server already reports by default.
 
 ## 4. The window
 
-Same host as Notes (`settingsui.Window`, a new `chatSpec`): route `chat`, 460 x 640, minimum 340 x 320, resizable, **always on
+**Revised 2026-10-29 (the owner's review of the first build).** The window is 720 x 540 DIP (as wide as the search bar, wider than tall; minimum
+520 x 380), with no frame, title bar, minimise or border: a clear window with one rounded card and a lit edge (`lib/Card.svelte`), moved by its
+header, resized by its edges, closed by a round close button or Esc. The header holds the status dot and title, and round buttons for a new chat,
+the history and close. The composer floats in the middle of the bottom, narrower than the window (580 px at most), inside the search card's ring (the
+shader, moving only while the box has the keyboard or an answer is coming); the Think switch is a round brain button inside it, lit when on, and the
+send button is round too. "Keep above other windows" is a setting (`[chat] on_top`, default on, Settings > Omni AI), not a button in the window. The
+notes and the settings windows got the same frameless card and the notes the same size. The sketch below is the first build's.
+
+Same host as Notes (`settingsui.Window`, a new `chatSpec`): route `chat`, minimum 340 x 320 in the first build, resizable, **always on
 top** with the pin button Notes has (it turns that off and on). Built the first time it is asked for. A second request brings
 the open one forward. It follows the existing look: black plate, Geist, the capsule/card language of the bar, `theme.css` tokens,
 sharp at 125% (no scaled text, no opacity fades on text, as in the 8h sharpness pass).
