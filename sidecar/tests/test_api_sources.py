@@ -224,9 +224,17 @@ def test_index_options_are_applied_and_a_bad_one_is_a_422(api, folder):
         )
 
     assert sync({"photos": "name"})["report"]["added"] == 4
-    report = sync({"photos": "content", "pdf_pages": "text", "videos": "content"})["report"]
+    report = sync(
+        {"photos": "content", "pdf_pages": "text", "videos": "content", "audio": "content"}
+    )["report"]
     assert (report["updated"], report["unchanged"]) == (1, 3)  # only the picture changes
-    for bad in [{"photos": "pixels"}, {"pdf_pages": "some"}, {"videos": "off"}, {"other": "x"}]:
+    for bad in [
+        {"photos": "pixels"},
+        {"pdf_pages": "some"},
+        {"videos": "off"},
+        {"audio": "on"},
+        {"other": "x"},
+    ]:
         assert api.post("/sources", json={**body, "options": bad}).status_code == 422, bad
 
 

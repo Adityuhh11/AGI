@@ -2,7 +2,7 @@ import dataclasses
 
 import pytest
 
-from omni_memory.types import Chunk, ChunkKind, chunk_id
+from omni_memory.types import LEGACY_OPTIONS, Chunk, ChunkKind, IndexOptions, chunk_id
 
 
 def make(**overrides) -> Chunk:
@@ -43,3 +43,10 @@ def test_id_changes_with_identity_fields(override):
 def test_chunk_is_immutable():
     with pytest.raises(dataclasses.FrozenInstanceError):
         make().text = "nope"  # type: ignore[misc]
+
+
+def test_index_options_audio_is_name_by_default_and_checked():
+    assert IndexOptions().audio == "name" and LEGACY_OPTIONS.audio == "name"
+    assert IndexOptions(audio="content").audio == "content"
+    with pytest.raises(ValueError, match="audio must be one of name, content"):
+        IndexOptions(audio="on")

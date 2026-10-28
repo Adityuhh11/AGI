@@ -145,3 +145,17 @@ def test_a_stream_of_queries_cannot_starve_or_corrupt_a_bulk_call():
     bulk.join(timeout=10)
     assert not bulk.is_alive()
     np.testing.assert_array_equal(result[0], FakeEmbedder(16).embed_documents(texts))
+
+
+def test_audio_goes_through_in_slices():
+    clips = [np.full(160, i / 10, "f4") for i in range(5)]
+    calls = []
+
+    class Counting(FakeEmbedder):
+        def embed_audio(self, clips):
+            calls.append(len(clips))
+            return super().embed_audio(clips)
+
+    wrapped = SerializedEmbedder(Counting(16), image_slice=2)
+    np.testing.assert_array_equal(wrapped.embed_audio(clips), FakeEmbedder(16).embed_audio(clips))
+    assert calls == [2, 2, 1] and wrapped.embed_audio([]).shape == (0, 16)

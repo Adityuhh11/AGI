@@ -17,7 +17,7 @@ from __future__ import annotations
 import heapq
 import sqlite3
 import threading
-from collections.abc import Collection, Iterable, Iterator, Sequence
+from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -300,9 +300,15 @@ class FlatStore:
                     )
         return found
 
-    def count(self) -> int:
+    def count(self, kinds: Collection[ChunkKind] | None = None) -> int:
+        """The chunks stored, or those of the given kinds."""
         with self._lock:
-            (total,) = self._db.execute("SELECT COUNT(*) FROM chunks").fetchone()
+            if kinds is None:
+                (total,) = self._db.execute("SELECT COUNT(*) FROM chunks").fetchone()
+                return total
+            marks = ",".join("?" * len(kinds))
+            query = f"SELECT COUNT(*) FROM chunks WHERE kind IN ({marks})"
+            (total,) = self._db.execute(query, [kind.value for kind in kinds]).fetchone()
             return total
 
     # --- sources and files: change detection for incremental indexing ------------------
@@ -453,9 +459,18 @@ class FlatStore:
         return found
 
     def search_vectors(
-        self, query: np.ndarray, n: int, filters: Filters | None = None
+        self,
+        query: np.ndarray,
+        n: int,
+        filters: Filters | None = None,
+        kind_offsets: Mapping[ChunkKind, float] | None = None,
     ) -> list[VectorHit]:
         """Exact top-`n` by dot product among live chunks matching `filters`.
+
+        `kind_offsets` adds a number to the score of every chunk of a kind before the best are
+        chosen: audio windows score lower against text than text does, so they are shifted to
+        where the other kinds' noise sits (`search/calibration.py`). A shifted score is no longer a
+        cosine.
 
         Ordered by (-score, id). Candidates tied with the n-th score are all kept before the
         final sort, so which of several equal scores make the cut never depends on row order.
@@ -472,6 +487,13 @@ class FlatStore:
             if rows.size == 0:
                 return []
             scores = self._vectors.scores(vec, size)[rows]
+            for kind, offset in (kind_offsets or {}).items():
+                shifted = self._db.execute(
+                    "SELECT vec_row FROM chunks WHERE kind = ?", (kind.value,)
+                ).fetchall()
+                if shifted:
+                    marked = np.isin(rows, np.asarray(shifted, dtype=np.intp).ravel())
+                    scores = scores + np.float32(offset) * marked
             if scores.size > n:
                 keep = scores >= np.partition(scores, -n)[-n]
                 rows, scores = rows[keep], scores[keep]

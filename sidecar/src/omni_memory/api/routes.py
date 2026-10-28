@@ -33,6 +33,8 @@ from omni_memory.api.schemas import (
 )
 from omni_memory.jobs import Job, JobBusyError
 from omni_memory.sources.folder import excluded_folders, scan
+from omni_memory.sources.length import estimated_seconds
+from omni_memory.sources.rules import Route
 from omni_memory.store import FlatStore
 from omni_memory.types import Filters, IndexOptions, SourceInfo
 
@@ -133,6 +135,8 @@ def survey(body: SurveyRequest, request: Request) -> SurveyOut:
         count = routes.setdefault(str(file.route), RouteCountOut(files=0, bytes=0))
         count.files += 1
         count.bytes += file.size
+        if file.route in (Route.AUDIO, Route.VIDEO):
+            count.seconds += estimated_seconds(file.uri, file.size, video=file.route is Route.VIDEO)
     return SurveyOut(
         routes=routes,
         denied=scanned.denied,

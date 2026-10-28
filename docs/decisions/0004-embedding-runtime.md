@@ -61,7 +61,8 @@ cosines from 0.99988 to 0.99996, and before the image fix they gave the same ima
   the difference because it is saturated; the golden set needs harder queries before another model change is judged by it.
 - Images and PDF pages run at 64 to 68% of torch's speed on Vulkan (CUDA: 86 to 109%). The client's PNG encoding and
   resizing are part of that; JPEG and concurrent requests are untested ways to close it.
-- Audio is not in scope (it was not before); the audio encoder is not part of the shipped files.
+- Audio was not in scope here. (Corrected 2026-10-28: the projector file does contain the audio encoder, and the server
+  embeds audio through it; ADR 0007.)
 - Not yet run on the friend's RTX 50-series machine, nor over a full re-index of the real 56k chunks. The packaging phase
   (P4) must repeat the fidelity sample and the golden eval on the final binaries, and test an iGPU-only machine.
 - `sidecar/spikes/` holds the throwaway scripts and the first `LlamaEmbedder`; the real embedder is written in the packaging

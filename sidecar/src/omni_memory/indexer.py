@@ -5,17 +5,18 @@ disappeared, then for every new or changed file read it once, hash it and chunk 
 from many small files are embedded together (one GPU call has a ~200 ms fixed cost, so one call
 per file would dominate indexing time), and so are image files, a few at a time, so the embedder
 can keep two in flight; PDFs and videos are embedded per file because their pictures are made
-lazily. Each file lands in the store atomically (`FlatStore.replace_file`).
+lazily, and so are audio files and soundtracks, whose 30 s windows are decoded as a stream.
+Each file lands in the store atomically (`FlatStore.replace_file`).
 
 Nothing is embedded twice: a chunk whose id is already stored keeps its vector (an id is derived
 from everything its embedding is computed from), and a moved, renamed or copied file takes the
 picture vectors of the identical file already indexed.
 
-Index options (`IndexOptions`) say what a PDF page, a photo and a video become. When they change,
-every file of the kinds concerned is processed again, even if it did not change on disk, and the
-reuse above makes that cheap. The options and the kinds still to redo are stored before the first
-file is touched and the redo is cleared when the sync finishes, so a sync that stops part-way
-(and options changed back meanwhile) never leaves files in the wrong mode.
+Index options (`IndexOptions`) say what a PDF page, a photo, a video and a sound become. When they
+change, every file of the kinds concerned is processed again, even if it did not change on
+disk, and the reuse above makes that cheap. The options and the kinds still to redo are stored
+before the first file is touched and the redo is cleared when the sync finishes, so a sync that
+stops part-way (and options changed back meanwhile) never leaves files in the wrong mode.
 
 Failure policy: a file that cannot be read, chunked or rendered, whatever the reason, is recorded
 in the report and skipped, so one bad file never costs the rest of the folder. Files that are
@@ -39,13 +40,14 @@ from pathlib import Path, PurePosixPath
 import numpy as np
 from PIL.Image import Image
 
-from omni_memory.chunking.common import ChunkingError
+from omni_memory.chunking.audio import AudioTrack, audio_name_chunk, audio_window_chunk
+from omni_memory.chunking.common import ChunkingError, media_identity
 from omni_memory.chunking.image import image_chunk, load_image
 from omni_memory.chunking.name import file_name_chunk, name_identity
 from omni_memory.chunking.office import office_text
 from omni_memory.chunking.pdf import PdfPages, pages_as_pictures, pdf_page_chunks, pdf_text_chunks
 from omni_memory.chunking.text import NotTextError, chunk_text_document
-from omni_memory.chunking.video import Video, video_frame_chunks, video_identity, video_name_chunk
+from omni_memory.chunking.video import Video, video_frame_chunks, video_name_chunk
 from omni_memory.config import Settings
 from omni_memory.embedding.base import Embedder
 from omni_memory.sources.folder import ScannedFile, excluded_folders, scan
@@ -71,6 +73,8 @@ def _changed_routes(before: IndexOptions, now: IndexOptions) -> frozenset[Route]
         changed.add(Route.IMAGE)
     if before.videos != now.videos:
         changed.add(Route.VIDEO)
+    if before.audio != now.audio:  # a video's soundtrack is sound too
+        changed.update((Route.AUDIO, Route.VIDEO))
     return frozenset(changed)
 
 
@@ -166,7 +170,12 @@ class Indexer:
         report.errors.extend(FileError(uri, message) for uri, message in scanned.unreadable)
         self._store.register_source(source_id, str(root))
         known = self._store.file_records(source_id)
-        before, unfinished = self._store.source_options(source_id) or (LEGACY_OPTIONS, frozenset())
+        # An index without options predates audio search too: its audio files are plain `file`
+        # chunks.
+        before, unfinished = self._store.source_options(source_id) or (
+            LEGACY_OPTIONS,
+            frozenset({Route.AUDIO.value}),
+        )
         # Kinds whose option changed, plus those an interrupted sync left half done: recorded
         # before any file is touched, so stopping part-way never strands files in the wrong mode.
         redo = _changed_routes(before, options) | {Route(route) for route in unfinished}
@@ -240,8 +249,8 @@ class Indexer:
         if unchanged and not redo:
             run.report.unchanged += 1
             return
-        if file.route is Route.VIDEO:
-            data, digest = b"", video_identity(file.path, file.size)  # never read whole
+        if file.route in (Route.VIDEO, Route.AUDIO):
+            data, digest = b"", media_identity(file.path, file.size)  # never read whole
         elif file.route is Route.FILE:
             data, digest = b"", name_identity(file.size)  # only the name counts
         else:
@@ -263,6 +272,8 @@ class Indexer:
             self._index_pdf(run, record, data, is_new, donor)
         elif file.route is Route.VIDEO:
             self._index_video(run, record, file.path, is_new, donor)
+        elif file.route is Route.AUDIO:
+            self._index_audio(run, record, file.path, is_new, donor)
         elif file.route is Route.OFFICE:
             self._index_office(run, record, file, data, is_new)
         elif file.route is Route.FILE:
@@ -451,12 +462,33 @@ class Indexer:
     def _index_video(
         self, run: _Run, record: FileRecord, path: Path, is_new: bool, donor: str | None
     ) -> None:
-        """A video is found by its name; with `videos = content` also by eight of its frames. A
-        video whose frames cannot be read keeps its name, and the problem is reported."""
+        """A video is found by its name; with `videos = content` also by eight of its frames, and
+        with `audio = content` also by its soundtrack. What cannot be read keeps the name, and the
+        problem is reported."""
         name = video_name_chunk(record.source_id, record.uri, record.sha256, record.mtime_ns)
-        if run.options.videos == "name":
+        if run.options.videos == "name" and run.options.audio == "name":
             run.pending.append(_Pending(record, [name], is_new))
             return
+        empty = np.zeros((0, self._embedder.dim), dtype=np.float32)
+        frames, frame_vectors = [], empty
+        if run.options.videos == "content":
+            frames, frame_vectors = self._video_frames(run, record, path, donor)
+        sound, sound_vectors = [], empty
+        if run.options.audio == "content":
+            sound, sound_vectors = self._sound(
+                run, record, path, donor, required=False, kept="found without its sound"
+            )
+        self._commit(
+            run,
+            record,
+            [name, *frames, *sound],
+            np.concatenate([self._text_vectors([name]), frame_vectors, sound_vectors]),
+            is_new,
+        )
+
+    def _video_frames(
+        self, run: _Run, record: FileRecord, path: Path, donor: str | None
+    ) -> tuple[list[Chunk], np.ndarray]:
         frames: list[Chunk] = []
         frame_vectors = np.zeros((0, self._embedder.dim), dtype=np.float32)
         try:
@@ -477,10 +509,103 @@ class Indexer:
         except ChunkingError as error:
             run.report.errors.append(FileError(record.uri, f"{error}; found by its name only"))
             frames, frame_vectors = [], frame_vectors[:0]
+        return frames, frame_vectors
+
+    def _index_audio(
+        self, run: _Run, record: FileRecord, path: Path, is_new: bool, donor: str | None
+    ) -> None:
+        """An audio file is found by its name; with `audio = content` also by 30 s windows of what
+        it sounds like. A file that cannot be decoded keeps its name, and the problem is
+        reported."""
+        name = audio_name_chunk(record.source_id, record.uri, record.sha256, record.mtime_ns)
+        if run.options.audio == "name":
+            run.pending.append(_Pending(record, [name], is_new))
+            return
+        windows, vectors = self._sound(
+            run, record, path, donor, required=True, kept="found by its name only"
+        )
         self._commit(
             run,
             record,
-            [name, *frames],
-            np.concatenate([self._text_vectors([name]), frame_vectors]),
+            [name, *windows],
+            np.concatenate([self._text_vectors([name]), vectors]),
             is_new,
         )
+
+    def _sound(
+        self,
+        run: _Run,
+        record: FileRecord,
+        path: Path,
+        donor: str | None,
+        *,
+        required: bool,
+        kept: str,
+    ) -> tuple[list[Chunk], np.ndarray]:
+        """The windows of a file's sound and their vectors. A window whose chunk is stored already
+        keeps its vector, and so does one of an identical file (`donor`, by content hash); the rest
+        are embedded a few at a time while the track is decoded, so a long recording never sits in
+        memory. `required` is false for a video, which may simply have no sound. A track that cannot
+        be read is reported with `kept` saying what the file is found by instead."""
+        none = np.zeros((0, self._embedder.dim), dtype=np.float32)
+        chunks: list[Chunk] = []
+        vectors: list[np.ndarray] = []
+        reuse = (
+            self._store.vectors_of(record.source_id, donor, (ChunkKind.AUDIO_WINDOW,))
+            if donor
+            else {}
+        )
+        batch: list[tuple[Chunk, np.ndarray]] = []
+        reused = False
+        try:
+            with AudioTrack(path) as track:
+                if not track.present:
+                    if required:
+                        raise ChunkingError("the file has no sound")
+                    return [], none
+                for seconds, samples in track.windows():
+                    chunk = audio_window_chunk(
+                        record.source_id, record.uri, record.sha256, seconds, record.mtime_ns
+                    )
+                    batch.append((chunk, samples))
+                    if len(batch) >= self._settings.audio_batch_size:
+                        reused |= self._embed_sound(batch, reuse, chunks, vectors)
+                reused |= self._embed_sound(batch, reuse, chunks, vectors)
+        except ChunkingError as error:
+            run.report.errors.append(FileError(record.uri, f"{error}; {kept}"))
+            return [], none
+        if reused:
+            run.report.reused += 1
+        return (chunks, np.stack(vectors)) if vectors else ([], none)  # none: silence, or under 1 s
+
+    def _embed_sound(
+        self,
+        batch: list[tuple[Chunk, np.ndarray]],
+        reuse: dict[str, np.ndarray],
+        chunks: list[Chunk],
+        vectors: list[np.ndarray],
+    ) -> bool:
+        """Appends the batch's chunks and vectors, embedding only what is neither stored nor
+        taken from the donor; empties the batch. True if the donor gave a vector."""
+        if not batch:
+            return False
+        stored = self._store.vectors_for([chunk.id for chunk, _ in batch])
+        rows: list[np.ndarray | None] = [None] * len(batch)
+        missing: list[int] = []
+        reused = False
+        for index, (chunk, _) in enumerate(batch):
+            if chunk.id in stored:
+                rows[index] = stored[chunk.id]
+            elif chunk.content_hash in reuse:
+                rows[index] = reuse[chunk.content_hash]
+                reused = True
+            else:
+                missing.append(index)
+        if missing:
+            fresh = self._embedder.embed_audio([batch[i][1] for i in missing])
+            for index, vector in zip(missing, fresh, strict=True):
+                rows[index] = vector
+        chunks.extend(chunk for chunk, _ in batch)
+        vectors.extend(row for row in rows if row is not None)
+        batch.clear()
+        return reused

@@ -30,7 +30,7 @@ def _direction(token: str, dim: int) -> np.ndarray:
 
 
 class FakeEmbedder:
-    """Implements `Embedder` with hashed bags of words (text) and content hashes (images)."""
+    """Implements `Embedder` with hashed bags of words (text) and content hashes (images, audio)."""
 
     def __init__(self, dim: int = 256) -> None:
         self._dim = dim
@@ -81,6 +81,14 @@ class FakeEmbedder:
             digest = hashlib.sha256(f"{image.mode}{image.size}".encode() + image.tobytes())
             rows.append(self._embed_tokens([f"img:{digest.hexdigest()}"]))
         return self._stack(rows)
+
+    def embed_audio(self, clips: Sequence[np.ndarray]) -> np.ndarray:
+        return self._stack(
+            [
+                self._embed_tokens([f"audio:{hashlib.sha256(clip.tobytes()).hexdigest()}"])
+                for clip in clips
+            ]
+        )
 
     def embed_query(self, text: str) -> np.ndarray:
         return self._embed_text(text)

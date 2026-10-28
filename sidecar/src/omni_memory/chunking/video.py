@@ -1,14 +1,12 @@
 """Videos: a chunk for the name, and frames to embed as pictures, through PyAV (ffmpeg's libraries).
 
-A video is never read whole. Its identity is a hash of its size and its first and last mebibyte,
-enough to notice that a file moved without reading gigabytes. Frames are taken by seeking to the
+A video is never read whole (its identity is `media_identity`). Frames are taken by seeking to the
 middle of each of `FRAMES` equal parts, so a 30-minute video costs about what a 5-second one does
 (0.25 to 0.5 s for eight frames, docs/superpowers/specs/2026-10-20-indexing-choices-design.md).
 """
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from types import TracebackType
 from typing import Self
@@ -20,18 +18,6 @@ from omni_memory.chunking.common import ChunkingError, locator_json, sha256_hex
 from omni_memory.types import Chunk, ChunkKind
 
 FRAMES = 8
-_EDGE = 1 << 20  # bytes hashed from each end of the file
-
-
-def video_identity(path: Path, size: int) -> str:
-    """A content hash of the size and the first and last mebibyte."""
-    digest = hashlib.sha256(str(size).encode())
-    with path.open("rb") as file:
-        digest.update(file.read(_EDGE))
-        if size > 2 * _EDGE:
-            file.seek(size - _EDGE)
-        digest.update(file.read(_EDGE))
-    return digest.hexdigest()
 
 
 class Video:
