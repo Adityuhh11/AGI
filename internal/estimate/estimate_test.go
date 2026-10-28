@@ -117,3 +117,20 @@ func TestAWindowCostsMoreOnTheProcessor(t *testing.T) {
 		t.Errorf("30 minutes on the processor: %v, measured 7.4 min", cpu)
 	}
 }
+
+func TestASurveyFromAnEngineThatSentNoLengthIsPricedFromTheBytes(t *testing.T) {
+	// 10 hours of mp3 at 20 KB/s and a video library of 100 hours at 300 KB/s, as a survey taken before audio search
+	// reports them: files and bytes, no seconds. One window a file would price them as a minute.
+	routes := map[string]sidecar.RouteCount{
+		"audio": {Files: 10, Bytes: 20_000 * 3600 * 10},
+		"video": {Files: 40, Bytes: 300_000 * 3600 * 100},
+	}
+	w := WorkFor(routes, sidecar.IndexOptions{Audio: "content"})
+	if want := (10.0 + 100.0) * 3600 / 15; math.Abs(w.Windows-want) > 1 {
+		t.Errorf("%.0f windows, want %.0f", w.Windows, want)
+	}
+	known := map[string]sidecar.RouteCount{"audio": {Files: 1, Bytes: 20_000 * 3600, Seconds: 60}}
+	if got := WorkFor(known, sidecar.IndexOptions{Audio: "content"}).Windows; got != 4 {
+		t.Errorf("a length the engine gave was overruled: %.0f windows, want 4", got)
+	}
+}

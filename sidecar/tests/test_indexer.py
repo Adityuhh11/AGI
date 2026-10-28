@@ -861,3 +861,36 @@ def test_an_index_from_before_audio_search_finds_its_audio_files_again(indexer, 
     store._db.execute("DELETE FROM source_options")  # as an index built before the options
     report = indexer.sync("s", root)  # the file did not change, its kind did
     assert report.updated == 1
+
+
+def test_audio_found_by_its_name_is_not_opened_at_all(indexer, root, monkeypatch):
+    # A cloud-only OneDrive file is fetched to be read, and a locked one cannot be: by name, only
+    # the size is used.
+    make_wav(root / "song.wav", 5)
+
+    def refuse(*args, **kwargs):
+        raise AssertionError("an audio file found by its name must not be opened")
+
+    monkeypatch.setattr("omni_memory.indexer.media_identity", refuse)
+    report = indexer.sync("s", root)
+    assert (report.added, report.errors) == (1, [])
+
+
+def test_audio_by_content_is_identified_by_its_ends_and_a_rename_still_reuses_its_vectors(
+    indexer, store, embedder, root
+):
+    make_wav(root / "talk.wav", 40)
+    indexer.sync("s", root, options=IndexOptions(audio="content"))
+    (root / "talk.wav").rename(root / "moved.wav")
+    report = indexer.sync("s", root, options=IndexOptions(audio="content"))
+    assert (report.reused, embedder.audio_clips) == (1, 2)
+
+
+def test_a_video_whose_frames_fail_is_not_said_to_have_only_its_name_when_sound_is_searched(
+    indexer, root
+):
+    (root / "broken.mp4").write_bytes(b"not a video" * 100)
+    report = indexer.sync("s", root, options=IndexOptions(videos="content", audio="content"))
+    said = " | ".join(error.message for error in report.errors)
+    assert "its frames are not searched" in said and "found without its sound" in said
+    assert "found by its name only" not in said

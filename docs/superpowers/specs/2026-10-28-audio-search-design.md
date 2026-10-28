@@ -77,8 +77,8 @@ One choice, **Audio and sound**, with the same two answers as Videos:
 
 An audio track is cut into **30 s windows, a new one every 15 s** (measured, section 3 of the eval: 30/30 leaves speech cut
 by the grid at cosine 0.605, the level of nonsense; 30/15 keeps the worst case at 0.664 and always holds the whole
-passage). Windows start at 0, 15, 30, ... and the last one is kept only if more than 15 s of it is new, so every second is
-in at least one window. A window is 16 kHz mono; the server resamples if not, but we decode and resample once with PyAV
+passage). Windows start at 0, 15, 30, ... and the last, shorter one is kept when it runs past the window before it (what is left over is longer than the
+15 s overlap), so every second is in at least one window. A window is 16 kHz mono; the server resamples if not, but we decode and resample once with PyAV
 (already an engine dependency, with decoders for mp3, aac/m4a, flac, opus/ogg, wma, alac, wav and every video container).
 
 - Limits come from the server we run: a request must stay under the physical batch (1024 tokens, about 40 s at 25 tokens a
@@ -165,7 +165,7 @@ model only under the `model` marker.
 ## 7. Tests and gates
 
 - **Engine, fake embedder, generated audio (no model):** windows of a 70 s clip start at 0, 15, 30, 45 and the last is kept
-  only with more than 15 s new; the silence gate on generated silence, hiss, room tone and a tone with speech-level energy;
+  only when it runs past the one before it; the silence gate on generated silence, hiss, room tone and a tone with speech-level energy;
   a video with no audio stream; a file that cannot be decoded keeps its name and is reported; an unchanged file embeds
   nothing; a moved or copied file takes the vectors of the identical one; changing `audio` re-processes only audio and
   video; going to `name` removes the sound chunks and embeds nothing; ids change with the geometry version.

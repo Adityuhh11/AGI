@@ -300,3 +300,22 @@ func TestPathsAreEscaped(t *testing.T) {
 		t.Fatalf("path = %q", e.path)
 	}
 }
+
+func TestAChoiceAtItsDefaultIsNotSentSoAnEngineFromBeforeItStillIndexes(t *testing.T) {
+	client, e := newClient(t, 202, `{"job_id":"job-8"}`)
+	// The cheap preset of a computer without a graphics card. Audio is at its default, a field an engine from before
+	// audio search refuses with a 422; the engine fills in the defaults it is not told.
+	options := IndexOptions{PDFPages: "text", Photos: "name", Videos: "name", Audio: "name"}
+	if _, err := client.AddSource(context.Background(), `C:\Docs`, "root-1", nil, options); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(e.sent, "audio") || !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name"}`) {
+		t.Fatalf("body = %s", e.sent)
+	}
+	if _, err := client.AddSource(context.Background(), `C:\Docs`, "root-1", nil, DefaultIndexOptions); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(e.sent, "options") {
+		t.Fatalf("the defaults were sent: %s", e.sent)
+	}
+}

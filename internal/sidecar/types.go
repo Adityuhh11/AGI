@@ -29,6 +29,23 @@ type IndexOptions struct {
 // DefaultIndexOptions are what the engine does when a request carries no options (docs/api.md).
 var DefaultIndexOptions = IndexOptions{PDFPages: "auto", Photos: "content", Videos: "name", Audio: "name"}
 
+// withoutDefaults blanks every choice that is the engine's default, so it is not sent.
+func (o IndexOptions) withoutDefaults() IndexOptions {
+	if o.PDFPages == DefaultIndexOptions.PDFPages {
+		o.PDFPages = ""
+	}
+	if o.Photos == DefaultIndexOptions.Photos {
+		o.Photos = ""
+	}
+	if o.Videos == DefaultIndexOptions.Videos {
+		o.Videos = ""
+	}
+	if o.Audio == DefaultIndexOptions.Audio {
+		o.Audio = ""
+	}
+	return o
+}
+
 // RouteCount is how many files of one kind a survey found and how many bytes they hold.
 type RouteCount struct {
 	Files int   `json:"files"`

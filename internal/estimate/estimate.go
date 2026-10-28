@@ -99,12 +99,12 @@ func WorkFor(routes map[string]sidecar.RouteCount, o sidecar.IndexOptions) Work 
 				w.Videos += c.Files
 			}
 			if o.Audio == "content" {
-				w.Windows += c.Seconds / secondsBetweenWindow // a video with no sound is counted too: a ceiling
+				w.Windows += soundSeconds(c, videoBytesPerSecond) / secondsBetweenWindow // a video with no sound is counted too: a ceiling
 			}
 		case "audio":
 			w.TextChunks += float64(c.Files) // the name, in either choice
 			if o.Audio == "content" {
-				w.Windows += math.Max(float64(c.Files), c.Seconds/secondsBetweenWindow)
+				w.Windows += math.Max(float64(c.Files), soundSeconds(c, audioBytesPerSecond)/secondsBetweenWindow)
 			}
 		}
 	}
@@ -125,6 +125,23 @@ func (w Work) Duration(pace string, onCPU bool) time.Duration {
 		factor = paceFactors["balanced"]
 	}
 	return time.Duration(seconds * factor * float64(time.Second))
+}
+
+// The sizes the engine guesses a sound's length from (sidecar/src/omni_memory/sources/length.py), for a survey taken by
+// an engine from before audio search: it counted the files but sent no length, and that survey stays until the launcher
+// restarts. Without this a library of 200 hours would be priced as one window a file.
+const (
+	audioBytesPerSecond = 20_000.0
+	videoBytesPerSecond = 300_000.0
+)
+
+// soundSeconds is the length of the sound of a surveyed route: the engine's guess, or one made here from the bytes when
+// the engine sent none.
+func soundSeconds(c sidecar.RouteCount, bytesPerSecond float64) float64 {
+	if c.Seconds == 0 && c.Bytes > 0 {
+		return float64(c.Bytes) / bytesPerSecond
+	}
+	return c.Seconds
 }
 
 // bySize is the chunks of a kind of file chunked by size: at least one a file.

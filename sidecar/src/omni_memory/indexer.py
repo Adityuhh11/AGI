@@ -249,9 +249,14 @@ class Indexer:
         if unchanged and not redo:
             run.report.unchanged += 1
             return
-        if file.route in (Route.VIDEO, Route.AUDIO):
+        if file.route is Route.VIDEO or (
+            file.route is Route.AUDIO and run.options.audio == "content"
+        ):
             data, digest = b"", media_identity(file.path, file.size)  # never read whole
-        elif file.route is Route.FILE:
+        elif file.route in (Route.AUDIO, Route.FILE):
+            # By name the file is not opened at all (a cloud-only OneDrive file would be fetched to
+            # read its ends), and its size notices a move.
+            data, digest = b"", name_identity(file.size)
             data, digest = b"", name_identity(file.size)  # only the name counts
         else:
             data = file.path.read_bytes()
@@ -507,7 +512,13 @@ class Indexer:
                     lambda batch: [video.frame(times[i], side) for i in batch],
                 )
         except ChunkingError as error:
-            run.report.errors.append(FileError(record.uri, f"{error}; found by its name only"))
+            # With the sound searched too, the file may be found by more than its name.
+            kept = (
+                "found by its name only"
+                if run.options.audio == "name"
+                else "its frames are not searched"
+            )
+            run.report.errors.append(FileError(record.uri, f"{error}; {kept}"))
             frames, frame_vectors = [], frame_vectors[:0]
         return frames, frame_vectors
 

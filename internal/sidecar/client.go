@@ -85,7 +85,10 @@ func (c *Client) AddSource(ctx context.Context, root, id string, exclude []strin
 	if len(exclude) > 0 {
 		body["exclude"] = exclude
 	}
-	if options != (IndexOptions{}) && options != DefaultIndexOptions {
+	// An engine from before a choice existed refuses a body that names it, so a choice at its default is left out: the
+	// engine does that by itself. Only a choice somebody changed reaches such an engine, and the launcher updates it first.
+	options = options.withoutDefaults()
+	if options != (IndexOptions{}) {
 		body["options"] = options
 	}
 	if err := c.do(ctx, http.MethodPost, "/sources", body, &out); err != nil {

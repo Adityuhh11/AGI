@@ -94,9 +94,10 @@ class AudioTrack:
     def windows(self) -> Iterator[tuple[float, np.ndarray]]:
         """`(start in seconds, samples)` of every window worth embedding, in order.
 
-        Starts are 0, 15, 30, ... and the last window is kept only when more than 15 s of it is new,
-        so every second is in at least one window; a track under a second has none. Silent windows
-        are skipped (but still advance the clock)."""
+        Starts are 0, 15, 30, ... and the last, shorter window is kept when it runs past the one
+        before it (the part left over is longer than 15 s, the overlap), so every second is in at
+        least one window; a track under a second has none. Silent windows are skipped (but still
+        advance the clock)."""
         if self._stream is None:
             return
         parts: list[np.ndarray] = []
