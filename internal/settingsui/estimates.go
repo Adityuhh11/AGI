@@ -97,6 +97,11 @@ func (s *Service) estimates(cfg config.Config, onCPU bool) Estimates {
 		o.Videos = mode
 		out.ByChoice["Videos:"+mode] = total(o, cfg.Search.Pace)
 	}
+	for _, mode := range config.AudioModes {
+		o := now
+		o.Audio = mode
+		out.ByChoice["Audio:"+mode] = total(o, cfg.Search.Pace)
+	}
 	for _, pace := range config.Paces {
 		out.ByPace[pace] = total(now, pace)
 	}
@@ -108,5 +113,5 @@ func seconds(routes map[string]sidecar.RouteCount, o sidecar.IndexOptions, pace 
 }
 
 func indexOptions(s config.Search) sidecar.IndexOptions {
-	return sidecar.IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos}
+	return sidecar.IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos, Audio: s.Audio}
 }

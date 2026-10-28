@@ -10,9 +10,9 @@ def test_a_survey_counts_what_indexing_would_read_by_kind(api, folder):
     (folder / "Backend" / "big.png").write_bytes(b"x" * 1000)
     body = api.post("/survey", json={"path": str(folder)}).json()
     assert body["routes"] == {
-        "code": {"files": 2, "bytes": body["routes"]["code"]["bytes"]},
-        "markdown": {"files": 1, "bytes": body["routes"]["markdown"]["bytes"]},
-        "image": {"files": 1, "bytes": 1000},
+        "code": {"files": 2, "bytes": body["routes"]["code"]["bytes"], "seconds": 0.0},
+        "markdown": {"files": 1, "bytes": body["routes"]["markdown"]["bytes"], "seconds": 0.0},
+        "image": {"files": 1, "bytes": 1000, "seconds": 0.0},
     }
     assert body["denied"] == 1  # the .env file
     others = (body["ignored"], body["unsupported"], body["too_large"], body["unreadable"])
@@ -55,3 +55,13 @@ def test_a_survey_answers_while_the_model_is_still_loading(tmp_path, folder):
     with running_app(tmp_path / "idx", slow_load, wait=False) as client:
         assert client.post("/survey", json={"path": str(folder)}).status_code == 200
         release.set()
+
+
+def test_a_survey_guesses_how_long_audio_and_videos_are_from_their_sizes(api, folder):
+    (folder / "talk.mp3").write_bytes(b"x" * 2_000_000)  # about 100 s at the usual 20 KB/s
+    (folder / "take.wav").write_bytes(b"x" * 1_764_000)  # 10 s of CD audio
+    (folder / "clip.mp4").write_bytes(b"x" * 3_000_000)  # about 10 s at 300 KB/s
+    routes = api.post("/survey", json={"path": str(folder)}).json()["routes"]
+    assert routes["audio"]["files"] == 2 and routes["audio"]["seconds"] == pytest.approx(110)
+    assert routes["video"]["seconds"] == pytest.approx(10)
+    assert routes["code"]["seconds"] == 0

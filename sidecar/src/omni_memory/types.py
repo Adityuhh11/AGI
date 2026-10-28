@@ -18,6 +18,10 @@ class ChunkKind(enum.StrEnum):
     IMAGE = "image"
     VIDEO = "video"  # a video found by its name: the text is its path
     VIDEO_FRAME = "video_frame"  # one frame of a video, embedded as a picture
+    AUDIO = "audio"  # an audio file found by its name: the text is its path
+    AUDIO_WINDOW = (
+        "audio_window"  # 30 s of sound (an audio file or a video's soundtrack), embedded as audio
+    )
     FILE = "file"  # an Office file or an archive found by its name: the text is its path
 
 
@@ -28,26 +32,31 @@ class IndexOptions:
 
     `pdf_pages`: "auto" embeds a page's image when it looks visual, "all" every page, "text" none.
     `photos`: "content" embeds the pixels, "name" only the file name. `videos`: "name" the file
-    name, "content" also eight frames.
+    name, "content" also eight frames. `audio`: "name" the file name, "content" also what is said
+    and played, in audio files and in the soundtrack of videos (docs/superpowers/specs/
+    2026-10-28-audio-search-design.md).
     """
 
     pdf_pages: str = "auto"
     photos: str = "content"
     videos: str = "name"
+    audio: str = "name"
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
             ("pdf_pages", self.pdf_pages, ("auto", "all", "text")),
             ("photos", self.photos, ("content", "name")),
             ("videos", self.videos, ("name", "content")),
+            ("audio", self.audio, ("name", "content")),
         ):
             if value not in allowed:
                 raise ValueError(f"{name} must be one of {', '.join(allowed)}, got {value!r}")
 
 
 # What an index built before the options existed did: every PDF page, photos by what they show.
-# Videos were not indexed at all, so whatever is chosen for them only adds files.
-LEGACY_OPTIONS = IndexOptions(pdf_pages="all", photos="content", videos="name")
+# Videos were not indexed at all, so whatever is chosen for them only adds files; audio files were
+# found by name as plain files, which the first sync after the upgrade redoes (see the indexer).
+LEGACY_OPTIONS = IndexOptions(pdf_pages="all", photos="content", videos="name", audio="name")
 
 
 def chunk_id(source_id: str, uri: str, locator: str, content_hash: str) -> str:
@@ -123,7 +132,9 @@ class SearchHit:
     kind: ChunkKind
     locator: str
     score: float  # cosine + small keyword and path boosts: orders hits, not a probability
-    vector_score: float | None  # cosine similarity; None if the vector search did not return it
+    vector_score: (
+        float | None
+    )  # cosine, an audio window's shifted (see Searcher); None if not returned
     keyword_rank: int | None  # 1-based bm25 rank; None if the keyword search did not return it
     snippet: str
 

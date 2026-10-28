@@ -13,10 +13,13 @@ gives identical results. What it takes to get there, each found by measuring:
   aspect kept, each side a multiple of 48, bicubic), so llama.cpp has nothing left to resize;
   without it images drift to cosine 0.97.
 - Keep-alive connections: opening a new one per request cost 20 ms a query on Windows.
-- Images go `_IMAGE_REQUESTS` at a time, one per request on connections of their own: the server
+- Images go `_MEDIA_REQUESTS` at a time, one per request on connections of their own: the server
   decodes and slices one image while the GPU embeds the other (4.4 to 6.4 images/s), and PNG is
   written at compression level 1, half the encoding time of the default for the same pixels
   (docs/eval/2026-10-20-indexing-throughput.md).
+- Audio clips go the same way, as 16-bit WAV in an `input_audio` part (the projector file holds
+  the audio encoder too: docs/eval/2026-10-28-audio-embedding.md). Two connections embed six
+  clips in 0.43 s against 0.74 s one by one.
 
 Not thread-safe by itself: `SerializedEmbedder` wraps it, as for every embedder.
 """
@@ -31,6 +34,7 @@ import logging
 import math
 import threading
 import urllib.parse
+import wave
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
@@ -40,6 +44,7 @@ from PIL import Image as PILImage
 from PIL.Image import Image
 
 from omni_memory.config import Settings
+from omni_memory.embedding.base import AUDIO_RATE, MAX_AUDIO_SECONDS
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +52,7 @@ logger = logging.getLogger(__name__)
 _SHORT_TEXT = 400  # characters
 _PATCH_BUDGET = 2520 * 16 * 16  # pixels the model's image processor aims for
 _SIDE_STEP = 48  # its patch size (16) times its pooling kernel (3)
-_IMAGE_REQUESTS = 2  # measured: 2 in flight 6.4 images/s, 4 in flight 6.5
+_MEDIA_REQUESTS = 2  # measured: 2 in flight 6.4 images/s, 4 in flight 6.5; audio 1.7x one by one
 
 
 class Server(Protocol):
@@ -63,14 +68,14 @@ class Server(Protocol):
 
 
 class LlamaEmbedder:
-    """Implements `Embedder` with EmbeddingGemma 2 (text and vision) on a llama-server."""
+    """Implements `Embedder` with EmbeddingGemma 2 (text, vision and audio) on a llama-server."""
 
     def __init__(self, server: Server, settings: Settings) -> None:
         self._server = server
         self._settings = settings
         self._local = threading.local()  # one connection per thread: the image workers have theirs
         self._restarting = threading.Lock()
-        self._images = ThreadPoolExecutor(_IMAGE_REQUESTS, thread_name_prefix="embed-image")
+        self._media = ThreadPoolExecutor(_MEDIA_REQUESTS, thread_name_prefix="embed-media")
 
     @property
     def model_id(self) -> str:
@@ -217,4 +222,32 @@ class LlamaEmbedder:
     def embed_images(self, images: Sequence[Image]) -> np.ndarray:
         if len(images) == 0:
             return np.zeros((0, self.dim), dtype=np.float32)
-        return np.concatenate(list(self._images.map(self._embed_image, images)))
+        return np.concatenate(list(self._media.map(self._embed_image, images)))
+
+    @staticmethod
+    def _audio_data(clip: np.ndarray) -> str:
+        if len(clip) > MAX_AUDIO_SECONDS * AUDIO_RATE:
+            # The server refuses what its batch cannot hold, after decoding all of it.
+            raise ValueError(
+                f"an audio clip is at most {MAX_AUDIO_SECONDS} s, "
+                f"got {len(clip) / AUDIO_RATE:.1f} s"
+            )
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(AUDIO_RATE)
+            wav.writeframes((np.clip(clip, -1.0, 1.0) * 32767).astype("<i2").tobytes())
+        return base64.b64encode(buffer.getvalue()).decode()
+
+    def _embed_clip(self, clip: np.ndarray) -> np.ndarray:
+        part = {
+            "type": "input_audio",
+            "input_audio": {"data": self._audio_data(clip), "format": "wav"},
+        }
+        return self._vectors([{"content": [part]}])
+
+    def embed_audio(self, clips: Sequence[np.ndarray]) -> np.ndarray:
+        if len(clips) == 0:
+            return np.zeros((0, self.dim), dtype=np.float32)
+        return np.concatenate(list(self._media.map(self._embed_clip, clips)))

@@ -22,6 +22,9 @@ test("Tab skips Files when file search is off", () => {
 test("a kind-of-file prefix asks for files", () => {
   assert.ok(asksForFiles("code: retry with backoff"));
   assert.ok(asksForFiles(" PDF :lecture"));
+  assert.ok(asksForFiles("aud: a talk about sleep"));
+  assert.ok(asksForFiles("sound:traffic"));
+  assert.ok(!asksForFiles("audio book"));
   assert.ok(!asksForFiles("note to self: milk"));
   assert.ok(!asksForFiles("codex"));
 });

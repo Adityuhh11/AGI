@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 import pytest
 
 from omni_memory.config import Settings
@@ -79,7 +82,7 @@ def test_ordinary_paths_are_allowed(uri):
         ("budget.XLSX", Route.OFFICE),
         ("notes.odt", Route.OFFICE),
         ("old.doc", Route.FILE),
-        ("song.MP3", Route.FILE),
+        ("song.MP3", Route.AUDIO),
         ("backup.zip", Route.FILE),
         ("tool.exe", None),
         ("noextension", None),
@@ -96,3 +99,11 @@ def test_size_limits_depend_on_the_route(tmp_path):
         assert size_limit(route, settings) == settings.max_text_file_bytes
     for route in (Route.PDF, Route.IMAGE):
         assert size_limit(route, settings) == settings.max_media_file_bytes
+
+
+@pytest.mark.parametrize(
+    "name", ["a.mp3", "a.WAV", "a.flac", "a.m4a", "a.aac", "a.ogg", "a.opus", "a.wma"]
+)
+def test_audio_files_have_their_own_route_and_no_size_limit(name):
+    assert route_for(name) is Route.AUDIO
+    assert size_limit(Route.AUDIO, Settings(index_dir=Path("x"))) == sys.maxsize

@@ -23,6 +23,7 @@ class Route(enum.StrEnum):
     PDF = "pdf"
     IMAGE = "image"
     VIDEO = "video"
+    AUDIO = "audio"
     OFFICE = "office"  # a zip of XML: its text is read
     FILE = "file"  # not read at all: found by its name
 
@@ -115,9 +116,9 @@ _TEXT = frozenset(
 )
 _IMAGE = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"})
 _VIDEO = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".wmv"})
+_AUDIO = frozenset({".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wma"})
 _OFFICE = frozenset({".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp"})
-# Files the engine cannot read: only the name is searchable. The older Office formats are binary;
-# audio has no text until it is transcribed.
+# Files the engine cannot read: only the name is searchable. The older Office formats are binary.
 _BY_NAME = frozenset(
     [
         ".doc",
@@ -131,14 +132,6 @@ _BY_NAME = frozenset(
         ".tar",
         ".gz",
         ".tgz",
-        ".mp3",
-        ".wav",
-        ".flac",
-        ".m4a",
-        ".aac",
-        ".ogg",
-        ".opus",
-        ".wma",
     ]
 )
 
@@ -174,6 +167,8 @@ def route_for(name: str) -> Route | None:
         return Route.IMAGE
     if suffix in _VIDEO:
         return Route.VIDEO
+    if suffix in _AUDIO:
+        return Route.AUDIO
     if suffix in _OFFICE:
         return Route.OFFICE
     if suffix in _BY_NAME:
@@ -182,9 +177,9 @@ def route_for(name: str) -> Route | None:
 
 
 def size_limit(route: Route, settings: Settings) -> int:
-    """Largest file (bytes) the route will index. A video or a file found by name has none: it is
-    never read whole."""
-    if route in (Route.VIDEO, Route.FILE):
+    """Largest file (bytes) the route will index. A video, an audio file or a file found by name has
+    none: it is never read whole."""
+    if route in (Route.VIDEO, Route.AUDIO, Route.FILE):
         return sys.maxsize
     if route in (Route.PDF, Route.IMAGE, Route.OFFICE):
         return settings.max_media_file_bytes

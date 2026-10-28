@@ -228,3 +228,26 @@ def test_the_device_is_the_servers(fake, tmp_path):
         and embedder.model_id == "google/embeddinggemma-2"
         and embedder.dim == 768
     )
+
+
+def test_audio_goes_as_a_wav_part_one_clip_per_request_and_comes_back_in_order(fake, tmp_path):
+    embedder, _ = make(fake, tmp_path)
+    clips = [np.full(16_000 * (i + 1), 0.1 * (i + 1), "f4") for i in range(4)]
+    got = embedder.embed_audio(clips)
+    assert got.shape == (4, 768) and got.dtype == np.float32
+    assert np.allclose(np.linalg.norm(got, axis=1), 1.0, atol=1e-5)
+    part = fake.requests[-1][1]["input"][0]["content"][0]
+    assert part["type"] == "input_audio" and part["input_audio"]["format"] == "wav"
+    assert [len(body["input"]) for _, body in fake.requests] == [1] * 4
+    assert sorted(fake.audio_clips) == [(16_000, 1, 16_000 * n) for n in (1, 2, 3, 4)]
+    alone = [embedder.embed_audio([clip])[0] for clip in clips]
+    assert np.allclose(got, np.stack(alone), atol=1e-6)
+    assert embedder.embed_audio([]).shape == (0, 768)
+
+
+def test_a_clip_longer_than_the_model_takes_is_refused_before_it_is_sent(fake, tmp_path):
+    embedder, _ = make(fake, tmp_path)
+    embedder.embed_audio([np.zeros(30 * 16_000, "f4")])  # exactly the limit
+    with pytest.raises(ValueError, match="at most 30 s"):
+        embedder.embed_audio([np.zeros(31 * 16_000, "f4")])
+    assert len(fake.requests) == 1

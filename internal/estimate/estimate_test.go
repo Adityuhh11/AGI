@@ -87,3 +87,33 @@ func TestSmallFoldersHaveAtLeastOneChunkAFile(t *testing.T) {
 		t.Errorf("10 tiny files are %.0f chunks, want 10", w.TextChunks)
 	}
 }
+
+func TestSoundIsOneWindowEveryFifteenSecondsAndAtLeastOneAFile(t *testing.T) {
+	routes := map[string]sidecar.RouteCount{
+		"audio": {Files: 4, Bytes: 1 << 20, Seconds: 600}, // 4 files, 10 minutes: 40 windows
+		"video": {Files: 2, Bytes: 1 << 30, Seconds: 300}, // their soundtracks: 20 windows
+	}
+	name := WorkFor(routes, sidecar.IndexOptions{})
+	if name.Windows != 0 || name.TextChunks != 6 {
+		t.Errorf("by name: %+v, want no windows and the 6 names", name)
+	}
+	content := WorkFor(routes, sidecar.IndexOptions{Audio: "content"})
+	if content.Windows != 60 {
+		t.Errorf("by content: %.0f windows, want 60", content.Windows)
+	}
+	tiny := WorkFor(map[string]sidecar.RouteCount{"audio": {Files: 5, Seconds: 8}}, sidecar.IndexOptions{Audio: "content"})
+	if tiny.Windows != 5 {
+		t.Errorf("five clips shorter than a window are %.0f windows, want 5", tiny.Windows)
+	}
+}
+
+func TestAWindowCostsMoreOnTheProcessor(t *testing.T) {
+	w := Work{Windows: 119} // 30 minutes of sound
+	gpu, cpu := w.Duration("fast", false), w.Duration("fast", true)
+	if gpu < 30*time.Second || gpu > 40*time.Second {
+		t.Errorf("30 minutes on the graphics card: %v, measured 33 s", gpu)
+	}
+	if cpu < 7*time.Minute || cpu > 8*time.Minute {
+		t.Errorf("30 minutes on the processor: %v, measured 7.4 min", cpu)
+	}
+}

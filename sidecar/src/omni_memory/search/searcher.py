@@ -9,11 +9,25 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 
 from omni_memory.embedding.base import Embedder
-from omni_memory.search.calibration import noise_ceiling
+from omni_memory.search.calibration import (
+    AUDIO_KINDS,
+    DEFAULT_AUDIO_CEILING,
+    MIN_AUDIO_WINDOWS,
+    noise_ceiling,
+)
 from omni_memory.search.fusion import CONFIDENT_COSINE, blend
 from omni_memory.store import FlatStore
-from omni_memory.types import Chunk, FileHit, FileSearchResult, Filters, SearchHit, SearchResult
+from omni_memory.types import (
+    Chunk,
+    ChunkKind,
+    FileHit,
+    FileSearchResult,
+    Filters,
+    SearchHit,
+    SearchResult,
+)
 
+NOT_AUDIO = frozenset(set(ChunkKind) - AUDIO_KINDS)
 _SNIPPET_CHARS = 240
 _MIN_FILE_SEARCH_CHUNKS = 60  # enough chunks that ten files rarely run short
 
@@ -39,6 +53,7 @@ class Searcher:
         self._embedder = embedder
         self._pool = pool
         self._confident_cosine = confident_cosine
+        self._audio_ceiling = DEFAULT_AUDIO_CEILING
         self._lexical = ThreadPoolExecutor(1, thread_name_prefix="search-lexical")
 
     @property
@@ -46,20 +61,35 @@ class Searcher:
         """The best cosine from which a hit counts as a real match."""
         return self._confident_cosine
 
+    @property
+    def audio_offset(self) -> float:
+        """What a search adds to an audio window's cosine so that nonsense lands where it does for
+        every other kind: audio windows are measured apart (`calibration.py`), then shifted onto the
+        scale that the one threshold and the one ranking use."""
+        return self._confident_cosine - self._audio_ceiling
+
     def calibrate(self) -> float | None:
         """Measure the index's noise ceiling and make it the confidence threshold; call again when
         the index has changed a lot. Returns the ceiling, or None (threshold unchanged) when the
-        index is too small to measure."""
-        ceiling = noise_ceiling(self._store, self._embedder)
+        index is too small to measure. Audio windows, when there are any, are left out of that
+        ceiling and measured on their own."""
+        if self._store.count(AUDIO_KINDS) == 0:
+            ceiling = noise_ceiling(self._store, self._embedder)
+            audio = None
+        else:
+            ceiling = noise_ceiling(self._store, self._embedder, NOT_AUDIO)
+            audio = noise_ceiling(self._store, self._embedder, AUDIO_KINDS, MIN_AUDIO_WINDOWS)
         if ceiling is not None:
             self._confident_cosine = ceiling
+        self._audio_ceiling = DEFAULT_AUDIO_CEILING if audio is None else audio
         return ceiling
 
     def search(self, query: str, k: int = 10, filters: Filters | None = None) -> SearchResult:
         """Top-`k` chunks for `query`, best first; no hits for a blank query or `k <= 0`.
 
-        `confident` is true when the best hit's cosine reaches `confident_cosine` or the query is
-        part of its path (typing a file name is a deliberate match, whatever the cosine says).
+        `confident` is true when the best hit's cosine (an audio window's shifted by `audio_offset`)
+        reaches `confident_cosine` or the query is part of its path (typing a file name is a
+        deliberate match, whatever the cosine says).
         """
         if not query.strip() or k <= 0:
             return SearchResult([], confident=False)
@@ -70,7 +100,10 @@ class Searcher:
             )
         )
         vector_hits = self._store.search_vectors(
-            self._embedder.embed_query(query), self._pool, filters
+            self._embedder.embed_query(query),
+            self._pool,
+            filters,
+            {ChunkKind.AUDIO_WINDOW: self.audio_offset},
         )
         keyword_hits, path_hits = lexical.result()
         fused = blend(vector_hits, keyword_hits, path_hits)[:k]

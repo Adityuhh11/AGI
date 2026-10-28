@@ -30,8 +30,9 @@ type SearchView struct {
 	EngineState, EngineMessage string
 	// Device is where the model runs once the engine is ready: "vulkan", "cuda" or "cpu" (no usable graphics card).
 	Device string
-	// PDFPages, Photos and Videos are the indexing choices (config.PDFPageModes, PhotoModes, VideoModes).
-	PDFPages, Photos, Videos string
+	// PDFPages, Photos, Videos and Audio are the indexing choices (config.PDFPageModes, PhotoModes, VideoModes,
+	// AudioModes).
+	PDFPages, Photos, Videos, Audio string
 	// Hosts and DownloadMB are what the page tells a person before they agree to the download.
 	Hosts      []string
 	DownloadMB int
@@ -77,7 +78,7 @@ func (s *Service) Search() SearchView {
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
 		Hosts: enginesetup.Hosts, DownloadMB: int(enginesetup.DownloadBytes() >> 20), Pace: cfg.Search.Pace,
-		PDFPages: cfg.Search.PDFPages, Photos: cfg.Search.Photos, Videos: cfg.Search.Videos,
+		PDFPages: cfg.Search.PDFPages, Photos: cfg.Search.Photos, Videos: cfg.Search.Videos, Audio: cfg.Search.Audio,
 		Exclude: cfg.Exclude, Data: s.dataFolder(cfg, st), HoldIndexing: cfg.Search.HoldIndexing, Indexed: s.indexed(), IndexDone: index.FilesDone, IndexTotal: index.FilesTotal,
 	}
 }
@@ -96,11 +97,11 @@ func (s *Service) StartIndexing() string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.HoldIndexing = false }))
 }
 
-// SetIndexing sets what PDF pages, photos and videos are searched by. The next sync processes again only the kinds of
-// file whose choice changed, and reuses everything already embedded.
-func (s *Service) SetIndexing(pdfPages, photos, videos string) string {
+// SetIndexing sets what PDF pages, photos, videos and sound are searched by. The next sync processes again only the
+// kinds of file whose choice changed, and reuses everything already embedded.
+func (s *Service) SetIndexing(pdfPages, photos, videos, audio string) string {
 	return reason(s.o.Store.Update(func(c *config.Config) {
-		c.Search.PDFPages, c.Search.Photos, c.Search.Videos = pdfPages, photos, videos
+		c.Search.PDFPages, c.Search.Photos, c.Search.Videos, c.Search.Audio = pdfPages, photos, videos, audio
 	}))
 }
 

@@ -2,7 +2,7 @@
 
 The API answers search requests while an index job embeds documents, both on the same model.
 Neither the GPU model nor its tokenizer is guaranteed re-entrant, so calls take turns. Bulk calls
-(documents, images) are cut into small slices and the lock is taken per slice; a query that
+(documents, images, audio) are cut into small slices and the lock is taken per slice; a query that
 arrives waits for the slice in flight, not for the whole call, and queued queries run before the
 next slice starts. Measured on the sample folder: a search during indexing took up to 1.3 s when
 a bulk call held the lock for its whole duration.
@@ -62,6 +62,13 @@ class SerializedEmbedder:
             return self._inner.embed_images(images[start:stop])
 
         return self._in_slices(len(images), self._image_slice, embed)
+
+    def embed_audio(self, clips: Sequence[np.ndarray]) -> np.ndarray:
+        def embed(start: int, stop: int) -> np.ndarray:
+            return self._inner.embed_audio(clips[start:stop])
+
+        # The image slice: a 30 s clip takes about as long as a picture.
+        return self._in_slices(len(clips), self._image_slice, embed)
 
     def embed_query(self, text: str) -> np.ndarray:
         with self._no_query_waiting:

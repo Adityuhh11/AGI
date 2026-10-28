@@ -237,8 +237,8 @@ func (s *Service) Diagnostics() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Omni %s on %s/%s\n", s.o.Version, runtime.GOOS, runtime.GOARCH)
 	fmt.Fprintf(&b, "file search: enabled=%v engine=%s %s device=%s\n", c.Search.Enabled, engine.State, engine.Message, engine.Device)
-	fmt.Fprintf(&b, "folders: %d, quicklinks: %d, pace: %s, pdf pages: %s, photos: %s, videos: %s\n",
-		len(c.Roots), len(c.Quicklinks), c.Search.Pace, c.Search.PDFPages, c.Search.Photos, c.Search.Videos)
+	fmt.Fprintf(&b, "folders: %d, quicklinks: %d, pace: %s, pdf pages: %s, photos: %s, videos: %s, audio: %s\n",
+		len(c.Roots), len(c.Quicklinks), c.Search.Pace, c.Search.PDFPages, c.Search.Photos, c.Search.Videos, c.Search.Audio)
 	return b.String()
 }
 

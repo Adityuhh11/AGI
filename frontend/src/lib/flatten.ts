@@ -17,14 +17,14 @@ export function moreCount(row: Row): number {
 
 /**
  * The visible list: a quicklink the text triggers, then the apps, then every file (each followed by its
- * further matches if it is expanded; under headings per kind of file when `group` is on, see groups.ts), and the web search last. With `keepOrder` (the pinned things shown
+ * further matches if it is expanded; under headings per kind of file when `group` is on, see groups.ts), an offer, and the web search last. With `keepOrder` (the pinned things shown
  * when nothing is typed) the entries are listed as given: pins are in the order they were pinned.
  */
 export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Entry[] = [], keepOrder = false, group = false): Item[] {
   if (keepOrder) return entries.map((entry) => ({ kind: "entry", entry }));
   const of = (match: (e: Entry) => boolean): Item[] =>
     entries.filter(match).map((entry) => ({ kind: "entry", entry }));
-  const items: Item[] = [...of((e) => e.Kind === "quicklink"), ...of((e) => e.Kind !== "quicklink" && e.Kind !== "web")];
+  const items: Item[] = [...of((e) => e.Kind === "quicklink"), ...of((e) => e.Kind !== "quicklink" && e.Kind !== "web" && e.Kind !== "offer")];
   for (const { heading, rows: inGroup } of arrange(rows, group)) {
     inGroup.forEach((row, at) => {
       items.push({ kind: "row", row, heading: at === 0 && heading ? heading : undefined });
@@ -33,6 +33,7 @@ export function flatten(rows: Row[], expanded: ReadonlySet<string>, entries: Ent
       }
     });
   }
+  items.push(...of((e) => e.Kind === "offer")); // an offer (to search sound too) comes after the files it is about
   items.push(...of((e) => e.Kind === "web")); // the web search is the fallback, last of all
   return items;
 }

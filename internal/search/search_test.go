@@ -251,7 +251,7 @@ func TestLocations(t *testing.T) {
 func TestDisplayKinds(t *testing.T) {
 	want := map[string]string{
 		"code": "code", "markdown": "text", "text": "text",
-		"pdf_text": "pdf", "pdf_page": "pdf", "image": "image", "video": "video", "video_frame": "video", "file": "file",
+		"pdf_text": "pdf", "pdf_page": "pdf", "image": "image", "video": "video", "video_frame": "video", "audio": "audio", "audio_window": "audio", "file": "file",
 		"something new": "text",
 	}
 	for kind, expected := range want {
@@ -275,6 +275,9 @@ func TestParseScope(t *testing.T) {
 		{"notes: meeting", "Documents", "meeting"},
 		{"vid: red ball in a river", "Videos", "red ball in a river"},
 		{"videos:shrek", "Videos", "shrek"},
+		{"aud: a tiger roars", "Audio", "a tiger roars"},
+		{"sound:traffic", "Audio", "traffic"},
+		{"AUDIO: quarterly meeting", "Audio", "quarterly meeting"},
 		{"code:", "Code", ""},
 		{"  code :  spaced out  ", "Code", "spaced out"},
 		{"note to self: buy milk", "", "note to self: buy milk"},

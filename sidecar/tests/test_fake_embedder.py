@@ -68,3 +68,12 @@ def test_titles_change_the_vector_and_no_titles_changes_nothing():
 def test_a_title_count_that_does_not_match_is_an_error():
     with pytest.raises(ValueError, match="titles"):
         FakeEmbedder(8).embed_documents(["a", "b"], ["only one"])
+
+
+def test_audio_is_embedded_by_content():
+    fake = FakeEmbedder()
+    one, same, other = np.full(100, 0.1, "f4"), np.full(100, 0.1, "f4"), np.full(100, -0.2, "f4")
+    a, b, c = fake.embed_audio([one, same, other])
+    np.testing.assert_array_equal(a, b)
+    assert float(a @ c) < 0.5
+    assert fake.embed_audio([]).shape == (0, 256)

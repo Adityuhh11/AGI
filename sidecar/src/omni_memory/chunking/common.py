@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
+
+_EDGE = 1 << 20  # bytes hashed from each end of a media file
 
 
 class ChunkingError(Exception):
@@ -17,3 +20,15 @@ def locator_json(**fields: object) -> str:
 
 def sha256_hex(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def media_identity(path: Path, size: int) -> str:
+    """A content hash of the size and the first and last mebibyte: enough to notice that a video
+    or an audio file moved without reading gigabytes."""
+    digest = hashlib.sha256(str(size).encode())
+    with path.open("rb") as file:
+        digest.update(file.read(_EDGE))
+        if size > 2 * _EDGE:
+            file.seek(size - _EDGE)
+        digest.update(file.read(_EDGE))
+    return digest.hexdigest()

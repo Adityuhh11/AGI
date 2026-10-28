@@ -103,6 +103,10 @@ class Catalog:
             return None
         stored = json.loads(row[0])
         redo = frozenset(stored.pop("redo", ()))
+        if (
+            "audio" not in stored
+        ):  # written before audio search, when audio files were `file` chunks
+            redo |= {"audio"}
         return IndexOptions(**stored), redo
 
     def set_source_options(

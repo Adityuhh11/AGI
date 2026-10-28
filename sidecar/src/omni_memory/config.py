@@ -27,6 +27,7 @@ class Settings:
     max_seq_length: int = 512  # tokens; real chunks are small, and the server rejects longer inputs
     text_batch_size: int = 8
     image_batch_size: int = 4
+    audio_batch_size: int = 4  # 30 s windows embedded per call; two requests are in flight
     max_text_file_bytes: int = 5 * 1024 * 1024
     max_media_file_bytes: int = 50 * 1024 * 1024
     chunk_lines: int = 40

@@ -25,7 +25,7 @@
 
   let { row, match, query, id, selected, expanded = false, onhover, onactivate, tags = [], pinned = false }: Props = $props();
 
-  const icons = { code: "code", text: "text", image: "image", video: "video" } as const;
+  const icons = { code: "code", text: "text", image: "image", video: "video", audio: "audio" } as const;
   const icon = $derived(icons[row.Kind as keyof typeof icons] ?? "file");
   const shown = $derived(match ?? row.Matches?.[0]);
   const more = $derived(moreCount(row));
