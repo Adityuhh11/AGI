@@ -49,6 +49,12 @@ export function openLine(item: FileItem): number {
   return item.kind === "match" ? item.match.Line : item.row.Line;
 }
 
+/** The moment, in seconds, a selected sound or video match is at, or null when it is not a moment in a recording. */
+export function timeOf(item: FileItem): number | null {
+  const at = item.kind === "match" ? item.match : item.row;
+  return at.Timed ? at.Seconds : null;
+}
+
 /** The file a selected item belongs to. */
 export function pathOf(item: FileItem): string {
   return item.row.Path;

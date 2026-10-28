@@ -13,7 +13,30 @@ type launch struct {
 	line int
 }
 
-type fakeShell struct{ launched []launch }
+type played struct {
+	player  string
+	path    string
+	seconds float64
+}
+
+type fakeShell struct {
+	launched []launch
+	// player is the program the machine has for playing a moment, if any; plays is what it was asked to play.
+	player *Player
+	plays  []played
+}
+
+func (f *fakeShell) SeekPlayer() (Player, bool) {
+	if f.player == nil {
+		return Player{}, false
+	}
+	return *f.player, true
+}
+
+func (f *fakeShell) Player(p Player, path string, seconds float64) error {
+	f.plays = append(f.plays, played{p.Name, path, seconds})
+	return nil
+}
 
 func (f *fakeShell) Default(path string) error {
 	f.launched = append(f.launched, launch{"default", path, 0})
@@ -158,5 +181,76 @@ func TestInsideIsCaseInsensitiveAndRespectsFolderBoundaries(t *testing.T) {
 	}
 	if inside(nil, `C:\a`) {
 		t.Error("with no roots nothing is inside")
+	}
+}
+
+func TestSoundsAndVideosOpenInTheirDefaultPlayerNotAnEditor(t *testing.T) {
+	for _, name := range []string{"a.mp3", "a.WAV", "a.flac", "a.m4a", "a.aac", "a.ogg", "a.opus", "a.wma", "a.mp4", "a.m4v", "a.mov", "a.mkv", "a.webm", "a.avi", "a.wmv"} {
+		if !opensInDefaultApp(name) {
+			t.Errorf("%s should open in the program that plays it, not in a text editor", name)
+		}
+	}
+	svc, shell, root, _ := setup(t)
+	clip := touch(t, filepath.Join(root, "clip.mp4"))
+	if err := svc.Open(clip, 0); err != nil {
+		t.Fatal(err)
+	}
+	if len(shell.launched) != 1 || shell.launched[0] != (launch{"default", clip, 0}) {
+		t.Fatalf("launched %+v", shell.launched)
+	}
+}
+
+func TestOpenAtPlaysAMomentInAPlayerThatCanBeAskedForIt(t *testing.T) {
+	svc, shell, root, dismissed := setup(t)
+	shell.player = &Player{Name: "VLC", Exe: `C:\vlc.exe`}
+	talk := touch(t, filepath.Join(root, "talks", "sleep.mp3"))
+	if err := svc.OpenAt(talk, 75); err != nil {
+		t.Fatal(err)
+	}
+	if len(shell.plays) != 1 || shell.plays[0] != (played{"VLC", talk, 75}) || len(shell.launched) != 0 || *dismissed != 1 {
+		t.Fatalf("plays %+v, launched %+v, dismissed %d", shell.plays, shell.launched, *dismissed)
+	}
+	if got := svc.SeekPlayer(); got != "VLC" {
+		t.Fatalf("SeekPlayer = %q", got)
+	}
+}
+
+func TestOpenAtWithoutSuchAPlayerOpensTheFileFromTheStart(t *testing.T) {
+	svc, shell, root, dismissed := setup(t)
+	talk := touch(t, filepath.Join(root, "sleep.mp3"))
+	if err := svc.OpenAt(talk, 75); err != nil {
+		t.Fatal(err)
+	}
+	if len(shell.plays) != 0 || len(shell.launched) != 1 || shell.launched[0] != (launch{"default", talk, 0}) || *dismissed != 1 {
+		t.Fatalf("plays %+v, launched %+v, dismissed %d", shell.plays, shell.launched, *dismissed)
+	}
+	if svc.SeekPlayer() != "" {
+		t.Fatal("no player was installed, yet one was named")
+	}
+}
+
+func TestOpenAtOnSomethingThatIsNotARecordingJustOpensIt(t *testing.T) {
+	svc, shell, root, _ := setup(t)
+	shell.player = &Player{Name: "VLC", Exe: `C:\vlc.exe`}
+	script := touch(t, filepath.Join(root, "deploy.js"))
+	if err := svc.OpenAt(script, 30); err != nil {
+		t.Fatal(err)
+	}
+	if len(shell.plays) != 0 || len(shell.launched) != 1 || shell.launched[0].how != "editor" {
+		t.Fatalf("plays %+v, launched %+v: a script must never reach a player", shell.plays, shell.launched)
+	}
+}
+
+func TestOpenAtKeepsTheRulesOfOpen(t *testing.T) {
+	svc, shell, root, _ := setup(t)
+	shell.player = &Player{Name: "VLC", Exe: `C:\vlc.exe`}
+	if err := svc.OpenAt(`C:\Windows\media\x.mp3`, 1); err == nil || !strings.Contains(err.Error(), "not inside") {
+		t.Fatalf("a file outside the folders was played: %v", err)
+	}
+	if err := svc.OpenAt(filepath.Join(root, "gone.mp3"), 1); err == nil || !strings.Contains(err.Error(), "no longer there") {
+		t.Fatalf("a deleted file was played: %v", err)
+	}
+	if len(shell.plays) != 0 {
+		t.Fatalf("plays %+v", shell.plays)
 	}
 }

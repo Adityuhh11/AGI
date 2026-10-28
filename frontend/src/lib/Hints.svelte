@@ -1,20 +1,24 @@
 <script lang="ts">
   import type { Info } from "../../bindings/omni/internal/status";
   import { available, pastes } from "./actions";
-  import type { Item } from "./flatten";
+  import { moment } from "./format";
+  import { timeOf, type Item } from "./flatten";
 
   interface Props {
     /** The selected row, if any: the hints name what its keys do. */
     current: Item | undefined;
+    /** The program a moment in a recording opens in ("VLC"), or empty when there is none. */
+    player: string;
     /** Whether the selected row is pinned; null if it cannot be pinned. */
     pinned: boolean | null;
     info: Info | null;
   }
-  let { current, pinned, info }: Props = $props();
+  let { current, player, pinned, info }: Props = $props();
+  const at = $derived(current && current.kind !== "entry" ? timeOf(current) : null);
 </script>
 
 <footer class="hints">
-  <span><kbd>Enter</kbd>{current && pastes(current) ? "paste" : "open"}</span>
+  <span><kbd>Enter</kbd>{at !== null && player ? `play at ${moment(at)} in ${player}` : current && pastes(current) ? "paste" : "open"}</span>
   {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
   {#if current && available(current, "copy")}<span><kbd>Ctrl+Enter</kbd>copy</span>{/if}
   <span><kbd>Ctrl+K</kbd>actions</span>

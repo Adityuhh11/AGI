@@ -1,8 +1,7 @@
 # Audio search: what is said and played in audio files and videos
 
-Date: 2026-10-28. Status: engine, launcher, interface and the in-bar offer are built and tested (steps 1 to 4 of
-section 10); opening a match at its moment (step 5) and the owner's acceptance run on his own recordings are not done.
-Building on `feat/audio-search`.
+Date: 2026-10-28. Status: built and merged (PR 38), including non-English audio, which the owner confirmed works. Opening a
+match at its moment (step 5 of section 10) is built on `feat/open-at-moment`.
 Evidence: `../../eval/2026-10-28-audio-embedding.md`. Decision record: `../../decisions/0007-audio-by-the-audio-encoder.md`.
 
 ## 1. The answer to "do we need Whisper?"
@@ -68,8 +67,11 @@ One choice, **Audio and sound**, with the same two answers as Videos:
   shows as "at 1:15", the same as a video frame. A video's best match is a frame or a soundtrack window, whichever
   scores higher, and says which ("at 12:40, sound"). No snippet: there is no text.
 - **Open at the moment.** Enter opens the file at the matched time when VLC, mpv or MPC-HC/MPC-BE is installed
-  (`--start-time`, `--start`, `/start <ms>`), found from the registry or `PATH`; otherwise the default app opens the file
-  from the start. The row says which will happen. (Last step of the build: it is the part that depends on the player.)
+  (`--start-time=<seconds>`, `--start=<seconds>`, `/start <ms>`), found on `PATH`, in the registry's App Paths or in the usual
+  install folders, in that order of players; otherwise the default app opens the file from the start. The hint bar says which
+  will happen ("play at 1:15 in VLC" or "open"). Sounds and videos now open in their default player rather than a text
+  editor, which is where every file that is not a document or a picture used to go. A video match is a frame or a window of
+  sound, and both carry their time. `files.Service.OpenAt`, `SeekPlayer`; `search.Match` and `Row` carry `Timed` and `Seconds`.
 
 ## 3. How it works in the engine
 
@@ -204,6 +206,7 @@ audio search does not commit us to any speech model.
 2. Real-model checks and the golden eval with audio; record the baseline.
 3. Launcher: config, `sidecar` options, search kinds and locations, scope, estimate and survey.
 4. Frontend: the card in setup and settings, the Audio icon and group, the in-bar enable row.
-5. Open at the moment in the player (not built).
+5. Open at the moment in the player (built; tested with a stand-in `vlc.exe` on `PATH`, since no player is installed on
+   the development machine).
 6. Docs in the same commits (`ARCHITECTURE.md`, `api.md`, `STATUS.md`, README privacy and cost sentences); the owner's
    acceptance run on his own audio.
