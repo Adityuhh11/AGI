@@ -13,7 +13,7 @@ export function cycle(mode: Mode, delta: 1 | -1, fileSearch = true): Mode {
 }
 
 /** A search that names a kind of file (`code: retry`, `pdf: lecture`) asks for files whatever the mode; the names are search/scope.go's. */
-export const asksForFiles = (text: string) => /^\s*(code|img|images?|vid|videos?|pdfs?|docs?|text|notes)\s*:/i.test(text);
+export const asksForFiles = (text: string) => /^\s*(code|img|images?|vid|videos?|aud|audio|sounds?|pdfs?|docs?|text|notes)\s*:/i.test(text);
 
 /** What the chip says; `all` shows no chip. */
 export const label: Record<Mode, string> = { all: "", apps: "Apps", files: "Files", web: "Web", tags: "Tags", clip: "Clipboard", snip: "Snippets", note: "Notes" };

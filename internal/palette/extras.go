@@ -20,6 +20,8 @@ type Extras struct {
 	OpenNote func(id string)
 	// Timer is the countdown and the pomodoro.
 	Timer TimerControl
+	// Sound offers to search the sound of audio files and videos (offer.go).
+	Sound SoundOffer
 }
 
 // With sets the extras of s and returns it. It is a function, not a method: the exported methods of a service are bound to

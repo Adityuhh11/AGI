@@ -5,7 +5,7 @@ import type { Row } from "../../bindings/omni/internal/search";
 export type Group = { heading: string; rows: Row[] };
 
 /** What the engine's kinds are called in a heading. */
-const HEADINGS: Record<string, string> = { code: "Code", text: "Documents", pdf: "PDFs", image: "Images", video: "Videos" };
+const HEADINGS: Record<string, string> = { code: "Code", text: "Documents", pdf: "PDFs", image: "Images", video: "Videos", audio: "Audio" };
 
 /** Fewer file rows than this stay one list: a heading over each of three rows is noise. */
 export const MIN_ROWS_TO_GROUP = 4;

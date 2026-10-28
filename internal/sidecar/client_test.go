@@ -142,7 +142,7 @@ func TestSearchSendsOnlyWhatWasAskedAndDecodesFiles(t *testing.T) {
 
 func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	client, e := newClient(t, 202, `{"job_id":"job-7"}`)
-	options := IndexOptions{PDFPages: "text", Photos: "name", Videos: "content"}
+	options := IndexOptions{PDFPages: "text", Photos: "name", Videos: "content", Audio: "content"}
 	job, err := client.AddSource(context.Background(), `C:\Users\me\Docs`, "root-1", []string{"vendor/skills"}, options)
 	if err != nil {
 		t.Fatal(err)
@@ -162,14 +162,14 @@ func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	if sent.Path != `C:\Users\me\Docs` || sent.SourceID != "root-1" || len(sent.Exclude) != 1 || sent.Exclude[0] != "vendor/skills" || sent.Options != options {
 		t.Fatalf("body = %s", e.sent)
 	}
-	if !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name","videos":"content"}`) {
+	if !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name","videos":"content","audio":"content"}`) {
 		t.Fatalf("options were not sent as documented: %s", e.sent)
 	}
 }
 
 func TestTheEnginesDefaultOptionsAreTheSettingsDefaults(t *testing.T) {
 	s := config.Default().Search
-	if (IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos}) != DefaultIndexOptions {
+	if (IndexOptions{PDFPages: s.PDFPages, Photos: s.Photos, Videos: s.Videos, Audio: s.Audio}) != DefaultIndexOptions {
 		t.Fatalf("settings default to %+v, the engine to %+v", s, DefaultIndexOptions)
 	}
 }

@@ -1,5 +1,5 @@
 // With extensions, so the Node test runner can load it too.
-import { isClip, type Way } from "./actions.ts";
+import { forgets, isClip, type Way } from "./actions.ts";
 import { filePathOf, pinIdOf, tagIdOf, type Item } from "./flatten.ts";
 
 /** What a key press in the bar asks for. The page carries it out; null leaves the key to the input. */
@@ -35,7 +35,7 @@ export function keyCommand(e: Key, { current, atEndOfText, expanded }: KeyContex
       if (e.ctrlKey) return { do: "run", how: current && isClip(current) ? "copy" : "reveal" };
       return { do: "run", how: "open" };
     case "Delete":
-      return e.ctrlKey && current && isClip(current) ? { do: "run", how: "delete" } : null;
+      return e.ctrlKey && current && forgets(current) ? { do: "run", how: "delete" } : null;
     case "ArrowRight":
       return atEndOfText && current ? { do: "expand" } : null;
     case "ArrowLeft":

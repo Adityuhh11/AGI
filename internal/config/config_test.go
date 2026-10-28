@@ -113,6 +113,7 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"unknown pdf mode", "[search]\npace = 'fast'\npdf_pages = 'some'\n", "pdf_pages"},
 		{"unknown photo mode", "[search]\npace = 'fast'\nphotos = 'pixels'\n", "photos"},
 		{"unknown video mode", "[search]\npace = 'fast'\nvideos = 'off'\n", "videos"},
+		{"unknown audio mode", "[search]\npace = 'fast'\naudio = 'on'\n", "audio"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -261,12 +262,12 @@ func TestHoldIndexingIsOffForOlderFilesAndWrittenOnlyWhenOn(t *testing.T) {
 
 func TestLoadReadsTheIndexingChoices(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "[search]\npace = 'fast'\npdf_pages = 'text'\nphotos = 'name'\nvideos = 'content'\n")
+	writeFile(t, path, "[search]\npace = 'fast'\npdf_pages = 'text'\nphotos = 'name'\nvideos = 'content'\naudio = 'content'\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Search.PDFPages != "text" || got.Search.Photos != "name" || got.Search.Videos != "content" {
+	if got.Search.PDFPages != "text" || got.Search.Photos != "name" || got.Search.Videos != "content" || got.Search.Audio != "content" {
 		t.Fatalf("search = %+v", got.Search)
 	}
 }

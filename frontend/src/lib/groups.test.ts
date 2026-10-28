@@ -41,7 +41,7 @@ test("a list is left alone when grouping is off, short, or of one kind", () => {
 });
 
 test("a kind the page does not know gets a heading of its own", () => {
-  const rows = [row("a", "code", 1), row("b", "audio", 0.9), row("c", "code", 0.8), row("d", "pdf", 0.7)];
+  const rows = [row("a", "code", 1), row("b", "archive", 0.9), row("c", "code", 0.8), row("d", "pdf", 0.7)];
   assert.ok(arrange(rows, true).some((g) => g.heading === "Other files"));
 });
 
@@ -50,4 +50,17 @@ test("flatten carries each group's heading on its first row only", () => {
   const headings = items.map((i) => (i.kind === "row" ? i.heading : undefined));
   assert.deepEqual(headings, ["Best match", "Code", undefined, "Images", "Documents"]);
   assert.ok(flatten(mixed, new Set(), [], false, false).every((i) => i.kind !== "row" || i.heading === undefined));
+});
+
+test("audio has its own heading", () => {
+  const groups = arrange([row("best.pdf", "pdf", 0.95), row("talk.mp3", "audio", 0.6), row("a.go", "code", 0.5), row("c.md", "text", 0.3)], true);
+  assert.deepEqual(
+    groups.map((g) => [g.heading, g.rows.map((r) => r.Path)]),
+    [
+      ["Best match", ["best.pdf"]],
+      ["Audio", ["talk.mp3"]],
+      ["Code", ["a.go"]],
+      ["Documents", ["c.md"]],
+    ],
+  );
 });

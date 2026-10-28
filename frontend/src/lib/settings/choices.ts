@@ -38,4 +38,16 @@ export const CHOICES: { kind: Kind; label: string; options: Option[] }[] = [
       { id: "content", name: "What is in them", how: "Eight frames of each video are searched too; a video costs as much as eight photos." },
     ],
   },
+  {
+    kind: "Audio",
+    label: "Audio and sound",
+    options: [
+      { id: "name", name: "Their names", how: "Audio files are found by their file names." },
+      {
+        id: "content",
+        name: "What is said and played",
+        how: "Audio files and the sound of videos are searched too, in 30 second pieces: describe a moment to find it. About a minute per hour of sound on a graphics card, 15 minutes on a processor. Tested on English.",
+      },
+    ],
+  },
 ];

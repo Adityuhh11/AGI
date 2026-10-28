@@ -206,6 +206,8 @@ func displayKind(kind string) string {
 		return "image"
 	case "video", "video_frame":
 		return "video"
+	case "audio", "audio_window":
+		return "audio"
 	case "code":
 		return "code"
 	case "file":

@@ -32,6 +32,7 @@ type file struct {
 	Learned map[string]map[string]int `json:"learned"` // typed text -> id -> times chosen
 	Tags    map[string][]string       `json:"tags"`    // tag -> ids of what carries it, in the order tagged
 	Pins    []string                  `json:"pins"`    // ids shown when the bar opens, in the order pinned
+	Waived  map[string]int64          `json:"waived"`  // offer id -> unix milliseconds of "not now"
 }
 
 // Store is the state, in memory and on disk. It is safe for concurrent use.
@@ -266,4 +267,25 @@ func (s *Store) Tags() []TagCount {
 		return tags[a].Name < tags[b].Name
 	})
 	return tags
+}
+
+// Waived is when the person said "not now" to an offer, or the zero time if they never did.
+func (s *Store) Waived(id string) time.Time {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ms, ok := s.data.Waived[id]; ok {
+		return time.UnixMilli(ms)
+	}
+	return time.Time{}
+}
+
+// Waive records "not now" to an offer, and saves.
+func (s *Store) Waive(id string, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data.Waived == nil {
+		s.data.Waived = map[string]int64{}
+	}
+	s.data.Waived[id] = at.UnixMilli()
+	return s.save()
 }

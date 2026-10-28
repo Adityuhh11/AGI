@@ -110,3 +110,16 @@ test("a snippet and a built-in row are pinned by their own ids; a copied text ca
   assert.equal(pin({ ID: "cmd:clipboard", Kind: "cmd" }), "cmd:clipboard");
   assert.equal(pin({ ID: "clip:7", Kind: "clip" }), null);
 });
+
+test("an offer comes after the files it is about and before the web search", () => {
+  const items = flatten(
+    [a, b],
+    new Set(),
+    [{ ID: "web:x", Kind: "web" }, { ID: "offer:sound", Kind: "offer" }, { ID: "app:x", Kind: "app" }] as never,
+  );
+  assert.deepEqual(
+    items.map((i) => (i.kind === "entry" ? i.entry.Kind : i.kind)),
+    ["app", "row", "row", "offer", "web"],
+  );
+});
+

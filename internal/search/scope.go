@@ -13,14 +13,17 @@ var (
 	codeScope  = scope{"Code", []string{"code"}}
 	imageScope = scope{"Images", []string{"image"}}
 	pdfScope   = scope{"PDFs", []string{"pdf_text", "pdf_page"}}
-	docScope   = scope{"Documents", []string{"markdown", "text", "file"}}
+	docScope   = scope{"Documents", []string{"markdown", "text", "file", "audio"}} // audio: by name, as before it had a kind
 	videoScope = scope{"Videos", []string{"video", "video_frame"}}
+	// audioScope is what is heard: audio files, and the soundtrack of videos beside the videos found by name.
+	audioScope = scope{"Audio", []string{"audio", "audio_window", "video"}}
 )
 
 var scopes = map[string]scope{
 	"code": codeScope,
 	"img":  imageScope, "image": imageScope, "images": imageScope,
 	"vid": videoScope, "video": videoScope, "videos": videoScope,
+	"aud": audioScope, "audio": audioScope, "sound": audioScope, "sounds": audioScope,
 	"pdf": pdfScope, "pdfs": pdfScope,
 	"doc": docScope, "docs": docScope, "text": docScope, "notes": docScope,
 }
