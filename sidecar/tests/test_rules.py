@@ -76,6 +76,8 @@ def test_ordinary_paths_are_allowed(uri):
         ("report.pdf", Route.PDF),
         ("Photo.JPG", Route.IMAGE),
         ("logo.png", Route.IMAGE),
+        ("budget.XLSX", Route.FILE),
+        ("backup.zip", Route.FILE),
         ("tool.exe", None),
         ("noextension", None),
         (".gitignore", None),

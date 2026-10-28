@@ -90,7 +90,7 @@ WHERE THINGS ARE
 
 NOT HERE YET
 
-  Window management, system commands, searching Office files, what is said in a video (only what
+  Window management, system commands, searching inside Office files and archives (their names are found), what is said in a video (only what
   is seen), images in the clipboard history.
 
 WHAT I WOULD LIKE TO KNOW

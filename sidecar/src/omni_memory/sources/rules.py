@@ -23,6 +23,7 @@ class Route(enum.StrEnum):
     PDF = "pdf"
     IMAGE = "image"
     VIDEO = "video"
+    FILE = "file"  # not read at all: found by its name
 
 
 _DENIED_DIRS = frozenset(
@@ -113,6 +114,28 @@ _TEXT = frozenset(
 )
 _IMAGE = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"})
 _VIDEO = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi", ".wmv"})
+# Documents and archives the engine cannot read: only the name is searchable.
+_BY_NAME = frozenset(
+    [
+        ".docx",
+        ".doc",
+        ".xlsx",
+        ".xls",
+        ".pptx",
+        ".ppt",
+        ".odt",
+        ".ods",
+        ".odp",
+        ".rtf",
+        ".epub",
+        ".zip",
+        ".7z",
+        ".rar",
+        ".tar",
+        ".gz",
+        ".tgz",
+    ]
+)
 
 
 def is_denied_dir(name: str) -> bool:
@@ -146,12 +169,15 @@ def route_for(name: str) -> Route | None:
         return Route.IMAGE
     if suffix in _VIDEO:
         return Route.VIDEO
+    if suffix in _BY_NAME:
+        return Route.FILE
     return None
 
 
 def size_limit(route: Route, settings: Settings) -> int:
-    """Largest file (bytes) the route will index. A video has none: it is never read whole."""
-    if route is Route.VIDEO:
+    """Largest file (bytes) the route will index. A video or a file found by name has none: it is
+    never read whole."""
+    if route in (Route.VIDEO, Route.FILE):
         return sys.maxsize
     if route in (Route.PDF, Route.IMAGE):
         return settings.max_media_file_bytes
