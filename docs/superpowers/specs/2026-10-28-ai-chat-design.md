@@ -23,9 +23,10 @@ From the model pages (2026-10-28):
 - Liquid says it is not meant for agentic coding or long multi-step reasoning. A 1.7 B model is for quick questions, rewrites,
   explanations, translation and summaries. The chat's empty state says so in one line.
 
-Not checked, and therefore **section 12 is a measured spike that comes before any code**: that b11960 Vulkan runs the model
-on the RTX 4050, how much VRAM it takes next to the embedder, tokens per second, load time, which quantization to ship, and
-how `llama-server` should be told to turn thinking off. Numbers in this spec marked *(to measure)* are placeholders.
+**The spike (section 12) has been run: `docs/eval/2026-10-28-chat-model.md`, ADR 0008.** Its results are folded into this spec; where a
+figure is quoted below it is from there. The pins: llama.cpp b11970 (Vulkan) and `LFM3-1.7B-QAD-Q4_0.gguf` (1.05 GB), which
+runs at about 130 tokens/s on the 4050 and about 35 on the CPU. Two items were not measured and stay open for the acceptance step:
+an answer during a fast sync, and the cause of two unexplained 8 to 11 s stalls in early runs.
 
 ## 2. Principles that decide the rest
 
@@ -72,6 +73,11 @@ port of about 15 lines to Go, tested on the same sample listings. A graphics car
 CPU for the session, as the engine's embedder does (`sidecar.Explain` already words the advice).
 
 **One slot.** `llama-server -np 1`: parallel slots split the context between them, and there is one window and one answer at a time.
+
+**The request.** Every request carries `chat_template_kwargs: {"enable_thinking": <bool>}` and, when thinking is off,
+`stop: ["</think>"]`: with thinking off the model sometimes closes a block it never opened and repeats its answer after the tag (3
+of 12 answers in the spike); stopping at the tag keeps the first, complete answer. Sampling is the model's own (temperature 0.1,
+top_k 50, repeat penalty 1.1), which the server already reports by default.
 
 **Files.**
 
@@ -182,25 +188,25 @@ needs a second generation). Rename is possible in the history panel. The convers
 The window shows the whole conversation. The model sees a **context window** built from it for each request, because the context is a
 fixed number of tokens set when the server starts (`-c`), and memory and speed both grow with it.
 
-**Size.** `[chat] context_tokens`, default 8192 *(to measure: VRAM and speed at 4k, 8k, 16k, 32k)*, choices 4096, 8192, 16384, 32768.
-The model can do 256K, but a launcher chat does not need it, a 1.7 B model gets worse as the prompt gets long, and a larger
-`-c` costs VRAM that file search and games also want. Changing it restarts the model at the next use.
+**Size.** `[chat] context_tokens`, default 8192, choices 4096, 8192, 16384, 32768. Measured VRAM next to the embedder: +1,125,
++1,177, +1,281 and +1,489 MiB. The model can do 256K, but a launcher chat does not need it and a 1.7 B model gets worse as the
+prompt gets long. Changing it restarts the model at the next use.
 
 **What goes in, in order:**
 1. A short fixed system prompt: who it is, to be concise, to answer in the language the person writes in, today's date (a small
    model does not know it), and nothing about abilities it does not have. It never changes mid-conversation, so the server's
    prompt cache keeps matching.
 2. The conversation's messages, oldest to newest, as many as fit.
-3. A reserve for the reply: `max_tokens` = min(2048, a quarter of the context).
+3. A reserve for the reply, which is also the request's `max_tokens`: 2048 with thinking off; 4096 with it on (measured: a
+   thinking answer used 51 to 2,011 tokens, so 2048 can run out inside the thinking and leave no answer). Never more than half the context.
 
 **Counting.** Exactly, not by guess: the server's `usage` on each response gives the tokens of the prompt and of the reply, which
 are stored on the messages; a new message is counted with the server's `/tokenize` before sending. No character heuristics.
 
-**Trimming.** When the prompt would pass 85% of the room, drop the oldest *whole turns* (a question and its answer) from the
-front until it is down to 60%, never splitting a turn, never dropping the newest message. Dropping in steps, not one turn at
-a time, matters for speed: llama-server keeps the processed prompt in its KV cache and only computes what changed after the
-shared start. Trimming the head invalidates that cache, so trimming a little every turn would reprocess the whole prompt
-every turn; trimming in steps does it once every few turns. *(to measure: prompt processing time with and without the step.)*
+**Trimming.** When the prompt would not fit in the room, drop the oldest *whole turns* (a question and its answer) from the
+front until it does, never splitting a turn, never dropping the newest message. (The first draft trimmed in steps so the
+server's prompt cache stayed valid. Measured, it does not matter: the template makes consecutive prompts share little, and the
+server reads 6,500 tokens a second, so a full 8k prompt is read in about 1.2 s. One turn at a time it is.)
 
 **Visible, not silent.** The window draws a line where the model's memory begins ("earlier messages left the model's memory") and
 the footer shows used/total tokens. A single message longer than the whole room is refused with a sentence saying so; it is
@@ -228,7 +234,8 @@ again. (llama.cpp has its own sleep mode; ending the process is simpler, portabl
 `at_start` starts the model 15 s after Omni is up, never on the path to the first bar.
 
 Settings shows the state live ("Unloaded", "Loading…", "Ready, 1.4 GB in use, unloads in 7 min") and a button to unload now.
-Cold load, warm load (file in the OS cache) and first-token times are measured in the spike and written here when known.
+Measured: ready in **1.6 s** on a normal start and **11.3 s** the first time after the download (and likely after a reboot); the process
+ends and returns its VRAM in under a second. Until the first token the window says "Starting the model…" or "Reading…".
 
 Other settings:
 
@@ -267,13 +274,13 @@ and nothing after that.
 
 ## 10. Hardware and performance rules
 
-- Both models on the GPU: the embedder takes about 1.1 GB; the chat model about 1.05 GB plus its context memory *(to measure)*.
-  Together they must leave headroom on 6 GB, with the Windows desktop and a browser running. If they do not, the chat model
+- Both models on the GPU: the embedder takes about 1.1 GB; the chat model about 1.2 GB at 8k context (measured: 2,290 MiB of
+  6,141 MiB in all, with the Windows desktop on it). If they do not, the chat model
   falls back to the CPU and says so in the window ("running on the processor").
 - Indexing and chat both want the GPU. Chat is never paused for indexing; the indexer's pace setting already lets the person
-  slow indexing. The spike measures an answer during a fast sync.
+  slow indexing. An answer during a fast sync is measured in the acceptance step (the spike did not run one).
 - Acceptance: the hotkey → bar p50 does not move (`panelbench`, with chat on and off); the chat window paints in under 150 ms of
-  the request *(to confirm)*, independent of the model's state.
+  the request (a target to confirm), independent of the model's state.
 - **Check VRAM before trusting any timing.** The owner's LM Studio also runs a `llama-server` on this GPU (see memory note);
   the spike records free VRAM before each run.
 
@@ -289,9 +296,9 @@ and nothing after that.
   person first. None of that is designed here; only the choice of server flags (`--jinja`) keeps it possible.
 - **Files in the answer** ("what did I write about X?"): the engine's search as a tool. Later, and it needs the engine.
 
-## 12. The spike (first step after approval, before any code)
+## 12. The spike (done: `docs/eval/2026-10-28-chat-model.md`)
 
-Everything marked *(to measure)*, on the real GPU, written up in `docs/eval/<date>-chat-model.md`:
+What was asked of it, on the real GPU:
 
 1. llama.cpp b11960 or newer (Vulkan) runs `LFM3-1.7B`; record the exact build and zip SHA-256 to pin. Does `--jinja` give structured
    `tool_calls`? What turns thinking off, can it be chosen per request (the header button needs that), and where does
@@ -304,12 +311,12 @@ Everything marked *(to measure)*, on the real GPU, written up in `docs/eval/<dat
 5. Prompt-cache behaviour of the trim step (section 7): follow-up latency with a cache hit against after a trim.
 6. The 85% / 60% thresholds and the 2048 reply reserve against what the chats actually look like.
 
-The spike's results can change this spec; if so the spec is amended before the plan is written. An ADR (`0008`) records the
-runtime choice: chat has its own llama.cpp pin and server process, separate from the engine's.
+ADR 0008 records the runtime choice: chat has its own llama.cpp pin and server process, separate from the engine's. Items 4 and 6 were
+not fully done (no sync run; the thresholds were replaced by "drop whole turns until it fits"); item 5 changed section 7.
 
 ## 13. Build order (becomes the plan)
 
-1. Spike (section 12) and the ADR.
+1. Spike (section 12) and the ADR: done.
 2. `internal/llm`: pins, layout, install/remove, device choice, process, idle unload. Tests: device choice on sample listings, idle
    timer on a fake clock, a stand-in server script (as `sidecar` does) for start, restart and failure.
 3. `internal/chat`: store (table tests: atomic write, ids cannot escape the folder, expiry), context builder (table tests: trim
