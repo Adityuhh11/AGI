@@ -71,16 +71,17 @@ class Pacer:
 
     def checkpoint(self, busy_seconds: float) -> None:
         """After a stretch of work: waits out a pause and the rest period of the duty cycle."""
-        deadline = time.monotonic() + self.delay_for(busy_seconds)
+        started = time.monotonic()
         with self._cond:
             while True:
                 if self._paused:
                     self._cond.wait()
                     continue
-                remaining = deadline - time.monotonic()
+                # Recomputed each round so a new speed applies to the rest already under way.
+                remaining = started + self.delay_for(busy_seconds) - time.monotonic()
                 if remaining <= 0:
                     return
-                self._cond.wait(remaining)  # a pause arriving meanwhile wakes this up
+                self._cond.wait(remaining)  # a pause or a new speed arriving meanwhile wakes this up
 
 
 class PacedEmbedder:
