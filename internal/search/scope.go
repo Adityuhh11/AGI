@@ -13,7 +13,7 @@ var (
 	codeScope  = scope{"Code", []string{"code"}}
 	imageScope = scope{"Images", []string{"image"}}
 	pdfScope   = scope{"PDFs", []string{"pdf_text", "pdf_page"}}
-	docScope   = scope{"Documents", []string{"markdown", "text"}}
+	docScope   = scope{"Documents", []string{"markdown", "text", "file"}}
 	videoScope = scope{"Videos", []string{"video", "video_frame"}}
 )
 

@@ -31,6 +31,7 @@ import (
 	"omni/internal/notes"
 	"omni/internal/palette"
 	"omni/internal/panel"
+	"omni/internal/power"
 	"omni/internal/search"
 	"omni/internal/settings"
 	"omni/internal/settingsui"
@@ -408,6 +409,9 @@ func run(afterUpdate bool) error {
 		if old.Search.Pace != updated.Search.Pace {
 			indexer.SetPace(updated.Search.Pace)
 		}
+		if old.Search.PauseOnBattery != updated.Search.PauseOnBattery {
+			indexer.SetPauseOnBattery(updated.Search.PauseOnBattery)
+		}
 		if old.Search.HoldIndexing != updated.Search.HoldIndexing {
 			refresh() // the tray says whether file search waits to be started
 		}
@@ -466,6 +470,9 @@ func run(afterUpdate bool) error {
 				}
 			}()
 		}
+		// Set here, not with the other indexer settings: being unplugged reports a change, and the tray is not made yet there.
+		indexer.WatchBattery(power.OnBattery)
+		indexer.SetPauseOnBattery(cfg.Search.PauseOnBattery)
 		go indexer.Run(ctx)
 		go countdown.Run(ctx)
 		go surveys.Run(ctx)

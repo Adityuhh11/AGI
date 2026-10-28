@@ -197,7 +197,7 @@ func (s *Service) row(file sidecar.File) (Row, bool) {
 	return row, true
 }
 
-// displayKind folds the engine's chunk kinds into the five things the UI tells apart.
+// displayKind folds the engine's chunk kinds into the six things the UI tells apart.
 func displayKind(kind string) string {
 	switch kind {
 	case "pdf_text", "pdf_page":
@@ -208,6 +208,8 @@ func displayKind(kind string) string {
 		return "video"
 	case "code":
 		return "code"
+	case "file":
+		return "file"
 	default: // markdown and text
 		return "text"
 	}

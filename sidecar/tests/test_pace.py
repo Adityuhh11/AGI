@@ -58,6 +58,15 @@ def test_a_paused_pacer_holds_the_indexer_until_it_is_resumed():
     assert pacer.paused is False
 
 
+def test_a_faster_speed_chosen_during_a_rest_ends_it_early():
+    pacer = Pacer(0.05)  # a 19 s rest after 1 s of work
+    done = threading.Event()
+    threading.Thread(target=lambda: (pacer.checkpoint(1.0), done.set()), daemon=True).start()
+    time.sleep(0.1)
+    pacer.set_duty(1.0)
+    assert done.wait(1), "the rest already under way ignored the new speed"
+
+
 def test_a_pause_that_arrives_during_a_rest_holds_at_the_end_of_it():
     pacer = Pacer(0.5)
     done = threading.Event()

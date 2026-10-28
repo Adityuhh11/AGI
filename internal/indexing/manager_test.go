@@ -481,3 +481,40 @@ func TestEachFolderSaysWhereItIs(t *testing.T) {
 		t.Errorf("after removing a folder: %+v", after)
 	}
 }
+
+func TestIndexingWaitsWhileTheComputerRunsOnItsBattery(t *testing.T) {
+	engine := newFake()
+	m := New(engine, nil, func() bool { return true }, nil)
+	unplugged := true
+	m.WatchBattery(func() bool { return unplugged })
+
+	m.SetPauseOnBattery(true)
+	if s := m.Status(); !s.WaitingForPower || s.Paused || !engine.paused {
+		t.Fatalf("on battery: status %+v, engine paused %v; want waiting for power and the engine paused", s, engine.paused)
+	}
+	unplugged = false
+	m.checkPower()
+	if s := m.Status(); s.WaitingForPower || engine.paused {
+		t.Fatalf("plugged in: status %+v, engine paused %v; want indexing to go on", s, engine.paused)
+	}
+	unplugged = true
+	m.checkPower()
+	m.SetPauseOnBattery(false) // the person lets it work on battery
+	if s := m.Status(); s.WaitingForPower || engine.paused {
+		t.Fatalf("setting off: status %+v, engine paused %v; want indexing to go on", s, engine.paused)
+	}
+}
+
+func TestAPausedPersonStaysPausedWhenThePowerComesBack(t *testing.T) {
+	engine := newFake()
+	m := New(engine, nil, func() bool { return true }, nil)
+	unplugged := true
+	m.WatchBattery(func() bool { return unplugged })
+	m.SetPauseOnBattery(true)
+	m.Pause()
+	unplugged = false
+	m.checkPower()
+	if !engine.paused || !m.Status().Paused {
+		t.Fatalf("engine paused %v, status %+v; the person's pause must outlast the battery's", engine.paused, m.Status())
+	}
+}
