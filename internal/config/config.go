@@ -44,6 +44,8 @@ type Config struct {
 	Timer Timer `toml:"timer"`
 	// Clipboard is the searchable history of what is copied (internal/clipboard).
 	Clipboard Clipboard `toml:"clipboard"`
+	// Chat is the local language model and its chat window (internal/llm, internal/chat).
+	Chat Chat `toml:"chat"`
 	// Snippets are texts kept to be pasted from the bar (internal/snippets).
 	Snippets []Snippet `toml:"snippet,omitempty"`
 	// Sidecar is the retired [sidecar] table (where the engine lived in the repository). Load reads
@@ -99,6 +101,38 @@ type Clipboard struct {
 	// Hotkey, if set, opens the bar already listing what was copied ("Ctrl+Shift+V"). Empty means there is none.
 	Hotkey string `toml:"hotkey,omitempty"`
 }
+
+// Chat holds the settings of Omni AI (docs/superpowers/specs/2026-10-28-ai-chat-design.md).
+type Chat struct {
+	// Enabled switches Omni AI on: the model is downloaded and `ask` opens the chat. Off until the person turns it on.
+	Enabled bool `toml:"enabled"`
+	// Hotkey, if set, opens the chat window from anywhere ("Ctrl+Alt+A"). Empty means there is none.
+	Hotkey string `toml:"hotkey,omitempty"`
+	// Load is when the model is put in memory: one of ChatLoads.
+	Load string `toml:"load"`
+	// UnloadAfterMinutes is how long the model stays in memory after the last answer; 0 means it is never unloaded.
+	UnloadAfterMinutes int `toml:"unload_after_minutes"`
+	// ContextTokens is the size of the model's context window, one of ChatContexts.
+	ContextTokens int `toml:"context_tokens"`
+	// KeepHistory saves conversations as files; off, a conversation is forgotten when its window closes.
+	KeepHistory bool `toml:"keep_history"`
+	// HistoryDays deletes saved conversations not touched for this long; 0 keeps them for good.
+	HistoryDays int `toml:"history_days"`
+	// Thinking lets the model reason before it answers: slower, and sometimes better.
+	Thinking bool `toml:"thinking"`
+}
+
+// ChatLoads are the allowed values of Chat.Load: the model starts when it is first asked, or when Omni starts.
+var ChatLoads = []string{"when_asked", "at_start"}
+
+// ChatContexts are the allowed sizes of the model's context window, in tokens.
+var ChatContexts = []int{4096, 8192, 16384, 32768}
+
+// ChatUnloadMinutes are the allowed times before an idle model is unloaded; 0 is never.
+var ChatUnloadMinutes = []int{1, 5, 10, 30, 60, 0}
+
+// maxHistoryDays is the longest the history may be kept by days (a year); longer is "never" (0).
+const maxHistoryDays = 365
 
 // Search holds the settings of file search, the memory engine.
 type Search struct {
@@ -241,6 +275,9 @@ func (c Config) Validate() error {
 	if err := c.validateSnippets(); err != nil {
 		return err
 	}
+	if err := c.validateChat(); err != nil {
+		return err
+	}
 	if c.Clipboard.Hotkey != "" && strings.EqualFold(strings.ReplaceAll(c.Clipboard.Hotkey, " ", ""), strings.ReplaceAll(c.Hotkey, " ", "")) {
 		return fmt.Errorf("the clipboard hotkey %q is the launcher's own hotkey", c.Clipboard.Hotkey)
 	}
@@ -295,6 +332,29 @@ func (c Config) Validate() error {
 		if !inside {
 			return fmt.Errorf("excluded folder %q is not inside any root", folder)
 		}
+	}
+	return nil
+}
+
+// validateChat checks the Omni AI settings.
+func (c Config) validateChat() error {
+	chat := c.Chat
+	same := func(a, b string) bool {
+		return a != "" && strings.EqualFold(strings.ReplaceAll(a, " ", ""), strings.ReplaceAll(b, " ", ""))
+	}
+	switch {
+	case same(chat.Hotkey, c.Hotkey):
+		return fmt.Errorf("the chat hotkey %q is the launcher's own hotkey", chat.Hotkey)
+	case same(chat.Hotkey, c.Clipboard.Hotkey):
+		return fmt.Errorf("the chat hotkey %q is the clipboard's hotkey", chat.Hotkey)
+	case !slices.Contains(ChatLoads, chat.Load):
+		return fmt.Errorf("chat load %q must be one of %s", chat.Load, strings.Join(ChatLoads, ", "))
+	case !slices.Contains(ChatUnloadMinutes, chat.UnloadAfterMinutes):
+		return fmt.Errorf("chat unload_after_minutes %d must be one of %v", chat.UnloadAfterMinutes, ChatUnloadMinutes)
+	case !slices.Contains(ChatContexts, chat.ContextTokens):
+		return fmt.Errorf("chat context_tokens %d must be one of %v", chat.ContextTokens, ChatContexts)
+	case chat.HistoryDays < 0 || chat.HistoryDays > maxHistoryDays:
+		return fmt.Errorf("chat history_days %d must be between 0 and %d", chat.HistoryDays, maxHistoryDays)
 	}
 	return nil
 }

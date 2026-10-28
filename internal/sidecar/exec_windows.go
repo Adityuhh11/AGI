@@ -31,8 +31,8 @@ func (p *execProcess) Kill() error {
 	return nil
 }
 
-// execStarter runs the engine as a child process with its output sent to output.
-func execStarter(_ context.Context, spec Spec, output io.Writer) (Process, error) {
+// ExecStarter runs a program (the engine, or the chat model's server) as a child process with its output sent to output.
+func ExecStarter(_ context.Context, spec Spec, output io.Writer) (Process, error) {
 	cmd := exec.Command(spec.Exe, spec.Args...)
 	cmd.Dir, cmd.Env = spec.Dir, spec.Env
 	cmd.Stdout, cmd.Stderr = output, output
