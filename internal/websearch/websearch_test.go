@@ -229,3 +229,17 @@ func TestWhenNeitherAnswersTheErrorSaysDuckDuckGoAskedForACheck(t *testing.T) {
 		t.Error("a failed search was remembered")
 	}
 }
+
+func TestExtractKeepsAFormWrappedPageAndAnArticlesHeadlineAndPrefersABigBodyToASmallCard(t *testing.T) {
+	long := strings.Repeat("A sentence of the page that matters. ", 30)
+	for name, tc := range map[string]struct{ page, want, unwanted string }{
+		"form around the body": {`<body><form><p>` + long + `</p></form></body>`, "A sentence of the page", ""},
+		"headline in a header": {`<body><article><header><h1>The Headline</h1></header><p>` + long + `</p></article></body>`, "The Headline", ""},
+		"card beside the page": {`<body><article><p>` + strings.Repeat("Card text here. ", 30) + `</p></article><div>` + strings.Repeat("The real page text. ", 200) + `</div></body>`, "The real page text.", ""},
+	} {
+		_, text := extract(parse(t, tc.page))
+		if !strings.Contains(text, tc.want) || (tc.unwanted != "" && strings.Contains(text, tc.unwanted)) {
+			t.Errorf("%s: %.120q", name, text)
+		}
+	}
+}

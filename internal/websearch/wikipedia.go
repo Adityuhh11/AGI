@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -42,7 +43,7 @@ func (c *Client) wikipedia(ctx context.Context, query string) ([]Result, error) 
 			Search []struct{ Title, Snippet string } `json:"search"`
 		} `json:"query"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, pageLimit)).Decode(&out); err != nil {
 		return nil, fmt.Errorf("read Wikipedia's answer: %w", err)
 	}
 	var results []Result

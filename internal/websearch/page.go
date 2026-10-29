@@ -76,10 +76,10 @@ func (c *Client) Read(ctx context.Context, address string, maxChars int) (Page, 
 	return page, nil
 }
 
-// skipped are the elements that hold no article: scripts, menus, forms and the rest of a page's furniture.
+// skipped are the elements that hold no article: scripts, menus and the rest of a page's furniture.
 var skipped = map[string]bool{
-	"script": true, "style": true, "noscript": true, "template": true, "svg": true, "iframe": true, "nav": true, "header": true,
-	"footer": true, "aside": true, "form": true, "button": true, "select": true, "dialog": true, "head": true,
+	"script": true, "style": true, "noscript": true, "template": true, "svg": true, "iframe": true, "nav": true,
+	"footer": true, "aside": true, "button": true, "select": true, "dialog": true, "head": true,
 }
 
 // breaks are the elements that end a line of text.
@@ -89,25 +89,24 @@ var breaks = map[string]bool{
 	"ol": true, "dt": true, "dd": true, "figcaption": true,
 }
 
-// extract returns the page's title and its readable text: the article or main part when the page marks one and it holds a real
-// amount of text, else the body (a small <article> on a page is often a card, not the page).
+// extract returns the page's title and its readable text: the article or main part when the page marks one, it holds a real
+// amount of text and it is a good part of the page; else the whole body (a small <article> on a page is often a card, not the page).
 func extract(doc *html.Node) (title, text string) {
 	if t := find(doc, func(n *html.Node) bool { return n.Data == "title" }); t != nil {
 		title = squash(textOf(t))
 	}
-	for _, tag := range []string{"article", "main", "body"} {
-		root := find(doc, func(n *html.Node) bool { return n.Data == tag })
-		if root == nil {
-			continue
-		}
-		if got := readable(root); len(got) > len(text) {
-			text = got
-		}
-		if len(text) >= enoughText {
-			break
+	var body string
+	if root := find(doc, func(n *html.Node) bool { return n.Data == "body" }); root != nil {
+		body = readable(root)
+	}
+	for _, tag := range []string{"article", "main"} {
+		if root := find(doc, func(n *html.Node) bool { return n.Data == tag }); root != nil {
+			if got := readable(root); len(got) >= enoughText && len(got)*3 >= len(body) {
+				return title, got
+			}
 		}
 	}
-	return title, text
+	return title, body
 }
 
 // enoughText is how much text (in bytes) makes an <article> or <main> the page's content rather than a part of it.

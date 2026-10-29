@@ -24,11 +24,16 @@
   function outside(event: PointerEvent) {
     if (open && root && !root.contains(event.target as Node)) open = false;
   }
+
+  // Tab out of the menu closes it, as a click outside does.
+  function leaving(event: FocusEvent) {
+    if (open && root && !root.contains(event.relatedTarget as Node | null)) open = false;
+  }
 </script>
 
 <svelte:window onpointerdown={outside} />
 
-<div class="wrap" bind:this={root}>
+<div class="wrap" bind:this={root} onfocusout={leaving}>
   <RoundButton
     icon="plus"
     look="tile"
@@ -39,15 +44,15 @@
     onclick={() => (open = !open)}
   />
   {#if open}
-    <div class="menu" role="menu" aria-label="Tools">
-      <button bind:this={first} type="button" role="menuitemcheckbox" aria-checked={thinking} class="item" onclick={onthinking}>
+    <div class="menu" role="group" aria-label="Tools">
+      <button bind:this={first} type="button" aria-pressed={thinking} class="item" onclick={onthinking}>
         <span class="glyph"><Icon name="brain" size={18} /></span>
         <span class="words"><span class="name">Think</span><span class="hint">Reason before answering. Slower, sometimes better.</span></span>
         <span class="switch" class:on={thinking} aria-hidden="true"></span>
       </button>
-      <button type="button" role="menuitemcheckbox" aria-checked={web} class="item" onclick={onweb}>
+      <button type="button" aria-pressed={web} class="item" onclick={onweb}>
         <span class="glyph"><Icon name="web" size={18} /></span>
-        <span class="words"><span class="name">Search the web</span><span class="hint">Looks things up online. Your search words go to DuckDuckGo.</span></span>
+        <span class="words"><span class="name">Search the web</span><span class="hint">Looks things up online. The words it searches for go to DuckDuckGo or Wikipedia.</span></span>
         <span class="switch" class:on={web} aria-hidden="true"></span>
       </button>
     </div>

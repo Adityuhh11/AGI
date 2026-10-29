@@ -423,7 +423,9 @@
             {#if live.text}
               <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
               <div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>
-            {:else}
+            {/if}
+            <!-- A model that wrote a few words before it went to the web still shows where it is. -->
+            {#if !live.text || live.phase === "web"}
               <p class="waiting"><span class="pip" aria-hidden="true"></span>{waiting(live.phase, live.status)}</p>
             {/if}
           </div>

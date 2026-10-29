@@ -92,10 +92,14 @@ type reply struct {
 	endpoint     llm.Endpoint // the server that answered, to count the answer afterwards
 	haveEndpoint bool
 	sources      []Source // the pages the answer drew on, when it looked at the web
+	gap          bool     // text came before a tool call, so a break goes before the next text
 }
 
 func (r *reply) addText(piece string, status func(Status)) {
 	r.mu.Lock()
+	if r.gap { // text came before a tool call: a break goes between it and what follows
+		piece, r.gap = "\n\n"+piece, false
+	}
 	first := !r.firstContent
 	r.firstContent = true
 	if first && !r.thinkStart.IsZero() {
@@ -254,8 +258,13 @@ func (s *Service) answer(ctx context.Context, thinking, web bool, r *reply, stat
 	}
 	var look *lookup
 	if web && spare*charsPerToken >= minToolChars {
-		look = &lookup{web: s.o.Web, chars: spare * charsPerToken, status: status, pages: map[string]bool{}, logf: s.o.Logf}
+		s.mu.Lock()
+		allowed := addressesIn(s.conv.Messages)
+		s.mu.Unlock()
+		look = &lookup{web: s.o.Web, chars: spare * charsPerToken, status: status, pages: map[string]bool{}, allowed: allowed, logf: s.o.Logf}
 		req.Tools = webTools()
+	} else if web { // no room for results: the model is not told it has tools it was not given
+		req.Messages[0].Content = SystemPrompt(s.o.Now(), false)
 	}
 	for round := 1; ; round++ {
 		calls, err := s.complete(ctx, &ep, req, r, status)
@@ -344,7 +353,8 @@ func (s *Service) prepare(ctx context.Context, ep llm.Endpoint, thinking, web bo
 	if err != nil {
 		return Request{}, 0, err
 	}
-	return NewRequest(WireMessages(system, s.conv.Messages[start:]), reserve, thinking), cfg.ContextTokens - reserve - used, nil
+	// the tools' descriptions and the closing "answer now" message take room too
+	return NewRequest(WireMessages(system, s.conv.Messages[start:]), reserve, thinking), cfg.ContextTokens - reserve - used - toolOverheadTokens, nil
 }
 
 // size is how much of an answer (text and reasoning) has arrived, to tell whether a failed request got anywhere.
@@ -358,8 +368,5 @@ func (r *reply) size() int {
 func (r *reply) separate() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.text.Len() > 0 {
-		r.text.WriteString("\n\n")
-		r.unsentText.WriteString("\n\n")
-	}
+	r.gap = r.text.Len() > 0
 }

@@ -54,6 +54,9 @@ func TestRealModelUsesTheWeb(t *testing.T) {
 		}
 		last := done.View.Messages[len(done.View.Messages)-1]
 		t.Logf("Q: %s\nA (%v): %s\nsources: %+v\nerror: %q", question, time.Since(began).Round(100*time.Millisecond), strings.TrimSpace(last.Text), last.Sources, done.Error)
+		if strings.Contains(question, "latest stable") && len(last.Sources) == 0 {
+			t.Errorf("%q needs the web and the answer has no sources: the model did not look", question)
+		}
 		if done.Error != "" || strings.TrimSpace(last.Text) == "" {
 			t.Errorf("no answer to %q: %+v", question, done)
 		}
