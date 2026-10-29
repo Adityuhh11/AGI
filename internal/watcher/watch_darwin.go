@@ -2,7 +2,7 @@ package watcher
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework CoreServices
+#cgo LDFLAGS: -framework CoreServices -framework Foundation
 #include <stdlib.h>
 #include "watch_darwin.h"
 */

@@ -1,3 +1,4 @@
+#import <Foundation/Foundation.h>
 #import <CoreServices/CoreServices.h>
 #include "watch_darwin.h"
 
