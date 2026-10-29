@@ -30,11 +30,11 @@ func TestSuggestedFoldersStartTickedOnlyOnAFirstRunAndFollowTheRootsAfter(t *tes
 		}
 		return strings.Join(out, " | ")
 	}
-	want := `xDocuments=C:\Users\me\OneDrive\Documents | xPictures=C:\Users\me\Pictures | -Downloads=C:\Users\me\Downloads`
+	want := "xDocuments=" + testpath.P(`C:\Users\me\OneDrive\Documents`) + " | xPictures=" + testpath.P(`C:\Users\me\Pictures`) + " | -Downloads=" + testpath.P(`C:\Users\me\Downloads`)
 	if got := describe(nil); got != want {
 		t.Errorf("first run:\n got %s\nwant %s", got, want)
 	}
-	want = `-Documents=C:\Users\me\OneDrive\Documents | -Pictures=C:\Users\me\Pictures | xDownloads=C:\Users\me\Downloads | xdev=D:\dev`
+	want = "-Documents=" + testpath.P(`C:\Users\me\OneDrive\Documents`) + " | -Pictures=" + testpath.P(`C:\Users\me\Pictures`) + " | xDownloads=" + testpath.P(`C:\Users\me\Downloads`) + " | xdev=" + testpath.P(`D:\dev`)
 	if got := describe([]string{testpath.P(`c:\users\ME\downloads`), testpath.P(`D:\dev`)}); got != want {
 		t.Errorf("with roots:\n got %s\nwant %s", got, want)
 	}

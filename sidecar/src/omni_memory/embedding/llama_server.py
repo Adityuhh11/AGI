@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import atexit
 import ctypes
+import http.client
 import logging
 import os
 import re
@@ -22,8 +23,6 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
 from collections import deque
 from collections.abc import Sequence
 from pathlib import Path
@@ -229,24 +228,32 @@ class LlamaServer:
 
     def _wait_until_healthy(self) -> None:
         deadline = time.monotonic() + self._start_timeout
-        request = urllib.request.Request(
-            self.url + "/health", headers={"Authorization": "Bearer " + self.api_key}
-        )
+        port = int(self.url.rsplit(":", 1)[1])
         while time.monotonic() < deadline:
             process = self._process
             if process is None or process.poll() is not None:
                 raise ServerError("llama-server stopped while starting: " + " | ".join(self._tail))
-            try:
-                with urllib.request.urlopen(request, timeout=2) as response:
-                    if response.status == 200:
-                        return
-            except (urllib.error.URLError, OSError):
-                pass
+            if _health(port, self.api_key) == 200:
+                return
             time.sleep(0.1)
         raise ServerError(
             f"llama-server was not ready after {self._start_timeout:.0f} s: "
             + " | ".join(self._tail)
         )
+
+
+def _health(port: int, api_key: str) -> int | None:
+    """The status of the server's /health, or None while it does not answer. Straight to the
+    loopback address with http.client: urllib would consult the system's proxy settings, and
+    nothing about a server on this machine may go through a proxy."""
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request("GET", "/health", headers={"Authorization": "Bearer " + api_key})
+        return connection.getresponse().status
+    except (OSError, http.client.HTTPException):
+        return None
+    finally:
+        connection.close()
 
 
 def _no_window() -> int:

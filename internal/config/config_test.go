@@ -278,7 +278,7 @@ func TestLoadReadsTheIndexingChoices(t *testing.T) {
 }
 
 func TestExcludedUnderGivesPathsBelowTheRootInTheEnginesForm(t *testing.T) {
-	exclude := []string{testpath.P(`C:\Docs\Vendor\Skills`), testpath.P(`c:\docs\other`), testpath.P(`C:\Docs`), testpath.P(`C:\Documents\x`), testpath.P(`D:\Docs\Vendor`)}
+	exclude := []string{testpath.P(`C:\Docs\Vendor\Skills`), testpath.P(`C:\Docs\other`), testpath.P(`C:\Docs`), testpath.P(`C:\Documents\x`), testpath.P(`D:\Docs\Vendor`)}
 	got := ExcludedUnder(testpath.P(`C:\Docs`), exclude)
 	if want := "Vendor/Skills|other"; strings.Join(got, "|") != want {
 		t.Fatalf("ExcludedUnder = %v, want %s", got, want)

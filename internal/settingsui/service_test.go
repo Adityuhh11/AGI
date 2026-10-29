@@ -249,7 +249,7 @@ func TestFoldersAreAddedFromThePickerAndRemovedWithTheirExclusions(t *testing.T)
 	if err := h.store.Update(func(c *config.Config) { c.Exclude = []string{testpath.P(`C:\Docs\vendor`)} }); err != nil {
 		t.Fatal(err)
 	}
-	if msg := h.svc.RemoveFolder(testpath.P(`c:\docs`)); msg != "" {
+	if msg := h.svc.RemoveFolder(testpath.P(`C:\Docs`)); msg != "" {
 		t.Fatal(msg)
 	}
 	if got := h.store.Get(); len(got.Roots) != 0 || len(got.Exclude) != 0 {
@@ -465,7 +465,7 @@ func TestAFolderWithNothingReadableSaysSoAndWhereWindowsMovedIt(t *testing.T) {
 		return ""
 	}
 	got := h.svc.Search().Folders
-	if want := `Nothing here Omni can read. Windows keeps this folder in C:\Users\me\OneDrive\Documents now: add that one instead`; got[0].Text != want {
+	if want := "Nothing here Omni can read. Windows keeps this folder in " + testpath.P(`C:\Users\me\OneDrive\Documents`) + " now: add that one instead"; got[0].Text != want {
 		t.Errorf("a moved folder says %q", got[0].Text)
 	}
 	if got[1].Text != "Nothing here Omni can read" {

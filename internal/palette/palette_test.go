@@ -321,10 +321,10 @@ func TestTaggedFilesOpenThroughTheFilesService(t *testing.T) {
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
 	f := &fakeFiles{}
 	s := New(catalog, history, &fakeBrowser{}, f, &fakeClips{}, &fakeSnips{}, func(string) {}, func() {})
-	if err := s.Do(`file:C:\docs\a.pdf`, "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != testpath.P(`C:\docs\a.pdf`) {
+	if err := s.Do("file:"+testpath.P(`C:\docs\a.pdf`), "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != testpath.P(`C:\docs\a.pdf`) {
 		t.Fatalf("opened %v, %v", f.opened, err)
 	}
-	if err := s.Do(`file:C:\docs\a.pdf`, "reveal", ""); err != nil || len(f.revealed) != 1 {
+	if err := s.Do("file:"+testpath.P(`C:\docs\a.pdf`), "reveal", ""); err != nil || len(f.revealed) != 1 {
 		t.Fatalf("revealed %v, %v", f.revealed, err)
 	}
 	if err := s.Do(`file:x`, "admin", ""); err == nil {
