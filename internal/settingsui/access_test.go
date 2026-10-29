@@ -66,14 +66,19 @@ func TestAFolderTheSystemWillNotLetOmniReadSaysSoAndOthersDoNot(t *testing.T) {
 func TestOnlyAFolderThatIsNewlyChosenIsReadAndReadOnceEach(t *testing.T) {
 	h := newHarness(t)
 	old, fresh := testpath.P(`C:\Old`), testpath.P(`C:\Fresh`)
+	var a asked
+	h.svc.blocked = a.blocked()
 	if msg := h.svc.SetRoots([]string{old}); msg != "" {
 		t.Fatal(msg)
 	}
-	var a asked
-	h.svc.blocked = a.blocked()
+	a.wait(t, 1) // the first folder is read as it is chosen
+	a.mu.Lock()
+	a.folders = nil
+	a.mu.Unlock()
 	if msg := h.svc.SetRoots([]string{old, fresh}); msg != "" {
 		t.Fatal(msg)
 	}
+	time.Sleep(100 * time.Millisecond) // long enough for a wrong second read of the old folder to show
 	if got := a.wait(t, 1); len(got) != 1 || got[0] != fresh {
 		t.Fatalf("read %v, want only %s: the folder that was already chosen has been asked about", got, fresh)
 	}
