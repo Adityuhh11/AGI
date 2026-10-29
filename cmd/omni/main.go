@@ -285,14 +285,14 @@ func run(afterUpdate bool) error {
 	}
 	clipEnabled := func() bool { return store.Get().Clipboard.Enabled }
 	clips := clipboard.NewManager(clipStore,
-		clipboard.NewWatcher(clipboard.WindowsSource{}, clipStore, clipEnabled,
+		clipboard.NewWatcher(clipboard.NewSource(), clipStore, clipEnabled,
 			func() []string { return store.Get().Clipboard.Ignore }, strings.TrimSuffix(filepath.Base(self), ".exe")),
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		clipEnabled)
 	bar.OnShow = clips.Poll // a copy a moment before the bar opened is in the list
 	snips := snippets.New(func() []config.Snippet { return store.Get().Snippets },
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
-		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
+		func() string { clip, _ := clipboard.NewSource().Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
 	setupWindow := settingsui.NewSetupWindow(app)
 	notesWindow := settingsui.NewNotesWindow(app)

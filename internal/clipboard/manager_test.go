@@ -60,7 +60,7 @@ func TestAPasteThatCannotBeTypedStillReportsWhy(t *testing.T) {
 	m, s := newManager(t)
 	s.elevated = true
 	add(t, m.store, "x", 0)
-	if err := m.Paste(m.Search("", 1)[0].ID); !errors.Is(err, ErrElevated) {
+	if err := m.Paste(m.Search("", 1)[0].ID); !errors.Is(err, ErrBlocked) {
 		t.Fatalf("err = %v", err)
 	}
 }

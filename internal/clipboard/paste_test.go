@@ -34,7 +34,7 @@ func (s *scene) paster() Paster {
 			}
 			return 1 // the bar, or anything else
 		},
-		Elevated:  func(uintptr) bool { return s.elevated },
+		Blocked:   func(uintptr) bool { return s.elevated },
 		SendPaste: func() error { s.events = append(s.events, "ctrl+v"); return nil },
 		Sleep:     func(d time.Duration) { s.slept += d },
 	}
@@ -58,7 +58,7 @@ func TestAPasteSetsTheTextThenGivesTheKeyboardBackThenTypesCtrlV(t *testing.T) {
 func TestNothingIsTypedIntoAProgramWindowsWillNotLetUsTypeInto(t *testing.T) {
 	s := &scene{target: 42, elevated: true}
 	err := s.paster().Paste("secret")
-	if !errors.Is(err, ErrElevated) {
+	if !errors.Is(err, ErrBlocked) {
 		t.Fatalf("err = %v", err)
 	}
 	if got := order(s); got != "set:secret" {

@@ -1,11 +1,5 @@
 //go:build windows
 
-// Package watcher tells the launcher when something changed under a folder it indexes, so a new,
-// moved or deleted file reaches the index in seconds instead of at the next manual rescan.
-//
-// It uses ReadDirectoryChangesW, which watches a whole tree through one handle. Events inside
-// folders the engine never indexes (hidden ones, node_modules, ...) and partial files are dropped,
-// and a burst of events becomes one call once it has gone quiet.
 package watcher
 
 import (

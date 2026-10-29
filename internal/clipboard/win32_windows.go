@@ -112,6 +112,9 @@ func markedPrivate() bool {
 	return false
 }
 
+// NewSource is the real clipboard.
+func NewSource() Source { return WindowsSource{} }
+
 // WindowsSource is the real clipboard.
 type WindowsSource struct{}
 
@@ -237,7 +240,7 @@ func NewPaster(setText func(string) bool, previous func() uintptr, release func(
 		Previous:   previous,
 		Release:    release,
 		Foreground: foregroundWindow,
-		Elevated:   blockedByElevation,
+		Blocked:    blockedByElevation,
 		SendPaste:  sendCtrlV,
 		Sleep:      time.Sleep,
 	}
