@@ -61,7 +61,7 @@ jobs:
 
   # The Mac code is Objective-C through cgo, which cannot be compiled from Windows, so this runner is the only compiler it has
   # (docs/superpowers/specs/2026-10-29-macos-design.md). It builds, vets and tests everything the Windows job does that makes sense
-  # on a Mac. There is no Mac installer step yet (milestone M4).
+  # on a Mac, then packages it as a release does (the last two steps).
   launcher-macos:
     runs-on: macos-latest
     env:
@@ -119,6 +119,11 @@ jobs:
           name: mac-smoke
           path: smoke.png
           if-no-files-found: ignore
+      # What the Release workflow makes, made and tried on every pull request: Omni.app, its zip, and install.sh run for real against that zip.
+      - name: Package (Omni.app, zip, install.sh)
+        run: ./scripts/release-mac.sh
+      - name: Try the package
+        run: ./scripts/test-package-mac.sh
 
   engine:
     runs-on: windows-latest

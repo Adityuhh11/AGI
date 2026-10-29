@@ -6,7 +6,7 @@
 # its own edge) through an undocumented WebKit key, which Wails uses only with this tag; without it the page sits on an opaque plate.
 # The Mac App Store would refuse such a build, which decision 0010 already rules out.
 # Needs Go, Node, the Xcode command line tools (the Mac code is Objective-C through cgo) and wails3
-# (go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29). Packaging into Omni.app is milestone M4.
+# (go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29). release-mac.sh packs the result into Omni.app.
 set -eu
 # The program is for macOS 13 and later (the login item needs it); without this the linker is told the version of the machine it runs on.
 export MACOSX_DEPLOYMENT_TARGET=13.0

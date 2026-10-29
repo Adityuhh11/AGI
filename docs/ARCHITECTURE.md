@@ -150,6 +150,7 @@ is Objective-C through cgo, which cannot be compiled from Windows, so that runne
 | `tray` | the menu | colour icon (`tray_windows.go`) | template image (`tray_darwin.go`) |
 | `cmd/omni` | `main.go` | `platform_windows.go`, `migrate_windows.go` | `platform_darwin.go`, `migrate_darwin.go` |
 | `cmd/panelbench` | | all of it (`main_windows.go`) | |
+| build and release (`scripts/`, `build/`) | the version rules | `build.ps1`, `release.ps1` (zip, Inno Setup installer), `test-installer.ps1`, `build/windows/` (icon, manifest) | `build-mac.sh`, `release-mac.sh` (`Omni.app`, ad-hoc signature, zip), `install.sh`, `test-package-mac.sh`, `build/darwin/` (Info.plist, icon) |
 
 ## Conventions
 

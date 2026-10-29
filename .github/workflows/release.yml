@@ -1,4 +1,4 @@
-# Builds a release on a clean Windows machine, from the tag, so the zip and the installer people download are what the
+# Builds a release on a clean Windows machine and a clean Mac, from the tag, so the files people download are what the
 # source makes and can be traced to it (a build-provenance attestation). It makes a DRAFT release: the person who owns
 # the project writes the notes, looks at the files and presses publish (docs/RELEASING.md).
 #
@@ -94,6 +94,55 @@ jobs:
             $name = Split-Path $file -Leaf
             $local = 'sha256:' + (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
             $remote = gh release view $tag --json assets --jq ".assets[] | select(.name==`"$name`") | .digest"
-            if ($remote -ne $local) { throw "$name has digest '$remote' on GitHub, not $local" }
-            Write-Host "$name $local"
+            if ($remote -ne $local) { throw "$name has digest '$remote' on GitHub, not $want" }
+            Write-Host "$name $want"
           }
+
+  # The Mac files, added to the draft the Windows job made (so this job waits for it, and for its check that the tag is on main).
+  macos:
+    needs: windows
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Build Omni.app and its zip
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then version="${GITHUB_REF_NAME#v}"; else version=""; fi
+          ./scripts/release-mac.sh "$version"
+      - name: Try the package
+        run: ./scripts/test-package-mac.sh
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/omni-*-macos-arm64.zip
+            dist/install.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: omni-macos-arm64
+          path: |
+            dist/omni-*-macos-arm64.zip
+            dist/install.sh
+      - name: Add to the draft release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          gh release upload "$tag" dist/omni-*-macos-arm64.zip dist/install.sh
+          # install.sh refuses a download whose digest GitHub did not publish, so check it is there and is ours.
+          for file in dist/omni-*-macos-arm64.zip dist/install.sh; do
+            name="$(basename "$file")"
+            want="sha256:$(shasum -a 256 "$file" | cut -d' ' -f1)"
+            remote="$(gh release view "$tag" --json assets --jq ".assets[] | select(.name==\"$name\") | .digest")"
+            [ "$remote" = "$want" ] || { echo "$name has digest '$remote' on GitHub, not $want"; exit 1; }
+            echo "$name $want"
+          done
