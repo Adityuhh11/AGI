@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"omni/internal/sidecar"
+	"omni/internal/testpath"
 )
 
 // fakeEngine plays the engine's /survey: what it was asked, and what it answers.
@@ -69,16 +70,16 @@ func TestEveryFolderIsCountedOnceTheEngineIsUp(t *testing.T) {
 	var mu sync.Mutex
 	up := false
 	m := run(t, e, func() bool { mu.Lock(); defer mu.Unlock(); return up })
-	m.Set([]string{`C:\a`, `C:\b`}, nil)
+	m.Set([]string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, nil)
 	time.Sleep(20 * time.Millisecond)
-	if got := m.Results()[`C:\a`].State; got != Pending || e.count() != 0 {
+	if got := m.Results()[testpath.P(`C:\a`)].State; got != Pending || e.count() != 0 {
 		t.Fatalf("before the engine is up: %v, asked %d", got, e.count())
 	}
 	mu.Lock()
 	up = true
 	mu.Unlock()
-	eventually(t, "both folders", func() bool { r := m.Results(); return r[`C:\a`].State == Done && r[`C:\b`].State == Done })
-	if got := m.Results()[`C:\a`].Survey.Routes["code"].Files; got != 7 {
+	eventually(t, "both folders", func() bool { r := m.Results(); return r[testpath.P(`C:\a`)].State == Done && r[testpath.P(`C:\b`)].State == Done })
+	if got := m.Results()[testpath.P(`C:\a`)].Survey.Routes["code"].Files; got != 7 {
 		t.Fatalf("files = %d", got)
 	}
 	if e.count() != 2 {
@@ -89,22 +90,22 @@ func TestEveryFolderIsCountedOnceTheEngineIsUp(t *testing.T) {
 func TestChangingWhatIsLeftOutCountsOnlyThatFolderAgainAndRemovingForgets(t *testing.T) {
 	e := &fakeEngine{answer: counted(3)}
 	m := run(t, e, func() bool { return true })
-	m.Set([]string{`C:\a`, `C:\b`}, nil)
+	m.Set([]string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, nil)
 	eventually(t, "first pass", func() bool { return e.count() == 2 })
-	m.Set([]string{`C:\a`, `C:\b`}, []string{`C:\a\big`})
+	m.Set([]string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, []string{testpath.P(`C:\a\big`)})
 	eventually(t, "the changed folder again", func() bool { return e.count() == 3 })
 	time.Sleep(30 * time.Millisecond)
 	if e.count() != 3 {
 		t.Fatalf("asked %d times: the untouched folder was counted again", e.count())
 	}
 	e.mu.Lock()
-	got := e.excl[`C:\a`]
+	got := e.excl[testpath.P(`C:\a`)]
 	e.mu.Unlock()
 	if len(got) != 1 || got[0] != "big" {
 		t.Fatalf("left out = %v, want the folder relative to its root", got)
 	}
-	m.Set([]string{`C:\b`}, nil)
-	if _, there := m.Results()[`C:\a`]; there {
+	m.Set([]string{testpath.P(`C:\b`)}, nil)
+	if _, there := m.Results()[testpath.P(`C:\a`)]; there {
 		t.Fatal("a removed folder still has a result")
 	}
 }
@@ -116,7 +117,7 @@ func TestAnOlderEngineIsUnavailableAndAFailureIsTriedAgain(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		calls++
-		if root == `C:\old` {
+		if root == testpath.P(`C:\old`) {
 			return sidecar.Survey{}, &sidecar.APIError{Status: http.StatusNotFound, Detail: "Not Found"}
 		}
 		if calls < 4 {
@@ -125,12 +126,12 @@ func TestAnOlderEngineIsUnavailableAndAFailureIsTriedAgain(t *testing.T) {
 		return sidecar.Survey{}, nil
 	}}
 	m := run(t, e, func() bool { return true })
-	m.Set([]string{`C:\old`}, nil)
-	eventually(t, "unavailable", func() bool { return m.Results()[`C:\old`].State == Unavailable })
-	m.Set([]string{`C:\flaky`}, nil)
-	eventually(t, "a failure", func() bool { return m.Results()[`C:\flaky`].State == Failed })
-	if m.Results()[`C:\flaky`].Message == "" {
+	m.Set([]string{testpath.P(`C:\old`)}, nil)
+	eventually(t, "unavailable", func() bool { return m.Results()[testpath.P(`C:\old`)].State == Unavailable })
+	m.Set([]string{testpath.P(`C:\flaky`)}, nil)
+	eventually(t, "a failure", func() bool { return m.Results()[testpath.P(`C:\flaky`)].State == Failed })
+	if m.Results()[testpath.P(`C:\flaky`)].Message == "" {
 		t.Error("a failure must say why")
 	}
-	eventually(t, "the retry", func() bool { return m.Results()[`C:\flaky`].State == Done })
+	eventually(t, "the retry", func() bool { return m.Results()[testpath.P(`C:\flaky`)].State == Done })
 }

@@ -162,7 +162,7 @@ type Search struct {
 	// install made before it existed) indexes as it always did.
 	HoldIndexing bool `toml:"hold_indexing,omitempty"`
 	// DataDir is the folder the search engine, its models and the index are kept under (in engine and memory inside
-	// it), chosen before file search is first downloaded. Empty means %LOCALAPPDATA%\Omni.
+	// it), chosen before file search is first downloaded. Empty means DataDir().
 	DataDir string `toml:"data_dir,omitempty"`
 	// PauseOnBattery holds indexing while the computer runs on its battery and goes on when it is plugged in. On by
 	// default: a big sync would drain a laptop.

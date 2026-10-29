@@ -2,17 +2,17 @@ from pathlib import Path
 
 import pytest
 
-from omni_memory.config import ConfigError, Settings
+from omni_memory.config import ConfigError, Settings, _data_dir
 
 
 def test_env_override_wins(tmp_path):
-    settings = Settings.from_env({"OMNI_MEMORY_DIR": str(tmp_path), "LOCALAPPDATA": "C:/ignored"})
+    settings = Settings.from_env({"OMNI_MEMORY_DIR": str(tmp_path)})
     assert settings.index_dir == tmp_path
 
 
-def test_default_lives_under_localappdata():
-    settings = Settings.from_env({"LOCALAPPDATA": "C:/Users/x/AppData/Local"})
-    assert settings.index_dir == Path("C:/Users/x/AppData/Local/Omni/memory")
+def test_with_nothing_to_go_on_the_location_is_an_error():
+    with pytest.raises(ConfigError, match="OMNI_MEMORY_DIR"):
+        Settings.from_env({})
 
 
 def test_missing_location_is_an_error():
@@ -42,3 +42,11 @@ def test_limits_match_the_spec(tmp_path):
 def test_overlap_must_be_smaller_than_the_window(tmp_path, overlap):
     with pytest.raises(ValueError, match="chunk_overlap_lines"):
         Settings(index_dir=tmp_path, chunk_lines=40, chunk_overlap_lines=overlap)
+
+
+def test_started_by_hand_the_index_is_where_the_launcher_keeps_it():
+    local = {"LOCALAPPDATA": "C:/Users/x/AppData/Local", "HOME": "/Users/x"}
+    assert _data_dir(local, mac=False) == Path("C:/Users/x/AppData/Local/Omni")
+    assert _data_dir(local, mac=True) == Path("/Users/x/Library/Application Support/Omni")
+    assert _data_dir({}, mac=False) is None
+    assert _data_dir({}, mac=True) is None

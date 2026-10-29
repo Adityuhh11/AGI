@@ -3,13 +3,18 @@ import signal
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
 import pytest
 
-from omni_memory.embedding.llama_server import LlamaServer, ServerError, choose_device
+from omni_memory.embedding import llama_server
+from omni_memory.embedding.llama_server import (
+    METAL,
+    LlamaServer,
+    ServerError,
+    _health,
+    choose_device,
+)
 
 HERE = Path(__file__).parent
 FAKE = [sys.executable, str(HERE / "fake_llama_server.py")]
@@ -57,6 +62,18 @@ def test_garbage_listings_choose_nothing():
     assert choose_device("llama-server: error: unknown argument") is None
 
 
+@pytest.fixture(autouse=True)
+def vulkan_machine(request, monkeypatch):
+    """The tests below describe a machine with Vulkan; the Mac ones ask for `on_a_mac`."""
+    if "on_a_mac" not in request.fixturenames:
+        monkeypatch.setattr(llama_server, "_on_a_mac", lambda: False)
+
+
+@pytest.fixture
+def on_a_mac(monkeypatch):
+    monkeypatch.setattr(llama_server, "_on_a_mac", lambda: True)
+
+
 @pytest.fixture
 def server(tmp_path, monkeypatch):
     made = []
@@ -73,14 +90,9 @@ def server(tmp_path, monkeypatch):
 
 
 def health(s: LlamaServer, key: str | None = None) -> int:
-    request = urllib.request.Request(
-        s.url + "/health", headers={"Authorization": "Bearer " + (key or s.api_key)}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=3) as response:
-            return response.status
-    except urllib.error.HTTPError as error:
-        return error.code
+    status = _health(int(s.url.rsplit(":", 1)[1]), key or s.api_key)
+    assert status is not None, "the server did not answer"
+    return status
 
 
 def test_it_starts_on_the_chosen_gpu_behind_an_api_key(server):
@@ -138,8 +150,7 @@ def test_restart_gives_a_new_process_on_a_new_port_and_the_old_one_is_gone(serve
     old_url, old_key = s.url, s.api_key
     s.restart()
     assert health(s) == 200 and (s.url, s.api_key) != (old_url, old_key)
-    with pytest.raises(OSError):
-        urllib.request.urlopen(old_url + "/health", timeout=2)
+    assert _health(int(old_url.rsplit(":", 1)[1]), old_key) is None
 
 
 def test_close_stops_the_process_and_may_be_called_twice(server):
@@ -148,8 +159,7 @@ def test_close_stops_the_process_and_may_be_called_twice(server):
     url = s.url
     s.close()
     s.close()
-    with pytest.raises(OSError):
-        urllib.request.urlopen(url + "/health", timeout=2)
+    assert _health(int(url.rsplit(":", 1)[1]), s.api_key) is None
 
 
 def test_a_missing_program_is_a_clear_error(tmp_path):
@@ -175,6 +185,11 @@ REAL_PYTHON = getattr(sys, "_base_executable", sys.executable)
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="job objects are Windows")
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="Windows' Job Object does this here; on a Mac the launcher's reaper does it "
+    "(internal/sidecar/reaper_darwin.go, tested in Go)",
+)
 def test_the_server_dies_when_the_engine_is_killed_without_a_chance_to_clean_up(
     tmp_path, monkeypatch
 ):
@@ -193,12 +208,22 @@ def test_the_server_dies_when_the_engine_is_killed_without_a_chance_to_clean_up(
     deadline = time.monotonic() + 10
     try:
         while time.monotonic() < deadline:
-            try:
-                urllib.request.urlopen(url + "/health", timeout=1)
-            except urllib.error.HTTPError:
-                time.sleep(0.2)  # a 401 still means the server is alive
-            except OSError:
+            if _health(int(url.rsplit(":", 1)[1]), "not-the-key") is None:
                 return
+            time.sleep(0.2)  # a 401 still means the server is alive
         pytest.fail("the server outlived the engine that was killed")
     finally:
         engine.kill()
+
+
+def test_a_mac_always_chooses_metal_whatever_the_server_lists(on_a_mac):
+    assert choose_device("") == METAL
+    assert choose_device(listing("Vulkan1: NVIDIA RTX A2000 (6144 MiB, 6000 MiB free)")) == METAL
+
+
+def test_on_a_mac_every_layer_goes_to_the_gpu_and_no_device_is_named(on_a_mac, server, capsys):
+    s = server()
+    s.start()
+    out = capsys.readouterr().err
+    assert s.device == "metal" and health(s) == 200
+    assert "-ngl 99" in out and "--device" not in out

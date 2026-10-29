@@ -55,3 +55,9 @@ func listDevices(ctx context.Context, exe string) (string, error) {
 	}
 	return string(out), nil
 }
+
+// chooseDevice is the device to try first: the discrete card by name. "" is the processor.
+func chooseDevice(listing string) string { return ChooseDevice(listing) }
+
+// gpuArgs puts the whole model on the device with this id.
+func gpuArgs(id string) []string { return []string{"-ngl", "99", "--device", id} }

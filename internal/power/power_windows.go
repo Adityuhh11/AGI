@@ -1,4 +1,3 @@
-// Package power says whether the computer runs on its battery.
 package power
 
 import (

@@ -80,7 +80,7 @@ const (
 	defaultStartup   = 3 * time.Minute
 	maxBackoff       = 30 * time.Second
 	missingVenvHint  = "turn file search off and on again in Settings to reinstall it"
-	needsReindexHint = "the saved index was built with another model, dimension or format and has to be rebuilt (move or delete the memory folder under %LOCALAPPDATA%\\Omni)"
+	needsReindexHint = "the saved index was built with another model, dimension or format and has to be rebuilt (move or delete the memory folder in the Omni data folder)"
 )
 
 // Supervisor starts the engine, waits for it, restarts it when it dies and stops it on request.

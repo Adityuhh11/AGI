@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isMac } from "../platform";
   import { onDestroy, onMount } from "svelte";
   import { Clipboard } from "@wailsio/runtime";
   import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
@@ -120,7 +121,7 @@
 
 <div class="field">
   <span class="label">Diagnostics</span>
-  <p class="help">Version, Windows, and whether file search is running. It names no files and no folders.</p>
+  <p class="help">Version, {isMac ? "macOS" : "Windows"}, and whether file search is running. It names no files and no folders.</p>
   <div><button type="button" class="btn" onclick={copyDiagnostics}>{copied ? "Copied" : "Copy diagnostics"}</button></div>
 </div>
 {#if error}<p class="error">{error}</p>{/if}

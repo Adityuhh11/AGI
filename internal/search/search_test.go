@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"omni/internal/sidecar"
+	"omni/internal/testpath"
 )
 
 type fakeEngine struct {
@@ -37,7 +38,7 @@ func chunk(kind, locator, snippet string) sidecar.Chunk {
 }
 
 func TestRowsAreMappedOntoDiskAndDescribeTheirMatches(t *testing.T) {
-	root := filepath.Join(`C:\`, "Data")
+	root := filepath.Join(testpath.P(`C:\`), "Data")
 	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
 		return sidecar.SearchFilesResponse{Confident: true, Files: []sidecar.File{
 			{SourceID: "s1", URI: "Backend/src/jwt.js", Kind: "code", Score: 0.81, Chunks: []sidecar.Chunk{
@@ -331,10 +332,10 @@ func TestFilesDeletedSinceTheLastSyncAreLeftOutAndTheListStaysFull(t *testing.T)
 	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
 		return sidecar.SearchFilesResponse{Files: files}, nil
 	}}
-	svc := newTest(engine, map[string]string{"s1": `C:\Data`}, ready)
+	svc := newTest(engine, map[string]string{"s1": testpath.P(`C:\Data`)}, ready)
 	deleted := map[string]bool{
-		filepath.Join(`C:\Data`, "f00.txt"): true,
-		filepath.Join(`C:\Data`, "f03.txt"): true,
+		filepath.Join(testpath.P(`C:\Data`), "f00.txt"): true,
+		filepath.Join(testpath.P(`C:\Data`), "f03.txt"): true,
 	}
 	svc.exists = func(path string) bool { return !deleted[path] }
 	got := svc.Search("anything", 1)
@@ -375,7 +376,7 @@ func TestAnEngineThatIsSwitchedOffAnswersOffNotWarmingOrBroken(t *testing.T) {
 }
 
 func TestAMomentInARecordingIsTimedSoAPlayerCanOpenItThere(t *testing.T) {
-	root := filepath.Join(`C:\`, "Media")
+	root := filepath.Join(testpath.P(`C:\`), "Media")
 	engine := &fakeEngine{respond: func(context.Context, sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
 		return sidecar.SearchFilesResponse{Confident: true, Files: []sidecar.File{
 			{SourceID: "s", URI: "talks/sleep.mp3", Kind: "audio_window", Score: 0.8, Chunks: []sidecar.Chunk{

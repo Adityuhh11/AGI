@@ -112,9 +112,9 @@ type Options struct {
 type Service struct {
 	o Options
 
-	// movedTo says where Windows keeps a user folder that a configured folder is the old place of; tests replace it.
+	// movedTo says where the system keeps a user folder that a configured folder is the old place of (OneDrive on Windows); tests replace it.
 	movedTo func(root string) string
-	// known is where Windows keeps a user folder ("Documents", "Downloads"); tests replace it.
+	// known is where the system keeps a user folder ("Documents", "Downloads"); tests replace it.
 	known func(name string) (string, error)
 
 	mu         sync.Mutex

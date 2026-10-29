@@ -8,6 +8,7 @@ import (
 	"omni/internal/config"
 	"omni/internal/sidecar"
 	"omni/internal/survey"
+	"omni/internal/testpath"
 )
 
 type fakeSettings struct{ cfg config.Config }
@@ -37,7 +38,7 @@ var now = time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 
 func world() (*Service, *fakeSettings, *fakeWaivers) {
 	cfg := config.Default()
-	cfg.Roots = []string{`C:\Media`}
+	cfg.Roots = []string{testpath.P(`C:\Media`)}
 	cfg.Search.Enabled = true
 	settings := &fakeSettings{cfg: cfg}
 	waivers := &fakeWaivers{}
@@ -48,7 +49,7 @@ func world() (*Service, *fakeSettings, *fakeWaivers) {
 	}
 	return &Service{
 		Settings: settings,
-		Surveys:  fakeSurveys{`C:\Media`: {State: survey.Done, Survey: sidecar.Survey{Routes: routes}}},
+		Surveys:  fakeSurveys{testpath.P(`C:\Media`): {State: survey.Done, Survey: sidecar.Survey{Routes: routes}}},
 		Waivers:  waivers,
 		Ready:    func() bool { return true },
 		OnCPU:    func() bool { return false },
@@ -80,9 +81,9 @@ func TestNoOfferUnlessEverythingIsInPlace(t *testing.T) {
 		"sound is already searched":       func(_ *Service, f *fakeSettings, _ *fakeWaivers) { f.cfg.Search.Audio = "content" },
 		"the engine is not ready":         func(s *Service, _ *fakeSettings, _ *fakeWaivers) { s.Ready = func() bool { return false } },
 		"not now was said recently":       func(_ *Service, _ *fakeSettings, w *fakeWaivers) { w.at = now.Add(-Quiet + time.Hour) },
-		"the folders are not counted yet": func(s *Service, _ *fakeSettings, _ *fakeWaivers) { s.Surveys = fakeSurveys{`C:\Media`: {State: survey.Running}} },
+		"the folders are not counted yet": func(s *Service, _ *fakeSettings, _ *fakeWaivers) { s.Surveys = fakeSurveys{testpath.P(`C:\Media`): {State: survey.Running}} },
 		"there is no sound in the folders": func(s *Service, _ *fakeSettings, _ *fakeWaivers) {
-			s.Surveys = fakeSurveys{`C:\Media`: {State: survey.Done, Survey: sidecar.Survey{Routes: noSound}}}
+			s.Surveys = fakeSurveys{testpath.P(`C:\Media`): {State: survey.Done, Survey: sidecar.Survey{Routes: noSound}}}
 		},
 	} {
 		s, settings, waivers := world()

@@ -3,6 +3,8 @@ package indexing
 import (
 	"testing"
 	"time"
+
+	"omni/internal/testpath"
 )
 
 func TestRemainingNeedsEnoughWorkToBeWorthSaying(t *testing.T) {
@@ -39,7 +41,7 @@ func TestLeftTextSaysMinutesThenHours(t *testing.T) {
 			t.Errorf("LeftText(%v) = %q, want %q", left, got, want)
 		}
 	}
-	got := Status{State: Indexing, Root: `C:\Docs`, FilesDone: 56, FilesTotal: 922, Remaining: 10 * time.Minute}.String()
+	got := Status{State: Indexing, Root: testpath.P(`C:\Docs`), FilesDone: 56, FilesTotal: 922, Remaining: 10 * time.Minute}.String()
 	if want := "Indexing Docs: 56 / 922 files, about 10 min left"; got != want {
 		t.Errorf("status = %q, want %q", got, want)
 	}

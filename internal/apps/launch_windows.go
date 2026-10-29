@@ -1,7 +1,6 @@
 package apps
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,8 +11,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// ErrGone means the app was uninstalled since the list was made.
-var ErrGone = errors.New("it is no longer installed")
+// CanRunAsAdministrator says that this system has such an action for an app, which the bar then offers.
+const CanRunAsAdministrator = true
 
 // knownFolder says where a Windows known folder is, given its id in braces; tests replace it.
 var knownFolder = func(id string) (string, error) {
@@ -113,8 +112,8 @@ func RunAsAdministrator(app App) error {
 	return nil
 }
 
-// ShowInExplorer opens the folder of the app's file with the file selected.
-func ShowInExplorer(app App) error {
+// RevealInFileManager opens the folder of the app's file in Explorer with the file selected.
+func RevealInFileManager(app App) error {
 	file, ok := Path(app)
 	if !ok {
 		return fmt.Errorf("%s does not say which file it starts", app.Name)

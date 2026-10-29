@@ -1,15 +1,11 @@
-// Package tray puts the launcher in the notification area, so there is always a way to see what
-// it is doing and to quit it: the launcher has no taskbar button and no window while it is closed.
+// Package tray puts the launcher in the notification area (the menu bar on a Mac), so there is always a way to see what
+// it is doing and to quit it: the launcher has no taskbar button and no window while it is closed. Which image it uses is the
+// system's (tray_windows.go, tray_darwin.go).
 package tray
 
 import (
-	_ "embed"
-
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
-
-//go:embed icon.png
-var icon []byte
 
 // Tray is the notification-area icon and its menu.
 type Tray struct {
@@ -43,7 +39,7 @@ func New(app *application.App, open, notes, chat, settings, setup, rescan, toggl
 	menu.AddSeparator()
 	menu.Add("Quit").OnClick(func(*application.Context) { app.Quit() })
 
-	icon := app.SystemTray.New().SetIcon(icon).SetMenu(menu).OnClick(open)
+	icon := setIcon(app.SystemTray.New()).SetMenu(menu).OnClick(open)
 	icon.SetTooltip("Omni")
 	return &Tray{icon: icon, menu: menu, status: status, pause: pause, update: update, chat: ask}
 }

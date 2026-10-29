@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"omni/internal/testpath"
 )
 
 type launch struct {
@@ -130,7 +132,7 @@ func TestPathsOutsideTheIndexedFoldersAreRefused(t *testing.T) {
 		{"a dot-dot escape", sneaky},
 		{"a relative path", "secret.txt"},
 		{"an empty path", ""},
-		{"a program", `C:\Windows\System32\cmd.exe`},
+		{"a program", testpath.P(`C:\Windows\System32\cmd.exe`)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -159,19 +161,19 @@ func TestAFileThatIsGoneIsReportedNotLaunched(t *testing.T) {
 }
 
 func TestInsideIsCaseInsensitiveAndRespectsFolderBoundaries(t *testing.T) {
-	roots := []string{`C:\Users\me\Docs`}
+	roots := []string{testpath.P(`C:\Users\me\Docs`)}
 	tests := []struct {
 		path string
 		want bool
 	}{
-		{`C:\Users\me\Docs`, true},
-		{`C:\Users\me\Docs\a.txt`, true},
-		{`c:\users\ME\docs\Sub\b.txt`, true},
-		{`C:\Users\me\Docs\..\Docs\a.txt`, true},
-		{`C:\Users\me\Docs\..\Secrets\a.txt`, false},
-		{`C:\Users\me\DocsExtra\a.txt`, false}, // shares a prefix, is another folder
-		{`C:\Users\me`, false},
-		{`D:\Users\me\Docs\a.txt`, false},
+		{testpath.P(`C:\Users\me\Docs`), true},
+		{testpath.P(`C:\Users\me\Docs\a.txt`), true},
+		{testpath.P(`c:\users\ME\docs\Sub\b.txt`), true},
+		{testpath.P(`C:\Users\me\Docs\..\Docs\a.txt`), true},
+		{testpath.P(`C:\Users\me\Docs\..\Secrets\a.txt`), false},
+		{testpath.P(`C:\Users\me\DocsExtra\a.txt`), false}, // shares a prefix, is another folder
+		{testpath.P(`C:\Users\me`), false},
+		{testpath.P(`D:\Users\me\Docs\a.txt`), false},
 		{`Docs\a.txt`, false},
 	}
 	for _, tt := range tests {
@@ -179,7 +181,7 @@ func TestInsideIsCaseInsensitiveAndRespectsFolderBoundaries(t *testing.T) {
 			t.Errorf("inside(%q) = %v, want %v", tt.path, got, tt.want)
 		}
 	}
-	if inside(nil, `C:\a`) {
+	if inside(nil, testpath.P(`C:\a`)) {
 		t.Error("with no roots nothing is inside")
 	}
 }
@@ -202,7 +204,7 @@ func TestSoundsAndVideosOpenInTheirDefaultPlayerNotAnEditor(t *testing.T) {
 
 func TestOpenAtPlaysAMomentInAPlayerThatCanBeAskedForIt(t *testing.T) {
 	svc, shell, root, dismissed := setup(t)
-	shell.player = &Player{Name: "VLC", Exe: `C:\vlc.exe`}
+	shell.player = &Player{Name: "VLC", Exe: testpath.P(`C:\vlc.exe`)}
 	talk := touch(t, filepath.Join(root, "talks", "sleep.mp3"))
 	if err := svc.OpenAt(talk, 75); err != nil {
 		t.Fatal(err)
@@ -231,7 +233,7 @@ func TestOpenAtWithoutSuchAPlayerOpensTheFileFromTheStart(t *testing.T) {
 
 func TestOpenAtOnSomethingThatIsNotARecordingJustOpensIt(t *testing.T) {
 	svc, shell, root, _ := setup(t)
-	shell.player = &Player{Name: "VLC", Exe: `C:\vlc.exe`}
+	shell.player = &Player{Name: "VLC", Exe: testpath.P(`C:\vlc.exe`)}
 	script := touch(t, filepath.Join(root, "deploy.js"))
 	if err := svc.OpenAt(script, 30); err != nil {
 		t.Fatal(err)
@@ -243,8 +245,8 @@ func TestOpenAtOnSomethingThatIsNotARecordingJustOpensIt(t *testing.T) {
 
 func TestOpenAtKeepsTheRulesOfOpen(t *testing.T) {
 	svc, shell, root, _ := setup(t)
-	shell.player = &Player{Name: "VLC", Exe: `C:\vlc.exe`}
-	if err := svc.OpenAt(`C:\Windows\media\x.mp3`, 1); err == nil || !strings.Contains(err.Error(), "not inside") {
+	shell.player = &Player{Name: "VLC", Exe: testpath.P(`C:\vlc.exe`)}
+	if err := svc.OpenAt(testpath.P(`C:\Windows\media\x.mp3`), 1); err == nil || !strings.Contains(err.Error(), "not inside") {
 		t.Fatalf("a file outside the folders was played: %v", err)
 	}
 	if err := svc.OpenAt(filepath.Join(root, "gone.mp3"), 1); err == nil || !strings.Contains(err.Error(), "no longer there") {

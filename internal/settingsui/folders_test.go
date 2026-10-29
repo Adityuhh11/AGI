@@ -4,15 +4,17 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"omni/internal/testpath"
 )
 
 func TestSuggestedFoldersStartTickedOnlyOnAFirstRunAndFollowTheRootsAfter(t *testing.T) {
 	known := func(name string) (string, error) {
 		switch name {
 		case "Documents":
-			return `C:\Users\me\OneDrive\Documents`, nil // moved by OneDrive
+			return testpath.P(`C:\Users\me\OneDrive\Documents`), nil // moved by OneDrive
 		case "Pictures", "Downloads", "Desktop":
-			return `C:\Users\me\` + name, nil
+			return testpath.P(`C:\Users\me\`) + name, nil
 		}
 		return "", errors.New("no such folder") // Videos
 	}
@@ -28,29 +30,29 @@ func TestSuggestedFoldersStartTickedOnlyOnAFirstRunAndFollowTheRootsAfter(t *tes
 		}
 		return strings.Join(out, " | ")
 	}
-	want := `xDocuments=C:\Users\me\OneDrive\Documents | xPictures=C:\Users\me\Pictures | -Downloads=C:\Users\me\Downloads`
+	want := "xDocuments=" + testpath.P(`C:\Users\me\OneDrive\Documents`) + " | xPictures=" + testpath.P(`C:\Users\me\Pictures`) + " | -Downloads=" + testpath.P(`C:\Users\me\Downloads`)
 	if got := describe(nil); got != want {
 		t.Errorf("first run:\n got %s\nwant %s", got, want)
 	}
-	want = `-Documents=C:\Users\me\OneDrive\Documents | -Pictures=C:\Users\me\Pictures | xDownloads=C:\Users\me\Downloads | xdev=D:\dev`
-	if got := describe([]string{`c:\users\ME\downloads`, `D:\dev`}); got != want {
+	want = "-Documents=" + testpath.P(`C:\Users\me\OneDrive\Documents`) + " | -Pictures=" + testpath.P(`C:\Users\me\Pictures`) + " | xDownloads=" + testpath.P(`C:\Users\me\Downloads`) + " | xdev=" + testpath.P(`D:\dev`)
+	if got := describe([]string{testpath.P(`c:\users\ME\downloads`), testpath.P(`D:\dev`)}); got != want {
 		t.Errorf("with roots:\n got %s\nwant %s", got, want)
 	}
 }
 
 func TestSetRootsReplacesTheFoldersAndForgetsWhatWasLeftOutOfARemovedOne(t *testing.T) {
 	h := newHarness(t)
-	if msg := h.svc.SetRoots([]string{`C:\a`, `C:\b`}); msg != "" {
+	if msg := h.svc.SetRoots([]string{testpath.P(`C:\a`), testpath.P(`C:\b`)}); msg != "" {
 		t.Fatal(msg)
 	}
-	h.picked = `C:\a\big`
-	if msg := h.svc.LeaveOut(`C:\a`); msg != "" {
+	h.picked = testpath.P(`C:\a\big`)
+	if msg := h.svc.LeaveOut(testpath.P(`C:\a`)); msg != "" {
 		t.Fatal(msg)
 	}
-	if got := h.store.Get().Exclude; len(got) != 1 || got[0] != `C:\a\big` {
+	if got := h.store.Get().Exclude; len(got) != 1 || got[0] != testpath.P(`C:\a\big`) {
 		t.Fatalf("exclude = %v", got)
 	}
-	if msg := h.svc.SetRoots([]string{`C:\b`}); msg != "" {
+	if msg := h.svc.SetRoots([]string{testpath.P(`C:\b`)}); msg != "" {
 		t.Fatal(msg)
 	}
 	if got := h.store.Get(); len(got.Roots) != 1 || len(got.Exclude) != 0 {
@@ -63,17 +65,17 @@ func TestSetRootsReplacesTheFoldersAndForgetsWhatWasLeftOutOfARemovedOne(t *test
 
 func TestLeaveOutOnlyTakesAFolderInsideTheRootAndStopLeavingOutPutsItBack(t *testing.T) {
 	h := newHarness(t)
-	_ = h.svc.SetRoots([]string{`C:\a`})
-	for picked, wantRefused := range map[string]bool{`C:\elsewhere`: true, `C:\a`: true, "": false, `C:\a\node_modules`: false} {
+	_ = h.svc.SetRoots([]string{testpath.P(`C:\a`)})
+	for picked, wantRefused := range map[string]bool{testpath.P(`C:\elsewhere`): true, testpath.P(`C:\a`): true, "": false, testpath.P(`C:\a\node_modules`): false} {
 		h.picked = picked
-		if msg := h.svc.LeaveOut(`C:\a`); (msg != "") != wantRefused {
+		if msg := h.svc.LeaveOut(testpath.P(`C:\a`)); (msg != "") != wantRefused {
 			t.Errorf("picking %q: %q", picked, msg)
 		}
 	}
-	if got := h.store.Get().Exclude; len(got) != 1 || got[0] != `C:\a\node_modules` {
+	if got := h.store.Get().Exclude; len(got) != 1 || got[0] != testpath.P(`C:\a\node_modules`) {
 		t.Fatalf("exclude = %v", got)
 	}
-	if msg := h.svc.StopLeavingOut(`C:\a\node_modules`); msg != "" || len(h.store.Get().Exclude) != 0 {
+	if msg := h.svc.StopLeavingOut(testpath.P(`C:\a\node_modules`)); msg != "" || len(h.store.Get().Exclude) != 0 {
 		t.Fatalf("StopLeavingOut: %q, exclude %v", msg, h.store.Get().Exclude)
 	}
 }

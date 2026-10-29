@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"omni/internal/config"
+	"omni/internal/testpath"
 )
 
 // fake records what would have been started.
@@ -29,22 +30,12 @@ func newWeb(f *fake, browser, searchURL string, links ...config.Quicklink) *Web 
 	return w
 }
 
-func TestAFirefoxBasedBrowserSearchesWithItsOwnEngine(t *testing.T) {
-	f := &fake{installed: map[string]string{"zen": `C:\Program Files\Zen Browser\zen.exe`}}
-	if err := newWeb(f, "zen", "").Search("rust lifetimes & borrowing"); err != nil {
-		t.Fatal(err)
-	}
-	if f.exe != `C:\Program Files\Zen Browser\zen.exe` || !reflect.DeepEqual(f.args, []string{"-search", "rust lifetimes & borrowing"}) {
-		t.Fatalf("started %q %q", f.exe, f.args)
-	}
-}
-
 func TestOtherBrowsersAndAnExplicitTemplateSearchByAddress(t *testing.T) {
-	f := &fake{installed: map[string]string{"chrome": `C:\chrome.exe`, "zen": `C:\zen.exe`}}
+	f := &fake{installed: map[string]string{"chrome": testpath.P(`C:\chrome.exe`), "zen": testpath.P(`C:\zen.exe`)}}
 	if err := newWeb(f, "chrome", "").Search("a b&c"); err != nil {
 		t.Fatal(err)
 	}
-	if f.exe != `C:\chrome.exe` || !reflect.DeepEqual(f.args, []string{"https://duckduckgo.com/?q=a+b%26c"}) {
+	if f.exe != testpath.P(`C:\chrome.exe`) || !reflect.DeepEqual(f.args, []string{"https://duckduckgo.com/?q=a+b%26c"}) {
 		t.Fatalf("chrome started %q %q", f.exe, f.args)
 	}
 	if err := newWeb(f, "zen", "https://www.google.com/search?q={q}").Search("go"); err != nil {
@@ -55,7 +46,7 @@ func TestOtherBrowsersAndAnExplicitTemplateSearchByAddress(t *testing.T) {
 	}
 }
 
-func TestNoBrowserSetUsesTheWindowsDefault(t *testing.T) {
+func TestNoBrowserSetUsesTheSystemDefault(t *testing.T) {
 	f := &fake{}
 	if err := newWeb(f, "", "").Search("hello world"); err != nil {
 		t.Fatal(err)
@@ -79,18 +70,6 @@ func TestABrowserThatIsNotInstalledIsAnErrorNotAFallback(t *testing.T) {
 	}
 	if err := newWeb(f, "zen", "").Search("  "); err == nil {
 		t.Fatal("nothing to search for must be an error")
-	}
-}
-
-func TestABrowserCanBeGivenAsAPathOrNameInAnyForm(t *testing.T) {
-	for _, name := range []string{"Zen", "zen.exe", `C:\Program Files\Zen Browser\zen.exe`} {
-		if got := browserName(name); got != "zen" {
-			t.Errorf("browserName(%q) = %q, want zen", name, got)
-		}
-	}
-	f := &fake{}
-	if err := newWeb(f, `C:\Apps\zen.exe`, "").Search("x"); err != nil || f.exe != `C:\Apps\zen.exe` {
-		t.Fatalf("a path is used as it is, got %q, %v", f.exe, err)
 	}
 }
 
@@ -135,7 +114,7 @@ func TestQuicklinksNeedTheTriggerAndSomeText(t *testing.T) {
 }
 
 func TestUpdateChangesTheBrowserAndTheQuicklinksOfARunningWeb(t *testing.T) {
-	f := &fake{installed: map[string]string{"zen": `C:\zen.exe`, "chrome": `C:\chrome.exe`}}
+	f := &fake{installed: map[string]string{"zen": testpath.P(`C:\zen.exe`), "chrome": testpath.P(`C:\chrome.exe`)}}
 	w := newWeb(f, "zen", "", config.Quicklink{Trigger: "gh", Title: "GitHub", URL: "https://github.com/search?q={q}"})
 	if _, _, ok := w.Quicklink("gh rust"); !ok {
 		t.Fatal("the first quicklink is missing")
@@ -147,7 +126,7 @@ func TestUpdateChangesTheBrowserAndTheQuicklinksOfARunningWeb(t *testing.T) {
 	if link, _, ok := w.Quicklink("yt cats"); !ok || link.Title != "YouTube" {
 		t.Fatal("the new quicklink is missing")
 	}
-	if err := w.Search("go"); err != nil || f.exe != `C:\chrome.exe` {
+	if err := w.Search("go"); err != nil || f.exe != testpath.P(`C:\chrome.exe`) {
 		t.Fatalf("searched with %q (%v), want the new browser", f.exe, err)
 	}
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { combo } from "../platform";
   import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
   import type { View } from "../../../bindings/omni/internal/settingsui";
   import HotkeyField from "../settings/HotkeyField.svelte";
@@ -24,9 +25,9 @@
     ["clip:", "what you copied; Enter pastes it"],
     ["snip:", "your snippets; Enter pastes one"],
     ["settings", "opens Settings, or one of its pages"],
-    ["Tab", "switches between everything, apps, files and the web"],
-    ["Ctrl+K", "what can be done with the selected row"],
-    ["Esc", "closes the bar"],
+    [combo("Tab"), "switches between everything, apps, files and the web"],
+    [combo("Ctrl+K"), "what can be done with the selected row"],
+    [combo("Esc"), "closes the bar"],
   ];
 </script>
 

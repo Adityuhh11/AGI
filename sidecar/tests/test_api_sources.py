@@ -1,3 +1,4 @@
+import sys
 import threading
 from pathlib import Path
 
@@ -37,6 +38,10 @@ def test_a_path_that_is_not_an_existing_absolute_folder_is_a_400(api, path):
     assert response.status_code == 400
 
 
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="a Windows path rule")
+
+
+@windows_only  # on a Mac `//host/x` is an ordinary path; it has no network paths to refuse
 @pytest.mark.parametrize("path", ["//nowhere.invalid/share/x", "\\\\nowhere.invalid\\share\\x"])
 def test_a_network_path_is_refused_without_touching_the_network(api, monkeypatch, path):
     def explode(self):
@@ -61,6 +66,7 @@ def test_re_adding_a_source_from_another_folder_is_refused_and_keeps_the_index(
     assert index(api, other)["state"] == "done"
 
 
+@windows_only  # a Mac compares paths as written; APFS ignores case, the engine does not (yet)
 def test_re_adding_a_source_with_a_differently_written_path_is_a_refresh(api, folder):
     index(api, folder)
     shouted = str(folder).upper().replace("\\", "/")

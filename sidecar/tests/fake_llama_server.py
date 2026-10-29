@@ -9,6 +9,7 @@ Behaviour is chosen with FAKE_LLAMA_MODE: `ok`, `gpu-fails` (exits unless `--dev
 
 import http.server
 import os
+import socketserver
 import sys
 import time
 from pathlib import Path
@@ -48,5 +49,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(b"{}" if ok else b"no")
 
 
+class Server(http.server.HTTPServer):
+    def server_bind(self) -> None:
+        # HTTPServer looks up the host's full name here: many seconds on a Mac without DNS.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+
+
 time.sleep(0.3)
-http.server.HTTPServer(("127.0.0.1", int(option("--port"))), Handler).serve_forever()
+Server(("127.0.0.1", int(option("--port"))), Handler).serve_forever()

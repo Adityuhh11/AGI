@@ -34,7 +34,11 @@ def test_it_refuses_a_bad_port(tmp_path, port):
 
 
 def test_it_refuses_to_guess_where_the_index_lives(tmp_path):
-    env = {k: v for k, v in os.environ.items() if not k.startswith("OMNI_") and k != "LOCALAPPDATA"}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("OMNI_") and k not in ("LOCALAPPDATA", "HOME")
+    }
     env["OMNI_SIDECAR_TOKEN"] = "t" * 32
     result = subprocess.run(
         [sys.executable, "-m", "omni_memory"], env=env, capture_output=True, text=True, timeout=60

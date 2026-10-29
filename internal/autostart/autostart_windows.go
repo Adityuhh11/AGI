@@ -1,5 +1,3 @@
-// Package autostart starts the launcher when its user signs in. It uses the per-user Run key, which
-// needs no administrator rights and which Task Manager's Startup apps list shows and can switch off.
 package autostart
 
 import (

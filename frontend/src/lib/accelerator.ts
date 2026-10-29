@@ -1,3 +1,5 @@
+import { words } from "./platform.ts";
+
 /** Turns a key press into the accelerator text the launcher registers (`Ctrl+Alt+K`, `Alt+Shift+Space`). */
 export type KeyEventLike = Pick<KeyboardEvent, "code" | "ctrlKey" | "altKey" | "shiftKey" | "metaKey">;
 
@@ -28,6 +30,6 @@ export function capture(e: KeyEventLike): { accelerator: string } | { hint: stri
   const key = keyName(e.code);
   if (key === null) return { hint: "That key cannot be part of a hotkey." };
   const modifiers = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Super"].filter(Boolean);
-  if (modifiers.length === 0) return { hint: "Hold Ctrl, Alt, Shift or the Windows key as well." };
+  if (modifiers.length === 0) return { hint: `Hold ${words().modifiers} as well.` };
   return { accelerator: [...modifiers, key].join("+") };
 }

@@ -24,7 +24,7 @@ type Place interface {
 type DataFolder struct {
 	// Engine and Index are the folders in use (or, before the download, the ones it will use).
 	Engine, Index string
-	// Chosen says the person picked a folder; false means the default under %LOCALAPPDATA%.
+	// Chosen says the person picked a folder; false means the default, config.DataDir().
 	Chosen bool
 	// CanChange is false once the engine is installed, being installed, or an index is built.
 	CanChange bool
@@ -53,7 +53,7 @@ func (s *Service) ChooseDataFolder() string {
 	return s.setDataDir(dataDirIn(filepath.Clean(picked)))
 }
 
-// UseDefaultDataFolder goes back to %LOCALAPPDATA%\Omni.
+// UseDefaultDataFolder goes back to config.DataDir().
 func (s *Service) UseDefaultDataFolder() string { return s.setDataDir("") }
 
 // dataDirIn is the folder Omni keeps its files in inside a folder the person picked: an Omni folder, unless they picked

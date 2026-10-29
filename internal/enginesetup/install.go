@@ -161,21 +161,29 @@ func (i *Installer) unpacked(ctx context.Context, a Artifact, dir string, report
 	return i.Download.Unpack(ctx, a, dir, func(done, total int64) { report(Progress{Done: done, Total: total}) })
 }
 
-// Unpack downloads a pinned zip and extracts it into dir, once: a marker file in dir records which
-// pin is there, so a repeat does not download it again.
+// Unpack downloads a pinned archive (a .zip, or the .tar.gz macOS releases come as) and extracts it into dir, once: a marker file in
+// dir records which pin is there, so a repeat does not download it again.
 func (d Downloader) Unpack(ctx context.Context, a Artifact, dir string, progress func(done, total int64)) error {
 	marker := filepath.Join(dir, ".pin")
 	if data, err := os.ReadFile(marker); err == nil && strings.TrimSpace(string(data)) == a.SHA256 {
 		return nil
 	}
+	tarball := strings.HasSuffix(a.URL, ".tar.gz")
 	archive := dir + ".zip"
+	if tarball {
+		archive = dir + ".tar.gz"
+	}
 	if err := d.Download(ctx, a, archive, progress); err != nil {
 		return err
 	}
 	if err := removeAll(dir); err != nil {
 		return fmt.Errorf("clear %s: %w", dir, err)
 	}
-	if err := Unzip(archive, dir); err != nil {
+	unpack := func() error { return Unzip(archive, dir) }
+	if tarball {
+		unpack = func() error { return Untar(archive, dir, a.Strip) }
+	}
+	if err := unpack(); err != nil {
 		return err
 	}
 	if err := os.WriteFile(marker, []byte(a.SHA256), 0o644); err != nil {
@@ -220,8 +228,8 @@ func (i *Installer) syncPython(ctx context.Context, report func(Progress)) error
 	}
 	if err := run(ctx, l.App(), env, []string{"sync", "--frozen", "--no-dev", "--python", PythonVersion}, out); err != nil {
 		tail := out.tail()
-		if strings.Contains(tail, "os error 448") { // Windows refused a link in the folder; another folder usually has none
-			return fmt.Errorf("%w\n%s\nWindows would not let Python be set up in this folder. Choose another one with Change folder (for example C:\\OmniData) and try again", err, tail)
+		if advice := adviceAfterFailure(tail); advice != "" {
+			return fmt.Errorf("%w\n%s\n%s", err, tail, advice)
 		}
 		return fmt.Errorf("%w\n%s", err, tail)
 	}

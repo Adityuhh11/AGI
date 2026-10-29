@@ -2,15 +2,9 @@ package llm
 
 import "omni/internal/enginesetup"
 
-// The pinned downloads, measured in docs/eval/2026-10-28-chat-model.md. The model is Liquid AI's quantization-aware 4-bit
+// The pinned downloads that are the same on every system (Llama is per system: pins_windows.go, pins_darwin.go), measured in docs/eval/2026-10-28-chat-model.md. The model is Liquid AI's quantization-aware 4-bit
 // build of LFM3-1.7B; it needs a llama.cpp build of b11960 or newer.
 var (
-	Llama = enginesetup.Artifact{
-		Name:   "llama.cpp b11970 (Vulkan)",
-		URL:    "https://github.com/ggml-org/llama.cpp/releases/download/b11970/llama-b11970-bin-win-vulkan-x64.zip",
-		Size:   37346727,
-		SHA256: "2d043e717386c03caa1f150fbcf6c37b513d9872ed44f5d41706b2fecc14617b",
-	}
 	Model = enginesetup.Artifact{
 		Name:   "LFM3-1.7B (QAD Q4_0)",
 		URL:    "https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/4b423c332fd97961416f2e8b69467758fd27370d/LFM3-1.7B-QAD-Q4_0.gguf",

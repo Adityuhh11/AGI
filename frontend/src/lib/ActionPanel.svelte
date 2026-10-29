@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { combo } from "./platform";
   import { onMount } from "svelte";
   import { filterActions } from "./actions";
   import { step } from "./flatten";
@@ -73,7 +74,7 @@
         onclick={() => onrun(action.id)}
       >
         <span>{action.title}</span>
-        {#if action.keys}<kbd>{action.keys}</kbd>{/if}
+        {#if action.keys}<kbd>{combo(action.keys)}</kbd>{/if}
       </li>
     {:else}
       <li class="none">Nothing here</li>

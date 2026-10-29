@@ -12,9 +12,9 @@ import (
 
 const createNoWindow = 0x08000000
 
-// StartMenuFolders are the folders Windows builds its Start Menu from (the ones that exist). A program
+// WatchedFolders are the folders Windows builds its Start Menu from (the ones that exist). A program
 // installed or removed changes one of them, which is the cue to refresh the list.
-func StartMenuFolders() []string {
+func WatchedFolders() []string {
 	var found []string
 	for _, base := range []string{os.Getenv("ProgramData"), os.Getenv("APPDATA")} {
 		if base == "" {
@@ -42,4 +42,13 @@ func startApps(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("run Get-StartApps: %w", err)
 	}
 	return out, nil
+}
+
+// list is the Start Menu as the catalog wants it.
+func list(ctx context.Context) ([]App, error) {
+	data, err := startApps(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return parse(data)
 }

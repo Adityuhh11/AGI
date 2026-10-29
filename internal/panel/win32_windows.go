@@ -3,6 +3,7 @@ package panel
 import (
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/pkg/application"
 	"golang.org/x/sys/windows"
 )
 
@@ -34,6 +35,18 @@ const (
 	swpNoZOrder             = 0x0004
 	dwmwaCloak              = 13
 )
+
+// newWindowTakesTheKeyboard says that a window just created takes the keyboard from the program that had it, so the panel gives it back for a while
+// (releaseKeyboardAfterCreation). Windows does that; the Mac's panel never activates this program.
+const newWindowTakesTheKeyboard = true
+
+// platformWindow adds what only Windows needs to the panel window's options.
+func platformWindow(options *application.WebviewWindowOptions) {
+	options.Windows = application.WindowsWindow{
+		HiddenOnTaskbar:                   true,
+		DisableFramelessWindowDecorations: true,
+	}
+}
 
 type point struct{ X, Y int32 }
 

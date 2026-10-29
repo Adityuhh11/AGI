@@ -6,12 +6,8 @@ import (
 	"time"
 )
 
-// ErrElevated and ErrNoTarget say why nothing was typed. In both the text is on the clipboard already, and
-// the bar stays open to say so.
-var (
-	ErrElevated = errors.New("Copied. That window runs as administrator, which Windows does not let this program type into: press Ctrl+V yourself.")
-	ErrNoTarget = errors.New("Copied. There is no window to paste into: press Ctrl+V where you want it.")
-)
+// ErrBlocked and ErrNoTarget say why nothing was typed. In both the text is on the clipboard already, and the bar stays
+// open to say so. Their wording is each system's (messages_windows.go, messages_darwin.go), since the keys and the reason differ.
 
 const (
 	// foregroundWait is how long the program the keyboard goes back to gets to become the foreground window.
@@ -20,20 +16,22 @@ const (
 	settle = 40 * time.Millisecond
 )
 
-// Paster types text into the window the bar was opened from. Its parts are Windows calls, held as fields so
+// Paster types text into the window the bar was opened from. Its parts are system calls, held as fields so
 // the order of events can be tested without a screen; NewPaster fills them in.
 type Paster struct {
 	// SetText puts text on the clipboard.
 	SetText func(text string) bool
-	// Previous is the window that had the keyboard before the bar opened, or 0 if there is none any more.
+	// Previous is the window (on a Mac, the application) that had the keyboard before the bar opened, or 0 if there is none any more.
 	Previous func() uintptr
 	// Release closes the bar and hands the keyboard back to Previous.
 	Release func()
 	// Foreground is the window that has the keyboard now.
 	Foreground func() uintptr
-	// Elevated says that Windows will not let this program type into the window.
-	Elevated func(window uintptr) bool
-	// SendPaste types Ctrl+V.
+	// Allowed is nil when this program may type into the window, and otherwise the error that says why not (ErrBlocked when the
+	// window runs as administrator on Windows, or a password field has all keyboard input to itself on a Mac; on a Mac also
+	// that the Accessibility permission is missing). The text is on the clipboard already, and the bar stays open to say so.
+	Allowed func(window uintptr) error
+	// SendPaste types the paste key (Ctrl+V on Windows, Command+V on a Mac).
 	SendPaste func() error
 	Sleep     func(time.Duration)
 }
@@ -45,11 +43,11 @@ func (p Paster) Paste(text string) error {
 	if err := p.setText(text); err != nil {
 		return err
 	}
-	switch {
-	case target == 0:
+	if target == 0 {
 		return ErrNoTarget
-	case p.Elevated(target):
-		return ErrElevated
+	}
+	if err := p.Allowed(target); err != nil {
+		return err
 	}
 	p.Release()
 	for waited := time.Duration(0); p.Foreground() != target; waited += 5 * time.Millisecond {
