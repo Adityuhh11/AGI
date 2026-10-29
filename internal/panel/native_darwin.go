@@ -30,8 +30,11 @@ func platformWindow(options *application.WebviewWindowOptions) {
 			application.MacWindowCollectionBehaviorFullScreenAuxiliary |
 			application.MacWindowCollectionBehaviorIgnoresCycle,
 		DisableShadow: true,
-		// The page draws the whole bar on a clear window; without this the window has an opaque plate behind it.
-		Backdrop: application.MacBackdropTransparent,
+		// The page draws the whole bar, its rounded edge and its shadow, on a clear window. A frameless Mac window is still a titled
+		// one with a hidden title bar, which keeps the system's corners and an opaque plate behind the page; "square" gives a
+		// borderless window with nothing of its own.
+		Backdrop:   application.MacBackdropTransparent,
+		CornerType: application.MacWindowCornerTypeSquare,
 	}
 }
 
