@@ -188,6 +188,17 @@ func TestRunRebuildsAStaleOrMissingCacheAtStart(t *testing.T) {
 	}
 }
 
+func TestAnEmptyListIsNotAskedForAgainAtEveryOpening(t *testing.T) {
+	c := newCatalog(t, func(context.Context) ([]App, error) { return nil, nil })
+	c.rebuild(context.Background()) // finds nothing, and keeps the old list
+	c.RefreshIfStale(time.Minute)
+	select {
+	case <-c.poke:
+		t.Fatal("a list that was tried a moment ago was asked for again")
+	default:
+	}
+}
+
 func TestRefreshIfStaleOnlyAsksWhenTheListIsOlderThanTheAge(t *testing.T) {
 	c := newCatalog(t, func(context.Context) ([]App, error) { return []App{{ID: "a", Name: "Alpha"}}, nil })
 	c.rebuild(context.Background()) // built at `now`

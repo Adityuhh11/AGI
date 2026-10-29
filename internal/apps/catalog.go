@@ -74,7 +74,9 @@ func (c *Catalog) Run(ctx context.Context) {
 		log.Printf("apps: ignoring the cached list: %v", err)
 	}
 	c.Index.Set(apps)
-	c.built.Store(saved.UnixNano())
+	if !saved.IsZero() {
+		c.built.Store(saved.UnixNano())
+	}
 	if len(apps) == 0 || c.now().Sub(saved) > refreshEvery {
 		c.rebuild(ctx)
 	}
@@ -94,6 +96,7 @@ func (c *Catalog) Run(ctx context.Context) {
 // rebuild asks the system for the list. A failure keeps the list there was.
 func (c *Catalog) rebuild(ctx context.Context) {
 	start := time.Now()
+	c.built.Store(c.now().UnixNano()) // tried now: a list that comes back empty or fails is not asked for again at every opening of the bar
 	apps, err := c.list(ctx)
 	if err != nil {
 		log.Printf("apps: could not list the installed apps: %v", err)
@@ -105,7 +108,6 @@ func (c *Catalog) rebuild(ctx context.Context) {
 		return
 	}
 	c.Index.Set(apps)
-	c.built.Store(c.now().UnixNano())
 	if err := saveCache(c.cache, apps, c.now()); err != nil {
 		log.Printf("apps: could not cache the list: %v", err)
 	}

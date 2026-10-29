@@ -4,6 +4,7 @@ package status
 
 import (
 	"log"
+	"sync/atomic"
 
 	"omni/internal/config"
 	"omni/internal/indexing"
@@ -75,8 +76,19 @@ const maxPageError = 2000
 // PageError writes a script error of a window to the log. The message the person sees says the details are in the log; without this
 // they were only in a console nobody can open.
 func (s *Service) PageError(message string) {
-	if len(message) > maxPageError {
-		message = message[:maxPageError] + "..."
+	if n := pageErrors.Add(1); n > maxPageErrors {
+		if n == maxPageErrors+1 {
+			log.Printf("page error: more than %d in this run; the rest are not written", maxPageErrors)
+		}
+		return
+	}
+	if runes := []rune(message); len(runes) > maxPageError {
+		message = string(runes[:maxPageError]) + "..."
 	}
 	log.Printf("page error: %s", message)
 }
+
+// maxPageErrors is how many a run writes: a page that throws in a loop must not fill the log.
+const maxPageErrors = 50
+
+var pageErrors atomic.Int64

@@ -59,13 +59,17 @@ func Untar(archive, dir string, strip bool) error {
 		case tar.TypeReg:
 			err = writeEntry(target, reader, os.FileMode(header.Mode).Perm()|0o600)
 		case tar.TypeSymlink:
-			if !within(root, filepath.Join(filepath.Dir(target), filepath.FromSlash(header.Linkname))) {
+			if path.IsAbs(header.Linkname) || !within(root, filepath.Join(filepath.Dir(target), filepath.FromSlash(header.Linkname))) {
 				return fmt.Errorf("%s holds a link that points outside the folder it is extracted to: %q", filepath.Base(archive), header.Name)
 			}
 			if err = os.MkdirAll(filepath.Dir(target), 0o755); err == nil {
 				_ = os.Remove(target)
 				err = os.Symlink(header.Linkname, target)
 			}
+		case tar.TypeXGlobalHeader:
+			// extended attributes of the archive itself, not an entry
+		default:
+			return fmt.Errorf("%s holds an entry of a kind this does not unpack (%q)", filepath.Base(archive), header.Name)
 		}
 		if err != nil {
 			return fmt.Errorf("extract %s: %w", header.Name, err)

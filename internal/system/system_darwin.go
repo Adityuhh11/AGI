@@ -40,14 +40,16 @@ func init() {
 
 // Beep plays the system's notification sound (a finished timer). It is silent on a Mac whose sound is muted, which is right.
 func Beep() {
-	_ = exec.Command("afplay", "/System/Library/Sounds/Glass.aiff").Start()
+	_ = run("afplay", "/System/Library/Sounds/Glass.aiff")
 }
 
-// run starts a program and lets it go.
+// run starts a program and lets it go. It is waited for in the background: on a Mac a child that is never waited for stays in the process table
+// as a zombie until the launcher ends.
 func run(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("start %s: %w", name, err)
 	}
-	return cmd.Process.Release()
+	go func() { _ = cmd.Wait() }()
+	return nil
 }

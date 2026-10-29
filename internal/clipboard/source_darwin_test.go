@@ -37,8 +37,7 @@ func TestACopyChangesTheSequenceAndItsTextIsRead(t *testing.T) {
 
 func TestACopyThisProgramMadeIsKnownAsItsOwn(t *testing.T) {
 	src := NewSource()
-	pbcopy(t, "pasted by omni")
-	NoteOwnCopy() // as the paster does right after writing
+	OwnCopy(func() bool { pbcopy(t, "pasted by omni"); return true }) // as the paster writes
 	clip, err := src.Read()
 	if err != nil || !strings.EqualFold(clip.Owner, selfName) {
 		t.Fatalf("Read = %+v, %v: the owner must be this program, so the history leaves it out", clip, err)

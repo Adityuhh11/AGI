@@ -22,6 +22,9 @@ test("an empty path is empty", () => {
 test("a folder is inside a root when it is the root or below it, whatever the case", () => {
   assert.equal(isInside("C:\\Users\\me\\Docs", "c:\\users\\ME\\docs\\work"), true);
   assert.equal(isInside("C:\\Users\\me\\Docs\\", "C:\\Users\\me\\Docs"), true);
+  assert.equal(isInside("/Users/me/Docs", "/Users/me/Docs/node_modules"), true);
+  assert.equal(isInside("/Users/me/Docs/", "/Users/me/Docs"), true);
+  assert.equal(isInside("/Users/me/Docs", "/Users/me/DocsExtra"), false);
   assert.equal(isInside("C:\\Users\\me\\Docs", "C:\\Users\\me\\Docs2"), false);
   assert.equal(isInside("C:\\a", "D:\\a"), false);
 });

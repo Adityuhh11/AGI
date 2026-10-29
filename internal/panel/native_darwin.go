@@ -18,6 +18,9 @@ import (
 // here is the NSWindow's address as a number, and the window that "had the keyboard" is the application that was frontmost, by its
 // process id: the panel never activates this program, so that application stays the active one while the panel is up.
 
+// newWindowTakesTheKeyboard is false on a Mac: the panel never activates this program, so there is nothing to give back.
+const newWindowTakesTheKeyboard = false
+
 // platformWindow makes the panel window a non-activating NSPanel: it takes typing without making this program the active one (so the app
 // underneath keeps its place, and a full-screen app's Space is not left), floats above ordinary windows, appears on whichever Space is
 // current and over full-screen apps, and leaves Mission Control and ⌘` alone. The page draws its own shadow.

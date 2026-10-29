@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import os
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
 MODEL_ID = "google/embeddinggemma-2"
 EMBEDDING_DIM = 768  # the model's native size: 256 and 512 measured worse (ADR 0002)
+
+
+def _data_dir(env: Mapping[str, str], mac: bool) -> Path | None:
+    """Where the launcher keeps Omni data on this system; None if the environment does not say."""
+    if mac:
+        home = env.get("HOME")
+        return Path(home) / "Library" / "Application Support" / "Omni" if home else None
+    local = env.get("LOCALAPPDATA")
+    return Path(local) / "Omni" if local else None
 
 
 class ConfigError(Exception):
@@ -47,12 +57,14 @@ class Settings:
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
         """The llama.cpp server, the models and the index come from `OMNI_LLAMA_SERVER`,
-        `OMNI_MODEL_DIR` and `OMNI_MEMORY_DIR` (the launcher sets all three). The engine does not
-        guess where a system keeps its data."""
+        `OMNI_MODEL_DIR` and `OMNI_MEMORY_DIR` (the launcher sets all three). Started by hand
+        without `OMNI_MEMORY_DIR`, the index is where the launcher would keep it."""
         env = os.environ if environ is None else environ
         server, models = env.get("OMNI_LLAMA_SERVER"), env.get("OMNI_MODEL_DIR")
         llama_server = Path(server) if server else None
         model_dir = Path(models) if models else None
         if override := env.get("OMNI_MEMORY_DIR"):
             return cls(index_dir=Path(override), llama_server=llama_server, model_dir=model_dir)
+        if base := _data_dir(env, sys.platform == "darwin"):
+            return cls(index_dir=base / "memory", llama_server=llama_server, model_dir=model_dir)
         raise ConfigError("cannot locate the index: set OMNI_MEMORY_DIR")

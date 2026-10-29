@@ -101,7 +101,9 @@ static CGKeyCode keyForV(void) {
 
 int omniSendPaste(void) {
 	CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
-	CGKeyCode key = keyForV();
+	// The keyboard layout is read through Text Input Sources, which abort the program when asked from any thread but the main one.
+	__block CGKeyCode key = 9;
+	onMain(^{ key = keyForV(); });
 	CGEventRef down = CGEventCreateKeyboardEvent(source, key, true);
 	CGEventRef up = CGEventCreateKeyboardEvent(source, key, false);
 	int result = 1;

@@ -33,9 +33,16 @@ int omniIsRunning(int pid) {
 	return [NSRunningApplication runningApplicationWithProcessIdentifier:pid] != nil;
 }
 
+// Brings the application forward, but only when it is not the one in front already: activating it raises every one of its windows, which
+// would put two Safari windows above an Xcode window each time the bar is closed with Escape.
 void omniActivate(int pid) {
-	NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-	[app activateWithOptions:NSApplicationActivateAllWindows];
+	onMain(^{
+		NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+		if (front != nil && front.processIdentifier == pid) {
+			return;
+		}
+		[[NSRunningApplication runningApplicationWithProcessIdentifier:pid] activateWithOptions:NSApplicationActivateAllWindows];
+	});
 }
 
 // orderFrontRegardless shows the panel without making this program the active one.

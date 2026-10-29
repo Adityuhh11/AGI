@@ -114,7 +114,9 @@ func (p *Panel) prepare() {
 		return
 	}
 	cloak(hwnd, true)
-	go p.releaseKeyboardAfterCreation(hwnd)
+	if newWindowTakesTheKeyboard {
+		go p.releaseKeyboardAfterCreation(hwnd)
+	}
 	p.mu.Lock()
 	hotkey := p.hotkey
 	p.mu.Unlock()

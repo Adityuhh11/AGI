@@ -133,3 +133,14 @@ func TestUnpackTakesATarballFromTheNetworkOnceAndStripsItsFolder(t *testing.T) {
 		t.Errorf("the second unpack fetched again (%d requests)", n)
 	}
 }
+
+func TestUntarRefusesALinkToAnAbsolutePlaceAndAKindOfEntryItDoesNotUnpack(t *testing.T) {
+	for name, e := range map[string]entry{
+		"an absolute link": {name: "d/l", link: "/etc", typeflag: tar.TypeSymlink, mode: 0o755},
+		"a hard link":      {name: "d/h", link: "d/other", typeflag: tar.TypeLink, mode: 0o644},
+	} {
+		if err := Untar(makeTarGz(t, e), filepath.Join(t.TempDir(), "into"), true); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+}

@@ -43,8 +43,7 @@ func (p Paster) Paste(text string) error {
 	if err := p.setText(text); err != nil {
 		return err
 	}
-	switch {
-	case target == 0:
+	if target == 0 {
 		return ErrNoTarget
 	}
 	if err := p.Allowed(target); err != nil {
