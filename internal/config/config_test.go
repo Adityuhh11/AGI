@@ -478,3 +478,23 @@ func TestChatSettingsRoundTripAndAreValidated(t *testing.T) {
 		}
 	}
 }
+
+func TestNoTwoHotkeysMayShareACombination(t *testing.T) {
+	for name, change := range map[string]func(*Config){
+		"notes and launcher":     func(c *Config) { c.Notes.Hotkey = "alt + shift + space" },
+		"notes and clipboard":    func(c *Config) { c.Clipboard.Hotkey, c.Notes.Hotkey = "Ctrl+Alt+N", "ctrl+alt+n" },
+		"notes and chat":         func(c *Config) { c.Chat.Hotkey, c.Notes.Hotkey = "Ctrl+Alt+A", "Ctrl+Alt+A" },
+		"clipboard and launcher": func(c *Config) { c.Clipboard.Hotkey = c.Hotkey },
+	} {
+		bad := Default()
+		change(&bad)
+		if err := bad.Validate(); err == nil || !strings.Contains(err.Error(), "hotkey") {
+			t.Errorf("%s: err = %v, want a refusal naming the hotkey", name, err)
+		}
+	}
+	ok := Default()
+	ok.Clipboard.Hotkey, ok.Chat.Hotkey, ok.Notes.Hotkey = "Ctrl+Shift+V", "Ctrl+Alt+A", "Ctrl+Alt+N"
+	if err := ok.Validate(); err != nil {
+		t.Errorf("four different hotkeys were refused: %v", err)
+	}
+}

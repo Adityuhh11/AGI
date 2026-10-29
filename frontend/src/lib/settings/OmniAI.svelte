@@ -4,7 +4,6 @@
   import { OmniAI } from "../../../bindings/omni/internal/settingsui";
   import type { OmniAIView } from "../../../bindings/omni/internal/settingsui";
   import { unloadsIn } from "../chat/chat";
-  import HotkeyField from "./HotkeyField.svelte";
 
   let page = $state<OmniAIView | null>(null);
   let error = $state("");
@@ -154,12 +153,6 @@
     <div class="field">
       <label class="check"><input type="checkbox" checked={page.OnTop} onchange={(e) => run(() => OmniAI.SetOnTop(e.currentTarget.checked))} /> Keep the chat above other windows</label>
       <p class="help">Off, other windows can cover it and it comes back when you open it again.</p>
-    </div>
-    <div class="field">
-      <span class="label" id="ai-hotkey-label">Hotkey</span>
-      <HotkeyField labelId="ai-hotkey-label" value={page.Hotkey} clearable onsave={(accelerator) => OmniAI.SetHotkey(accelerator).then(async (refused) => { await refresh(); return refused; })} />
-      {#if page.HotkeyError}<p class="error">{page.HotkeyError}</p>{/if}
-      <p class="help">Optional: opens the chat window from anywhere, and closes it again.</p>
     </div>
   </section>
 

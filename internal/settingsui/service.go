@@ -86,6 +86,10 @@ type Options struct {
 	Clipboard            ClipboardHistory
 	RebindClipboard      func(accelerator string) error
 	ClipboardHotkeyError func() string
+	// RebindNotes moves the notes window's hotkey (empty turns it off) and fails if the combination cannot be used;
+	// NotesHotkeyError says why it could not be bound at start, if it could not.
+	RebindNotes      func(accelerator string) error
+	NotesHotkeyError func() string
 	// Updates asks whether a newer release exists; OpenURL opens an address in the user's browser.
 	Updates Updates
 	OpenURL func(address string) error

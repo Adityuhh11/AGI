@@ -361,6 +361,8 @@ func run(afterUpdate bool) error {
 		chatWindow.Toggle()
 		chatSvc.Warm()
 	}
+	// The notes hotkey works the same way: it shows the window and closes it again when it is the one in use.
+	notesKey := hotkey.NewSlot(app.GlobalShortcut)
 	// The timer lives here, not in its window: the window opens when one starts and closes when it ends.
 	countdown := timer.New(
 		func() config.Timer { return store.Get().Timer },
@@ -442,6 +444,8 @@ func run(afterUpdate bool) error {
 			Clipboard:            clips,
 			RebindClipboard:      func(accelerator string) error { return bar.RebindFill(accelerator, "clip: ") },
 			ClipboardHotkeyError: bar.FillError,
+			RebindNotes:          func(accelerator string) error { return notesKey.Rebind(accelerator, notesWindow.Toggle) },
+			NotesHotkeyError:     notesKey.Error,
 			Updates:              checker,
 			Installer:            update.NewInstaller(filepath.Join(cacheDir, "Omni", "update")),
 			ExePath:              self,
@@ -584,6 +588,14 @@ func run(afterUpdate bool) error {
 		}
 		icon.SetChat(cfg.Chat.Enabled)
 		go chatSvc.Housekeeping()
+		if hk := cfg.Notes.Hotkey; hk != "" {
+			go func() {
+				if err := notesKey.Rebind(hk, notesWindow.Toggle); err != nil {
+					log.Print(err)
+					notesKey.SetError(err.Error())
+				}
+			}()
+		}
 		if hk := cfg.Chat.Hotkey; hk != "" {
 			go func() { // like the other hotkeys: registering asks the main thread, which is running this handler
 				if err := chatKey.Rebind(hk, toggleChat); err != nil {

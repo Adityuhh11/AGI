@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
-  import type { View } from "../../../bindings/omni/internal/settingsui";
+  import { OmniAI, Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { ClipboardView, NotesHotkeyView, OmniAIView, View } from "../../../bindings/omni/internal/settingsui";
   import HotkeyField from "./HotkeyField.svelte";
 
   let { view }: { view: View } = $props();
@@ -18,6 +18,10 @@
   // svelte-ignore state_referenced_locally
   let lift = $state(view.SelectionEffect);
   let browsers = $state<string[]>([]);
+  // The other hotkeys live on pages of their own services; they are shown here, beside the search bar's, and saved there.
+  let clipboard = $state<ClipboardView | null>(null);
+  let chat = $state<OmniAIView | null>(null);
+  let notes = $state<NotesHotkeyView | null>(null);
   let error = $state("");
   let saved = $state(false);
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -38,7 +42,12 @@
   const options = $derived(browser === "" || browsers.includes(browser) ? browsers : [browser, ...browsers]);
   const QUERY = "{q}";
 
+  async function loadHotkeys() {
+    [clipboard, chat, notes] = await Promise.all([Settings.Clipboard(), OmniAI.View(), Settings.NotesHotkey()]);
+  }
+
   onMount(async () => {
+    loadHotkeys();
     browsers = (await Settings.Browsers()) ?? [];
   });
 
@@ -63,6 +72,21 @@
     return refused;
   }
 
+  // Each field shows its own refusal; the page reloads the hotkeys so an error from startup goes away once the key works.
+  async function afterKey(refused: string): Promise<string> {
+    if (refused === "") {
+      await loadHotkeys();
+      flashSaved();
+    }
+    return refused;
+  }
+  const saveClipboardKey = async (accelerator: string) => {
+    const now = await Settings.Clipboard();
+    return afterKey(await Settings.SaveClipboard(now.Enabled, now.Ignore ?? [], accelerator));
+  };
+  const saveChatKey = async (accelerator: string) => afterKey(await OmniAI.SetHotkey(accelerator));
+  const saveNotesKey = async (accelerator: string) => afterKey(await Settings.SetNotesHotkey(accelerator));
+
   async function saveLift() {
     error = await Settings.SetSelectionEffect(lift);
     if (error !== "") lift = !lift;
@@ -77,13 +101,41 @@
 </script>
 
 <h2>General</h2>
-<p class="lede">The hotkey and where web searches open. Changes apply at once.</p>
+<p class="lede">Hotkeys, and where web searches open. Changes apply at once.</p>
+
+<h3>Hotkeys</h3>
+<p class="help keys">Press a hotkey again while its window is in front to close it. Windows-key combinations cannot be recorded here; put them in config.toml.</p>
 
 <div class="field">
-  <span class="label" id="hotkey-label">Hotkey</span>
+  <span class="label" id="hotkey-label">Search bar</span>
   <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
-  <p class="help">Opens the search bar from any app. Windows-key combinations cannot be recorded here; put them in config.toml.</p>
+  <p class="help">Opens the search bar from any app.</p>
 </div>
+
+{#if clipboard && chat && notes}
+  <div class="field">
+    <span class="label" id="clip-hotkey-label">Clipboard history</span>
+    <HotkeyField labelId="clip-hotkey-label" value={clipboard.Hotkey} clearable onsave={saveClipboardKey} />
+    {#if clipboard.HotkeyError}<p class="error">{clipboard.HotkeyError}</p>{/if}
+    <p class="help">Opens the bar already listing what you copied. Optional; Windows keeps Win+V for its own history.</p>
+  </div>
+
+  <div class="field">
+    <span class="label" id="ai-hotkey-label">Omni AI</span>
+    <HotkeyField labelId="ai-hotkey-label" value={chat.Hotkey} clearable onsave={saveChatKey} />
+    {#if chat.HotkeyError}<p class="error">{chat.HotkeyError}</p>{/if}
+    <p class="help">Opens the chat window. Optional.</p>
+  </div>
+
+  <div class="field">
+    <span class="label" id="notes-hotkey-label">Notes</span>
+    <HotkeyField labelId="notes-hotkey-label" value={notes.Hotkey} clearable onsave={saveNotesKey} />
+    {#if notes.Error}<p class="error">{notes.Error}</p>{/if}
+    <p class="help">Opens the notes window. Optional.</p>
+  </div>
+{/if}
+
+<h3>Behaviour</h3>
 
 <div class="field">
   <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
@@ -121,3 +173,16 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
+
+<style>
+  h3 {
+    margin: 0 0 6px;
+    color: var(--text-2);
+    font: 600 11.5px/1.2 var(--sans);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .keys {
+    margin: 0 0 18px;
+  }
+</style>
