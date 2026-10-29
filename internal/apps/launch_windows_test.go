@@ -70,7 +70,7 @@ func TestPathAndElevationNeedAFile(t *testing.T) {
 	if err := RunAsAdministrator(store); err == nil {
 		t.Fatal("a Store app cannot be elevated from a path it does not have")
 	}
-	if err := ShowInExplorer(store); err == nil {
+	if err := RevealInFileManager(store); err == nil {
 		t.Fatal("there is no file to show for a Store app")
 	}
 	file := filepath.Join(t.TempDir(), "tool.exe")

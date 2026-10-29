@@ -627,7 +627,7 @@ func run(afterUpdate bool) error {
 		// The list of installed apps is served from its cache at once and rebuilt in the background,
 		// again whenever a program is installed or removed.
 		go catalog.Run(ctx)
-		go watcher.Watch(ctx, apps.StartMenuFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
+		go watcher.Watch(ctx, apps.WatchedFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
 		watchFolders(cfg.Roots)
 	})
 

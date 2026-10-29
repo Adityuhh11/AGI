@@ -289,7 +289,10 @@ func (s *Service) item(app apps.App) Item {
 		Icon:     "/icon?id=" + url.QueryEscape(app.ID),
 	}
 	if _, ok := apps.Path(app); ok {
-		item.Actions = []string{"reveal", "admin"}
+		item.Actions = []string{"reveal"}
+		if apps.CanRunAsAdministrator {
+			item.Actions = append(item.Actions, "admin")
+		}
 	}
 	return item
 }
@@ -359,7 +362,7 @@ func (s *Service) Do(id, action, typed string) error {
 	case "admin":
 		err = apps.RunAsAdministrator(app)
 	case "reveal":
-		err = apps.ShowInExplorer(app)
+		err = apps.RevealInFileManager(app)
 	default:
 		return fmt.Errorf("unknown action %q", action)
 	}
