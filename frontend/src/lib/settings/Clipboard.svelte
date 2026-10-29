@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isMac } from "../platform";
   import { onMount } from "svelte";
   import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
   import type { ClipboardView } from "../../../bindings/omni/internal/settingsui";
@@ -54,11 +55,17 @@
       Nothing leaves it. Copies a program marks as private, such as a password manager's, are never kept. Text copied from a web page or a terminal
       can still hold a secret this cannot know about: clear the history if it does.
     </p>
+    {#if isMac}
+      <p class="help">
+        To paste into the app you were in, Omni needs the Accessibility permission: System Settings, Privacy &amp; Security, Accessibility, then switch Omni on.
+        Without it Enter copies the text and you press <kbd>⌘V</kbd> yourself.
+      </p>
+    {/if}
   </div>
 
   <div class="field">
     <label class="label" for="ignore">Programs to leave out</label>
-    <textarea id="ignore" rows="4" bind:value={ignore} onchange={save} spellcheck="false" placeholder="One program per line, for example MyVault.exe"></textarea>
+    <textarea id="ignore" rows="4" bind:value={ignore} onchange={save} spellcheck="false" placeholder={isMac ? "One app per line, for example MyVault" : "One program per line, for example MyVault.exe"}></textarea>
     <p class="help">Always left out: {(page.Defaults ?? []).join(", ")}.</p>
   </div>
 

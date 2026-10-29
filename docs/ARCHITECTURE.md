@@ -138,7 +138,7 @@ is Objective-C through cgo, which cannot be compiled from Windows, so that runne
 | `web` | `Web`, quicklinks | registry App Paths, `ShellExecute`, `-search` on Firefox-based browsers | `.app` lookup, `open -a`; searches by address |
 | `files` | `Service`, `Player` arguments, the safe-to-open list | `ShellExecute`, `explorer /select`, VS Code and players by registry and folders | `open`, `open -R`, VS Code and players (VLC, IINA, mpv) |
 | `autostart` | doc | `HKCU\...\Run` | Wails login item (SMAppService) |
-| `clipboard` | history, filters, order of a paste | Win32 clipboard, `SendInput` Ctrl+V, elevation check | M2: `NSPasteboard`, `CGEvent` Cmd+V, secure input |
+| `clipboard` | history, filters, order of a paste | Win32 clipboard, `SendInput` Ctrl+V, elevation check | `NSPasteboard`, `CGEvent` Cmd+V, secure input and the Accessibility permission (`source_darwin.go`, `paste_darwin.go`, `pasteboard_darwin.m`) |
 | `watcher` | debounce, filter | `ReadDirectoryChangesW` | M3: FSEvents |
 | `sidecar` | supervisor, client | `taskkill /T`, Job Object | process groups and the reaper (`reaper_darwin.go`, `omni --reaper`) |
 | `enginesetup` | download, `Unzip`, `Untar`, install steps | `uv.exe`, `Scripts\python.exe`, zip pins | `uv`, `bin/python`, `.tar.gz` pins (one folder dropped, links kept) |

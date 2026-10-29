@@ -403,7 +403,9 @@ func run(afterUpdate bool) error {
 		application.NewService(opener),
 		application.NewService(palette.With(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch), palette.Extras{
 			Copy: func(text string) error {
-				if !app.Clipboard.SetText(text) {
+				ok := app.Clipboard.SetText(text)
+				clipboard.NoteOwnCopy() // the history must not keep what this program copied
+				if !ok {
 					return errors.New("the clipboard is in use by another program; try again")
 				}
 				return nil

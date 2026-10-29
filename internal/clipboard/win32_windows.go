@@ -112,6 +112,10 @@ func markedPrivate() bool {
 	return false
 }
 
+// NoteOwnCopy has nothing to do on Windows: a copy names the program that made it (the clipboard's owner window), so this program's own copies
+// are recognised by name. A Mac does not say who copied (source_darwin.go).
+func NoteOwnCopy() {}
+
 // NewSource is the real clipboard.
 func NewSource() Source { return WindowsSource{} }
 
@@ -240,7 +244,12 @@ func NewPaster(setText func(string) bool, previous func() uintptr, release func(
 		Previous:   previous,
 		Release:    release,
 		Foreground: foregroundWindow,
-		Blocked:    blockedByElevation,
+		Allowed: func(window uintptr) error {
+			if blockedByElevation(window) {
+				return ErrBlocked
+			}
+			return nil
+		},
 		SendPaste:  sendCtrlV,
 		Sleep:      time.Sleep,
 	}

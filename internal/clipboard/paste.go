@@ -27,9 +27,10 @@ type Paster struct {
 	Release func()
 	// Foreground is the window that has the keyboard now.
 	Foreground func() uintptr
-	// Blocked says that the system will not let this program type into the window: it runs as administrator (Windows), or a
-	// password field has all keyboard input to itself (a Mac).
-	Blocked func(window uintptr) bool
+	// Allowed is nil when this program may type into the window, and otherwise the error that says why not (ErrBlocked when the
+	// window runs as administrator on Windows, or a password field has all keyboard input to itself on a Mac; on a Mac also
+	// that the Accessibility permission is missing). The text is on the clipboard already, and the bar stays open to say so.
+	Allowed func(window uintptr) error
 	// SendPaste types the paste key (Ctrl+V on Windows, Command+V on a Mac).
 	SendPaste func() error
 	Sleep     func(time.Duration)
@@ -45,8 +46,9 @@ func (p Paster) Paste(text string) error {
 	switch {
 	case target == 0:
 		return ErrNoTarget
-	case p.Blocked(target):
-		return ErrBlocked
+	}
+	if err := p.Allowed(target); err != nil {
+		return err
 	}
 	p.Release()
 	for waited := time.Duration(0); p.Foreground() != target; waited += 5 * time.Millisecond {

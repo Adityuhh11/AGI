@@ -34,7 +34,12 @@ func (s *scene) paster() Paster {
 			}
 			return 1 // the bar, or anything else
 		},
-		Blocked:   func(uintptr) bool { return s.elevated },
+		Allowed: func(uintptr) error {
+			if s.elevated {
+				return ErrBlocked
+			}
+			return nil
+		},
 		SendPaste: func() error { s.events = append(s.events, "ctrl+v"); return nil },
 		Sleep:     func(d time.Duration) { s.slept += d },
 	}
