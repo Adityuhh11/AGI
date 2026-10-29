@@ -32,7 +32,7 @@ func Locate(dataDir string) (Layout, error) {
 func (l Layout) Dir() string { return filepath.Join(l.Root, "llama") }
 
 // Server is the llama.cpp server program.
-func (l Layout) Server() string { return filepath.Join(l.Dir(), "llama-server.exe") }
+func (l Layout) Server() string { return filepath.Join(l.Dir(), serverName) }
 
 // ModelFile is the model.
 func (l Layout) ModelFile() string { return filepath.Join(l.Root, "models", path.Base(Model.URL)) }
