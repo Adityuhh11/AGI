@@ -453,7 +453,7 @@ func (s *Service) itemFor(id string) (Item, bool) {
 		return p.item(), true
 	}
 	if c, ok := systemCommandFor(id); ok {
-		return c.item(), true
+		return systemItem(c), true
 	}
 	if name, ok := strings.CutPrefix(id, "snippet:"); ok {
 		for _, snippet := range s.snips.List() {

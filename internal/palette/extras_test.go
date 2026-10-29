@@ -68,8 +68,7 @@ func TestSystemRowsAreFoundByNameAndRunAfterTheBarIsClosed(t *testing.T) {
 	var dismissedBefore int
 	With(s, Extras{RunSystem: func(id string) error { dismissedBefore = *dismissed; ran = append(ran, id); return nil }})
 
-	tests := map[string]string{"lock": "sys:lock", "task man": "sys:taskmgr", "recycle": "sys:recycle", "windows set": "sys:winsettings", "sleep": "sys:sleep"}
-	for text, id := range tests {
+	for text, id := range typedForSystemRows {
 		found := false
 		for _, item := range s.Query(text, ModeAll).Items {
 			found = found || item.ID == id

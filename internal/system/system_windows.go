@@ -6,7 +6,29 @@ import (
 	"syscall"
 )
 
-var actions = map[string]func() error{}
+// Commands are the rows the bar offers on Windows.
+var Commands = []Command{
+	{"sys:lock", "Lock the computer"},
+	{"sys:sleep", "Sleep"},
+	{"sys:taskmgr", "Task Manager"},
+	{"sys:recycle", "Empty the Recycle Bin"},
+	{"sys:winsettings", "Windows Settings"},
+}
+
+// program is an action that starts a program with arguments.
+type program struct {
+	exe  string
+	args []string
+}
+
+// programs are the actions that are just a command line. Sleep goes through powrprof; Windows hibernates instead when
+// hibernation is switched on and sleep is not available, which is the computer's own choice.
+var programs = map[string]program{
+	"sys:lock":        {"rundll32.exe", []string{"user32.dll,LockWorkStation"}},
+	"sys:sleep":       {"rundll32.exe", []string{"powrprof.dll,SetSuspendState", "0,1,0"}},
+	"sys:taskmgr":     {"taskmgr.exe", nil},
+	"sys:winsettings": {"explorer.exe", []string{"ms-settings:"}},
+}
 
 func init() {
 	for id, p := range programs {
