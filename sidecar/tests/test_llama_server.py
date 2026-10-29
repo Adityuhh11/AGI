@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from omni_memory.embedding import llama_server
 from omni_memory.embedding.llama_server import METAL, LlamaServer, ServerError, choose_device
 
 HERE = Path(__file__).parent
@@ -59,14 +60,14 @@ def test_garbage_listings_choose_nothing():
 
 @pytest.fixture(autouse=True)
 def vulkan_machine(request, monkeypatch):
-    """The tests below describe a Windows machine with Vulkan; the Mac ones say `on_a_mac`."""
+    """The tests below describe a machine with Vulkan; the Mac ones ask for `on_a_mac`."""
     if "on_a_mac" not in request.fixturenames:
-        monkeypatch.setattr(sys, "platform", "win32")
+        monkeypatch.setattr(llama_server, "_on_a_mac", lambda: False)
 
 
 @pytest.fixture
 def on_a_mac(monkeypatch):
-    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(llama_server, "_on_a_mac", lambda: True)
 
 
 @pytest.fixture

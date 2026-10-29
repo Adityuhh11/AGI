@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"omni/internal/config"
+	"omni/internal/testpath"
 )
 
 func open(t *testing.T) (*Store, string) {
@@ -21,7 +22,7 @@ func open(t *testing.T) (*Store, string) {
 
 func TestUpdateWritesTheFileAndChangesWhatGetReturns(t *testing.T) {
 	s, path := open(t)
-	if err := s.Update(func(c *config.Config) { c.Hotkey = "Ctrl+Alt+K"; c.Roots = []string{`C:\Docs`} }); err != nil {
+	if err := s.Update(func(c *config.Config) { c.Hotkey = "Ctrl+Alt+K"; c.Roots = []string{testpath.P(`C:\Docs`)} }); err != nil {
 		t.Fatal(err)
 	}
 	if got := s.Get(); got.Hotkey != "Ctrl+Alt+K" || len(got.Roots) != 1 {
@@ -51,12 +52,12 @@ func TestAnInvalidChangeLeavesTheFileAndTheMemoryAlone(t *testing.T) {
 
 func TestGetGivesACopyNobodyCanUseToChangeTheStore(t *testing.T) {
 	s, _ := open(t)
-	if err := s.Update(func(c *config.Config) { c.Roots = []string{`C:\Docs`} }); err != nil {
+	if err := s.Update(func(c *config.Config) { c.Roots = []string{testpath.P(`C:\Docs`)} }); err != nil {
 		t.Fatal(err)
 	}
 	got := s.Get()
-	got.Roots[0] = `C:\Elsewhere`
-	if s.Get().Roots[0] != `C:\Docs` {
+	got.Roots[0] = testpath.P(`C:\Elsewhere`)
+	if s.Get().Roots[0] != testpath.P(`C:\Docs`) {
 		t.Fatal("changing the copy changed the store")
 	}
 }

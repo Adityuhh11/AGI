@@ -50,10 +50,16 @@ class ServerError(RuntimeError):
 METAL = "metal"
 
 
+def _on_a_mac() -> bool:
+    """A function so a test can say which system it describes without touching `sys.platform`,
+    which the standard library reads too."""
+    return sys.platform == "darwin"
+
+
 def choose_device(listing: str) -> str | None:
     """The device to start on: on a Mac `METAL`; elsewhere the id (`Vulkan1`) of the discrete GPU in
     `--list-devices` output, or None for the CPU."""
-    if sys.platform == "darwin":
+    if _on_a_mac():
         return METAL
     devices = [
         (m["id"], m["name"]) for line in listing.splitlines() if (m := _DEVICE_LINE.match(line))
@@ -122,7 +128,7 @@ class LlamaServer:
             process.wait()
 
     def _list_devices(self) -> str:
-        if sys.platform == "darwin":
+        if _on_a_mac():
             return ""  # a Mac is not asked which devices it has (choose_device)
         try:
             done = subprocess.run(

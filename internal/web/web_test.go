@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"omni/internal/config"
+	"omni/internal/testpath"
 )
 
 // fake records what would have been started.
@@ -30,11 +31,11 @@ func newWeb(f *fake, browser, searchURL string, links ...config.Quicklink) *Web 
 }
 
 func TestOtherBrowsersAndAnExplicitTemplateSearchByAddress(t *testing.T) {
-	f := &fake{installed: map[string]string{"chrome": `C:\chrome.exe`, "zen": `C:\zen.exe`}}
+	f := &fake{installed: map[string]string{"chrome": testpath.P(`C:\chrome.exe`), "zen": testpath.P(`C:\zen.exe`)}}
 	if err := newWeb(f, "chrome", "").Search("a b&c"); err != nil {
 		t.Fatal(err)
 	}
-	if f.exe != `C:\chrome.exe` || !reflect.DeepEqual(f.args, []string{"https://duckduckgo.com/?q=a+b%26c"}) {
+	if f.exe != testpath.P(`C:\chrome.exe`) || !reflect.DeepEqual(f.args, []string{"https://duckduckgo.com/?q=a+b%26c"}) {
 		t.Fatalf("chrome started %q %q", f.exe, f.args)
 	}
 	if err := newWeb(f, "zen", "https://www.google.com/search?q={q}").Search("go"); err != nil {
@@ -113,7 +114,7 @@ func TestQuicklinksNeedTheTriggerAndSomeText(t *testing.T) {
 }
 
 func TestUpdateChangesTheBrowserAndTheQuicklinksOfARunningWeb(t *testing.T) {
-	f := &fake{installed: map[string]string{"zen": `C:\zen.exe`, "chrome": `C:\chrome.exe`}}
+	f := &fake{installed: map[string]string{"zen": testpath.P(`C:\zen.exe`), "chrome": testpath.P(`C:\chrome.exe`)}}
 	w := newWeb(f, "zen", "", config.Quicklink{Trigger: "gh", Title: "GitHub", URL: "https://github.com/search?q={q}"})
 	if _, _, ok := w.Quicklink("gh rust"); !ok {
 		t.Fatal("the first quicklink is missing")
@@ -125,7 +126,7 @@ func TestUpdateChangesTheBrowserAndTheQuicklinksOfARunningWeb(t *testing.T) {
 	if link, _, ok := w.Quicklink("yt cats"); !ok || link.Title != "YouTube" {
 		t.Fatal("the new quicklink is missing")
 	}
-	if err := w.Search("go"); err != nil || f.exe != `C:\chrome.exe` {
+	if err := w.Search("go"); err != nil || f.exe != testpath.P(`C:\chrome.exe`) {
 		t.Fatalf("searched with %q (%v), want the new browser", f.exe, err)
 	}
 }

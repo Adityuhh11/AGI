@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"omni/internal/config"
+	"omni/internal/testpath"
 )
 
 const testToken = "t0ken-xxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -61,7 +62,7 @@ func TestEveryRequestCarriesTheTokenAndUsesTheRightRoute(t *testing.T) {
 			func(c *Client) error { _, err := c.DeleteSource(context.Background(), "root-abc"); return err }, "DELETE", "/sources/root-abc"},
 		{"add", `{"job_id":"job-2"}`,
 			func(c *Client) error {
-				_, err := c.AddSource(context.Background(), `C:\x`, "root-abc", nil, IndexOptions{})
+				_, err := c.AddSource(context.Background(), testpath.P(`C:\x`), "root-abc", nil, IndexOptions{})
 				return err
 			}, "POST", "/sources"},
 		{"search", `{"files":[],"confident":false}`,
@@ -143,7 +144,7 @@ func TestSearchSendsOnlyWhatWasAskedAndDecodesFiles(t *testing.T) {
 func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	client, e := newClient(t, 202, `{"job_id":"job-7"}`)
 	options := IndexOptions{PDFPages: "text", Photos: "name", Videos: "content", Audio: "content"}
-	job, err := client.AddSource(context.Background(), `C:\Users\me\Docs`, "root-1", []string{"vendor/skills"}, options)
+	job, err := client.AddSource(context.Background(), testpath.P(`C:\Users\me\Docs`), "root-1", []string{"vendor/skills"}, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +160,7 @@ func TestAddSourceSendsThePathAndTheId(t *testing.T) {
 	if err := json.Unmarshal([]byte(e.sent), &sent); err != nil {
 		t.Fatal(err)
 	}
-	if sent.Path != `C:\Users\me\Docs` || sent.SourceID != "root-1" || len(sent.Exclude) != 1 || sent.Exclude[0] != "vendor/skills" || sent.Options != options {
+	if sent.Path != testpath.P(`C:\Users\me\Docs`) || sent.SourceID != "root-1" || len(sent.Exclude) != 1 || sent.Exclude[0] != "vendor/skills" || sent.Options != options {
 		t.Fatalf("body = %s", e.sent)
 	}
 	if !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name","videos":"content","audio":"content"}`) {
@@ -177,7 +178,7 @@ func TestTheEnginesDefaultOptionsAreTheSettingsDefaults(t *testing.T) {
 func TestTheDefaultOptionsAreNotSentSoAnOlderEngineStillIndexes(t *testing.T) {
 	for _, options := range []IndexOptions{{}, DefaultIndexOptions} {
 		client, e := newClient(t, 202, `{"job_id":"job-1"}`)
-		if _, err := client.AddSource(context.Background(), `C:\x`, "root-1", nil, options); err != nil {
+		if _, err := client.AddSource(context.Background(), testpath.P(`C:\x`), "root-1", nil, options); err != nil {
 			t.Fatal(err)
 		}
 		if strings.Contains(e.sent, "options") {
@@ -306,13 +307,13 @@ func TestAChoiceAtItsDefaultIsNotSentSoAnEngineFromBeforeItStillIndexes(t *testi
 	// The cheap preset of a computer without a graphics card. Audio is at its default, a field an engine from before
 	// audio search refuses with a 422; the engine fills in the defaults it is not told.
 	options := IndexOptions{PDFPages: "text", Photos: "name", Videos: "name", Audio: "name"}
-	if _, err := client.AddSource(context.Background(), `C:\Docs`, "root-1", nil, options); err != nil {
+	if _, err := client.AddSource(context.Background(), testpath.P(`C:\Docs`), "root-1", nil, options); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(e.sent, "audio") || !strings.Contains(e.sent, `"options":{"pdf_pages":"text","photos":"name"}`) {
 		t.Fatalf("body = %s", e.sent)
 	}
-	if _, err := client.AddSource(context.Background(), `C:\Docs`, "root-1", nil, DefaultIndexOptions); err != nil {
+	if _, err := client.AddSource(context.Background(), testpath.P(`C:\Docs`), "root-1", nil, DefaultIndexOptions); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(e.sent, "options") {

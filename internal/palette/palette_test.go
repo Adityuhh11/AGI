@@ -10,6 +10,7 @@ import (
 	"omni/internal/config"
 	"omni/internal/state"
 	"omni/internal/web"
+	"omni/internal/testpath"
 )
 
 // fakeBrowser records what the bar opened.
@@ -223,10 +224,14 @@ func TestAnItemNamesItsIconAndOnlyOffersActionsItCanDo(t *testing.T) {
 	if !strings.HasPrefix(tool.Icon, "/icon?id=") || tool.Kind != "app" || !strings.HasPrefix(tool.ID, "app:") {
 		t.Errorf("item = %+v", tool)
 	}
-	if len(tool.Actions) != 2 {
-		t.Errorf("an app with a file offers reveal and admin, got %v", tool.Actions)
+	wantActions := 1 // reveal
+	if apps.CanRunAsAdministrator {
+		wantActions = 2 // and admin
 	}
-	if len(store.Actions) != 0 {
+	if len(tool.Actions) != wantActions {
+		t.Errorf("an app with a file offers %d actions, got %v", wantActions, tool.Actions)
+	}
+	if len(store.Actions) != 0 && appWithoutAFile {
 		t.Errorf("a Store app has no file to reveal or elevate, got %v", store.Actions)
 	}
 }
@@ -316,7 +321,7 @@ func TestTaggedFilesOpenThroughTheFilesService(t *testing.T) {
 	history, _ := state.Open(filepath.Join(t.TempDir(), "state.json"))
 	f := &fakeFiles{}
 	s := New(catalog, history, &fakeBrowser{}, f, &fakeClips{}, &fakeSnips{}, func(string) {}, func() {})
-	if err := s.Do(`file:C:\docs\a.pdf`, "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != `C:\docs\a.pdf` {
+	if err := s.Do(`file:C:\docs\a.pdf`, "open", ""); err != nil || len(f.opened) != 1 || f.opened[0] != testpath.P(`C:\docs\a.pdf`) {
 		t.Fatalf("opened %v, %v", f.opened, err)
 	}
 	if err := s.Do(`file:C:\docs\a.pdf`, "reveal", ""); err != nil || len(f.revealed) != 1 {

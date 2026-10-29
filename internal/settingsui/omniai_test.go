@@ -9,6 +9,7 @@ import (
 	"omni/internal/chat"
 	"omni/internal/llm"
 	"omni/internal/settings"
+	"omni/internal/testpath"
 )
 
 type fakeChatSetup struct {
@@ -35,7 +36,7 @@ func (f *fakeChatModel) Rearm()             { f.rearmed++ }
 
 type fakeChatHistory struct{ n int }
 
-func (f fakeChatHistory) Dir() string { return `C:\chats` }
+func (f fakeChatHistory) Dir() string { return testpath.P(`C:\chats`) }
 func (f fakeChatHistory) Search(string, int) ([]chat.Summary, error) {
 	return make([]chat.Summary, f.n), nil
 }
@@ -74,7 +75,7 @@ func TestTheViewShowsTheStateTheChoicesAndTheDefaults(t *testing.T) {
 	if v.Enabled || v.Installed || v.Load != "when_asked" || v.UnloadAfterMinutes != 10 || v.ContextTokens != 8192 || !v.KeepHistory || v.HistoryDays != 90 {
 		t.Fatalf("defaults = %+v", v)
 	}
-	if v.ModelState != "ready" || v.Device != "gpu" || v.UnloadsAt != 5000 || v.Conversations != 4 || v.HistoryFolder != `C:\chats` {
+	if v.ModelState != "ready" || v.Device != "gpu" || v.UnloadsAt != 5000 || v.Conversations != 4 || v.HistoryFolder != testpath.P(`C:\chats`) {
 		t.Fatalf("model and history = %+v", v)
 	}
 	if len(v.Hosts) != 2 || v.DownloadMB < 1000 || v.LicenseURL == "" || len(v.ContextChoices) != 4 || len(v.Loads) != 2 {

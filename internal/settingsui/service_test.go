@@ -15,6 +15,7 @@ import (
 	"omni/internal/sidecar"
 	"omni/internal/survey"
 	"omni/internal/update"
+	"omni/internal/testpath"
 )
 
 // fakeSetup plays the installer: it is installed or not, and says what it was asked to do.
@@ -121,7 +122,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{place: &fakePlace{layout: enginesetup.Layout{Root: `C:\default\engine`, Memory: `C:\default\memory`}}, surveys: &fakeSurveys{}, store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
+	h := &harness{place: &fakePlace{layout: enginesetup.Layout{Root: testpath.P(`C:\default\engine`), Memory: testpath.P(`C:\default\memory`)}}, surveys: &fakeSurveys{}, store: store, setup: &fakeSetup{}, index: &fakeIndexing{}, updates: &fakeUpdates{}, installer: &fakeInstaller{}, history: &fakeHistory{count: 3}}
 	h.svc = New(Options{
 		Store:    store,
 		Setup:    h.setup,
@@ -169,7 +170,7 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 		OpenURL:          func(a string) error { h.openedURL = a; return nil },
 		Autostart:        func() bool { return h.startup },
 		SetAutostart:     func(on bool) error { h.startup = on; return nil },
-		LogDir:           `C:\logs`,
+		LogDir:           testpath.P(`C:\logs`),
 		Version:          "test",
 	})
 	return h
@@ -231,11 +232,11 @@ func TestQuicklinksAreValidatedWithTheSameRulesAsTheFile(t *testing.T) {
 
 func TestFoldersAreAddedFromThePickerAndRemovedWithTheirExclusions(t *testing.T) {
 	h := newHarness(t)
-	h.picked = `C:\Docs\`
+	h.picked = testpath.P(`C:\Docs\`)
 	if msg := h.svc.AddFolder(); msg != "" {
 		t.Fatal(msg)
 	}
-	if roots := h.store.Get().Roots; len(roots) != 1 || roots[0] != `C:\Docs` {
+	if roots := h.store.Get().Roots; len(roots) != 1 || roots[0] != testpath.P(`C:\Docs`) {
 		t.Fatalf("roots = %v", roots)
 	}
 	if msg := h.svc.AddFolder(); !strings.Contains(msg, "repeats") {
@@ -245,10 +246,10 @@ func TestFoldersAreAddedFromThePickerAndRemovedWithTheirExclusions(t *testing.T)
 	if msg := h.svc.AddFolder(); msg != "" || len(h.store.Get().Roots) != 1 {
 		t.Fatalf("cancelling the picker changed something: %q, %v", msg, h.store.Get().Roots)
 	}
-	if err := h.store.Update(func(c *config.Config) { c.Exclude = []string{`C:\Docs\vendor`} }); err != nil {
+	if err := h.store.Update(func(c *config.Config) { c.Exclude = []string{testpath.P(`C:\Docs\vendor`)} }); err != nil {
 		t.Fatal(err)
 	}
-	if msg := h.svc.RemoveFolder(`c:\docs`); msg != "" {
+	if msg := h.svc.RemoveFolder(testpath.P(`c:\docs`)); msg != "" {
 		t.Fatal(msg)
 	}
 	if got := h.store.Get(); len(got.Roots) != 0 || len(got.Exclude) != 0 {
@@ -268,20 +269,20 @@ func TestPaceMustBeOneOfTheKnownSpeeds(t *testing.T) {
 
 func TestOpenFolderKnowsTheConfigAndLogFoldersOnly(t *testing.T) {
 	h := newHarness(t)
-	if msg := h.svc.OpenFolder("logs"); msg != "" || h.opened != `C:\logs` {
+	if msg := h.svc.OpenFolder("logs"); msg != "" || h.opened != testpath.P(`C:\logs`) {
 		t.Fatalf("logs: %q, opened %q", msg, h.opened)
 	}
 	if msg := h.svc.OpenFolder("config"); msg != "" || filepath.Base(h.opened) != "Omni" {
 		t.Fatalf("config: %q, opened %q", msg, h.opened)
 	}
-	if msg := h.svc.OpenFolder(`C:\Windows`); msg == "" {
+	if msg := h.svc.OpenFolder(testpath.P(`C:\Windows`)); msg == "" {
 		t.Fatal("an arbitrary folder was opened")
 	}
 }
 
 func TestDiagnosticsNameNoFilesOrFolders(t *testing.T) {
 	h := newHarness(t)
-	h.picked = `C:\Private\Taxes`
+	h.picked = testpath.P(`C:\Private\Taxes`)
 	h.svc.AddFolder()
 	text := h.svc.Diagnostics()
 	if strings.Contains(text, "Taxes") || !strings.Contains(text, "folders: 1") || !strings.Contains(text, "engine=off") {
@@ -315,7 +316,7 @@ func TestTurningOnBeforeAnyFolderIsChosenHoldsIndexingAndAfterwardsDoesNot(t *te
 	}
 	h = newHarness(t)
 	h.setup.state.Installed = true
-	_ = h.svc.SetRoots([]string{`C:\a`})
+	_ = h.svc.SetRoots([]string{testpath.P(`C:\a`)})
 	if msg := h.svc.TurnOn(); msg != "" || h.store.Get().Search.HoldIndexing {
 		t.Fatalf("folders already chosen (file search was switched off): %q, hold %v", msg, h.store.Get().Search.HoldIndexing)
 	}
@@ -342,7 +343,7 @@ func TestAFirstDownloadHoldsIndexingUntilItIsStartedAndAnUpdateDoesNot(t *testin
 	if !h.store.Get().Search.HoldIndexing || !h.svc.Search().HoldIndexing {
 		t.Fatal("a first download must hold indexing, so the choices come first")
 	}
-	h.index.folders = []indexing.FolderStatus{{Root: `C:\a`, State: indexing.Waiting}}
+	h.index.folders = []indexing.FolderStatus{{Root: testpath.P(`C:\a`), State: indexing.Waiting}}
 	h.setup.state = enginesetup.State{Installed: true}
 	enable(t, h)
 	if got := h.svc.Search().Folders; len(got) != 1 {
@@ -363,8 +364,8 @@ func TestWhileHeldTheFoldersSayTheyWaitForTheStartAndTheViewCountsTheIndex(t *te
 	h := newHarness(t)
 	h.setup.state.Installed = true
 	h.index.folders = []indexing.FolderStatus{
-		{Root: `C:\a`, State: indexing.UpToDate, Files: 7},
-		{Root: `C:\b`, State: indexing.UpToDate, Files: 5},
+		{Root: testpath.P(`C:\a`), State: indexing.UpToDate, Files: 7},
+		{Root: testpath.P(`C:\b`), State: indexing.UpToDate, Files: 5},
 	}
 	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
 	if err := h.store.Update(func(c *config.Config) { c.Search.Enabled, c.Search.HoldIndexing = true, true }); err != nil {
@@ -429,11 +430,11 @@ func TestCancelPassesThroughAndSearchReportsTheInstallAndTheEngine(t *testing.T)
 func TestFoldersAreDescribedInWordsForEachState(t *testing.T) {
 	h := newHarness(t)
 	h.index.folders = []indexing.FolderStatus{
-		{Root: `C:\a`, State: indexing.Indexing, FilesDone: 40, FilesTotal: 96},
-		{Root: `C:\b`, State: indexing.Indexing},
-		{Root: `C:\c`, State: indexing.UpToDate, Files: 12, Chunks: 300},
-		{Root: `C:\d`, State: indexing.Failed, Message: "disk on fire"},
-		{Root: `C:\e`, State: indexing.Waiting},
+		{Root: testpath.P(`C:\a`), State: indexing.Indexing, FilesDone: 40, FilesTotal: 96},
+		{Root: testpath.P(`C:\b`), State: indexing.Indexing},
+		{Root: testpath.P(`C:\c`), State: indexing.UpToDate, Files: 12, Chunks: 300},
+		{Root: testpath.P(`C:\d`), State: indexing.Failed, Message: "disk on fire"},
+		{Root: testpath.P(`C:\e`), State: indexing.Waiting},
 	}
 	h.setup.state.Installed = true
 	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
@@ -453,13 +454,13 @@ func TestFoldersAreDescribedInWordsForEachState(t *testing.T) {
 func TestAFolderWithNothingReadableSaysSoAndWhereWindowsMovedIt(t *testing.T) {
 	h := newHarness(t)
 	h.index.folders = []indexing.FolderStatus{
-		{Root: `C:\Users\me\Documents`, State: indexing.UpToDate},
-		{Root: `C:\Empty`, State: indexing.UpToDate},
+		{Root: testpath.P(`C:\Users\me\Documents`), State: indexing.UpToDate},
+		{Root: testpath.P(`C:\Empty`), State: indexing.UpToDate},
 	}
 	h.svc.o.Engine = func() sidecar.Status { return sidecar.Status{State: sidecar.StateReady} }
 	h.svc.movedTo = func(root string) string {
-		if root == `C:\Users\me\Documents` {
-			return `C:\Users\me\OneDrive\Documents`
+		if root == testpath.P(`C:\Users\me\Documents`) {
+			return testpath.P(`C:\Users\me\OneDrive\Documents`)
 		}
 		return ""
 	}
@@ -659,11 +660,11 @@ func TestARefusedSaveGivesTheOldClipboardHotkeyBack(t *testing.T) {
 
 func TestTheViewSaysWhatEachFolderHoldsAndWhatEachChoiceWouldCost(t *testing.T) {
 	h := newHarness(t)
-	_ = h.svc.SetRoots([]string{`C:\a`, `C:\b`})
+	_ = h.svc.SetRoots([]string{testpath.P(`C:\a`), testpath.P(`C:\b`)})
 	pdfs := sidecar.Survey{Routes: map[string]sidecar.RouteCount{"pdf": {Files: 10, Bytes: 100 << 20}, "image": {Files: 50, Bytes: 1 << 30}}}
 	h.surveys.results = map[string]survey.Result{
-		`C:\a`: {State: survey.Done, Survey: pdfs},
-		`C:\b`: {State: survey.Running},
+		testpath.P(`C:\a`): {State: survey.Done, Survey: pdfs},
+		testpath.P(`C:\b`): {State: survey.Running},
 	}
 	view := h.svc.Search()
 	if len(view.Surveys) != 2 || view.Surveys[0].Files != 60 || view.Surveys[0].Seconds == 0 || view.Surveys[1].State != "running" || view.Surveys[1].Seconds != 0 {
@@ -682,7 +683,7 @@ func TestTheViewSaysWhatEachFolderHoldsAndWhatEachChoiceWouldCost(t *testing.T) 
 	if !(est.ByPace["gentle"] > est.ByPace["balanced"] && est.ByPace["balanced"] > est.ByPace["fast"]) {
 		t.Errorf("paces: %v", est.ByPace)
 	}
-	h.surveys.results[`C:\b`] = survey.Result{State: survey.Done, Survey: pdfs}
+	h.surveys.results[testpath.P(`C:\b`)] = survey.Result{State: survey.Done, Survey: pdfs}
 	if !h.svc.Search().Estimate.Complete {
 		t.Error("every folder counted: the estimate is complete")
 	}
@@ -693,7 +694,7 @@ func TestRemovingEverythingForgetsTheFoldersAndChoicesButKeepsWhereItGoes(t *tes
 	h.setup.state.Installed = true
 	enable(t, h)
 	if err := h.store.Update(func(c *config.Config) {
-		c.Roots, c.Search.DataDir, c.Search.Pace, c.Search.Photos, c.Search.InLauncher = []string{`C:\Docs`}, `D:\Omni`, "fast", "name", true
+		c.Roots, c.Search.DataDir, c.Search.Pace, c.Search.Photos, c.Search.InLauncher = []string{testpath.P(`C:\Docs`)}, testpath.P(`D:\Omni`), "fast", "name", true
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -704,7 +705,7 @@ func TestRemovingEverythingForgetsTheFoldersAndChoicesButKeepsWhereItGoes(t *tes
 	if got.Search.Enabled || len(got.Roots) != 0 || got.Search.Pace != "balanced" || got.Search.Photos != "content" || got.Search.InLauncher {
 		t.Errorf("settings were not reset: %+v, roots %v", got.Search, got.Roots)
 	}
-	if got.Search.DataDir != `D:\Omni` {
+	if got.Search.DataDir != testpath.P(`D:\Omni`) {
 		t.Errorf("the chosen data folder was forgotten: %q", got.Search.DataDir)
 	}
 	if h.setup.removed != 1 || h.setup.indexRemoved != 1 {

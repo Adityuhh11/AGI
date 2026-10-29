@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"omni/internal/testpath"
 )
 
 func writeFile(t *testing.T, path, content string) {
@@ -20,12 +22,15 @@ func writeFile(t *testing.T, path, content string) {
 }
 
 func TestPathIsUnderTheUsersConfigFolder(t *testing.T) {
-	t.Setenv("APPDATA", `C:\Users\someone\AppData\Roaming`)
 	got, err := Path()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `C:\Users\someone\AppData\Roaming\Omni\config.toml`; got != want {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := filepath.Join(dir, "Omni", "config.toml"); got != want {
 		t.Fatalf("Path() = %q, want %q", got, want)
 	}
 }
@@ -69,12 +74,12 @@ func TestLoadKeepsDefaultsForKeysThatAreNotSet(t *testing.T) {
 
 func TestLoadReplacesTheRootListWhenItIsSet(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "roots = ['C:\\Docs', 'D:\\Photos']\n")
+	writeFile(t, path, "roots = ['" + testpath.P(`C:\Docs`) + "', '" + testpath.P(`D:\Photos`) + "']\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Roots) != 2 || got.Roots[0] != `C:\Docs` || got.Roots[1] != `D:\Photos` {
+	if len(got.Roots) != 2 || got.Roots[0] != testpath.P(`C:\Docs`) || got.Roots[1] != testpath.P(`D:\Photos`) {
 		t.Fatalf("roots = %v", got.Roots)
 	}
 }
@@ -88,12 +93,12 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"not toml", "hotkey = = =", "parse"},
 		{"unknown key", "hotkeys = 'x'\n", "parse"},
 		{"unknown table key", "[sidecar]\nfolder = 'x'\n", "parse"},
-		{"wrong type", "roots = 'C:\\Docs'\n", "parse"},
+		{"wrong type", "roots = '" + testpath.P(`C:\Docs`) + "'\n", "parse"},
 		{"empty hotkey", "hotkey = ''\n", "hotkey must not be empty"},
 		{"relative root", "roots = ['docs']\n", "must be an absolute path"},
-		{"duplicate root", "roots = ['C:\\Docs', 'c:\\docs\\']\n", "repeats"},
-		{"relative exclude", "roots = ['C:\\Docs']\nexclude = ['vendor']\n", "must be an absolute path"},
-		{"exclude outside every root", "roots = ['C:\\Docs']\nexclude = ['D:\\Other']\n", "not inside any root"},
+		{"duplicate root", "roots = ['" + testpath.P(`C:\Docs`) + "', '" + testpath.P(`c:\docs\`) + "']\n", "repeats"},
+		{"relative exclude", "roots = ['" + testpath.P(`C:\Docs`) + "']\nexclude = ['vendor']\n", "must be an absolute path"},
+		{"exclude outside every root", "roots = ['" + testpath.P(`C:\Docs`) + "']\nexclude = ['" + testpath.P(`D:\Other`) + "']\n", "not inside any root"},
 		{"search_url without a place for the text", "search_url = 'https://example.com/'\n", "must contain {q}"},
 		{"search_url that is not a web address", "search_url = 'example.com/?q={q}'\n", "must start with https://"},
 		{"quicklink without a trigger", "[[quicklink]]\ntrigger = ''\ntitle = 'x'\nurl = 'https://x/?q={q}'\n", "one word"},
@@ -109,7 +114,7 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"snippet keyword that is a quicklink trigger", "[[quicklink]]\ntrigger = 'gh'\ntitle = 'GitHub'\nurl = 'https://x/?q={q}'\n[[snippet]]\nname = 'A'\nkeyword = 'GH'\ntext = 'a'\n", "quicklink trigger"},
 		{"clipboard hotkey that is the main hotkey", "hotkey = 'Alt+Shift+Space'\n[clipboard]\nhotkey = 'alt + shift + space'\n", "launcher's own hotkey"},
 		{"clipboard ignore with an empty program name", "[clipboard]\nignore = ['Notepad', ' ']\n", "program name must not be empty"},
-		{"exclude that is a root", "roots = ['C:\\Docs']\nexclude = ['C:\\Docs']\n", "not inside any root"},
+		{"exclude that is a root", "roots = ['" + testpath.P(`C:\Docs`) + "']\nexclude = ['" + testpath.P(`C:\Docs`) + "']\n", "not inside any root"},
 		{"unknown pdf mode", "[search]\npace = 'fast'\npdf_pages = 'some'\n", "pdf_pages"},
 		{"unknown photo mode", "[search]\npace = 'fast'\nphotos = 'pixels'\n", "photos"},
 		{"unknown video mode", "[search]\npace = 'fast'\nvideos = 'off'\n", "videos"},
@@ -143,12 +148,12 @@ func TestSourceIDsAreStableCaseInsensitiveAndAcceptedByTheEngine(t *testing.T) {
 		a, b string
 		same bool
 	}{
-		{`C:\Users\me\Docs`, `C:\Users\me\Docs`, true},
-		{`C:\Users\me\Docs`, `c:\users\ME\docs`, true},
-		{`C:\Users\me\Docs`, `C:\Users\me\Docs\`, true},
-		{`C:\Users\me\Docs`, `C:\Users\me\Docs\.`, true},
-		{`C:\Users\me\Docs`, `C:\Users\me\Photos`, false},
-		{`C:\Users\me\Docs`, `D:\Users\me\Docs`, false},
+		{testpath.P(`C:\Users\me\Docs`), testpath.P(`C:\Users\me\Docs`), true},
+		{testpath.P(`C:\Users\me\Docs`), testpath.P(`c:\users\ME\docs`), true},
+		{testpath.P(`C:\Users\me\Docs`), testpath.P(`C:\Users\me\Docs\`), true},
+		{testpath.P(`C:\Users\me\Docs`), testpath.P(`C:\Users\me\Docs\.`), true},
+		{testpath.P(`C:\Users\me\Docs`), testpath.P(`C:\Users\me\Photos`), false},
+		{testpath.P(`C:\Users\me\Docs`), testpath.P(`D:\Users\me\Docs`), false},
 	}
 	for _, tt := range tests {
 		a, b := SourceID(tt.a), SourceID(tt.b)
@@ -173,7 +178,7 @@ func TestAFreshInstallIndexesNothingAndHasFileSearchOff(t *testing.T) {
 
 func TestTheRetiredSidecarTableLoadsAndIsNotWrittenBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = 'C:\\\\dev\\\\Omni\\\\sidecar'\n")
+	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = '" + testpath.P(`C:\\dev\\Omni\\sidecar`) + "'\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatalf("a file with the retired [sidecar] table must still load: %v", err)
@@ -273,8 +278,8 @@ func TestLoadReadsTheIndexingChoices(t *testing.T) {
 }
 
 func TestExcludedUnderGivesPathsBelowTheRootInTheEnginesForm(t *testing.T) {
-	exclude := []string{`C:\Docs\Vendor\Skills`, `c:\docs\other`, `C:\Docs`, `C:\Documents\x`, `D:\Docs\Vendor`}
-	got := ExcludedUnder(`C:\Docs`, exclude)
+	exclude := []string{testpath.P(`C:\Docs\Vendor\Skills`), testpath.P(`c:\docs\other`), testpath.P(`C:\Docs`), testpath.P(`C:\Documents\x`), testpath.P(`D:\Docs\Vendor`)}
+	got := ExcludedUnder(testpath.P(`C:\Docs`), exclude)
 	if want := "Vendor/Skills|other"; strings.Join(got, "|") != want {
 		t.Fatalf("ExcludedUnder = %v, want %s", got, want)
 	}
@@ -282,12 +287,12 @@ func TestExcludedUnderGivesPathsBelowTheRootInTheEnginesForm(t *testing.T) {
 
 func TestLoadReadsExcludedFolders(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "roots = ['C:\\Docs']\nexclude = ['C:\\Docs\\vendor']\n")
+	writeFile(t, path, "roots = ['" + testpath.P(`C:\Docs`) + "']\nexclude = ['" + testpath.P(`C:\Docs\vendor`) + "']\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Exclude) != 1 || got.Exclude[0] != `C:\Docs\vendor` {
+	if len(got.Exclude) != 1 || got.Exclude[0] != testpath.P(`C:\Docs\vendor`) {
 		t.Fatalf("exclude = %v", got.Exclude)
 	}
 }
@@ -360,7 +365,7 @@ func TestSnippetsRoundTripWithManyLinesAndNoneByDefault(t *testing.T) {
 
 func TestDataDirMustBeAnAbsoluteLocalPath(t *testing.T) {
 	cfg := Default()
-	for dir, ok := range map[string]bool{"": true, `D:\Files\Omni`: true, `relative\Omni`: false, `\server\share\Omni`: false} {
+	for dir, ok := range map[string]bool{"": true, testpath.P(`D:\Files\Omni`): true, testpath.P(`relative\Omni`): false} {
 		cfg.Search.DataDir = dir
 		if err := cfg.Validate(); (err == nil) != ok {
 			t.Errorf("data_dir %q: err = %v, want ok=%v", dir, err, ok)

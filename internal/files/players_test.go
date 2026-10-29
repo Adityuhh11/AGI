@@ -3,10 +3,12 @@ package files
 import (
 	"reflect"
 	"testing"
+
+	"omni/internal/testpath"
 )
 
 func TestEachPlayerIsAskedForAMomentTheWayItDocuments(t *testing.T) {
-	const file = `C:\Media\Talks\sleep 1.mp3`
+	var file = testpath.P(`C:\Media\Talks\sleep 1.mp3`)
 	for _, tt := range []struct {
 		player  Player
 		seconds float64

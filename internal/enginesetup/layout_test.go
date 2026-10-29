@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"omni/internal/config"
+	"omni/internal/testpath"
 )
 
 func touch(t *testing.T, path string) {
@@ -32,8 +33,8 @@ func TestLocateUsesTheCacheFolderUnlessTheEnvironmentSaysOtherwise(t *testing.T)
 	if want := filepath.Join(data, "engine"); got.Root != want {
 		t.Fatalf("Root = %q, want %q", got.Root, want)
 	}
-	t.Setenv("OMNI_ENGINE_DIR", `D:\dev\engine`)
-	if got, _ = Locate(""); got.Root != `D:\dev\engine` {
+	t.Setenv("OMNI_ENGINE_DIR", testpath.P(`D:\dev\engine`))
+	if got, _ = Locate(""); got.Root != testpath.P(`D:\dev\engine`) {
 		t.Fatalf("Root = %q, want the override", got.Root)
 	}
 }
@@ -61,15 +62,15 @@ func TestAnEngineIsInstalledOnlyWhenTheManifestAndThePythonAreBothThere(t *testi
 
 func TestAChosenFolderHoldsTheEngineAndTheIndexAndTheEnvironmentStillWins(t *testing.T) {
 	t.Setenv("OMNI_ENGINE_DIR", "")
-	got, err := Locate(`D:\Files\Omni`)
+	got, err := Locate(testpath.P(`D:\Files\Omni`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Root != `D:\Files\Omni\engine` || got.Index() != `D:\Files\Omni\memory` {
+	if got.Root != testpath.P(`D:\Files\Omni\engine`) || got.Index() != testpath.P(`D:\Files\Omni\memory`) {
 		t.Fatalf("layout = %+v", got)
 	}
 	env := strings.Join(got.Env(), "|")
-	if !strings.Contains(env, `OMNI_MEMORY_DIR=D:\Files\Omni\memory`) || !strings.Contains(env, `OMNI_MODEL_DIR=D:\Files\Omni\engine\models`) {
+	if !strings.Contains(env, "OMNI_MEMORY_DIR="+testpath.P(`D:\Files\Omni\memory`)) || !strings.Contains(env, "OMNI_MODEL_DIR="+testpath.P(`D:\Files\Omni\engine\models`)) {
 		t.Errorf("env = %s", env)
 	}
 	t.Setenv("OMNI_ENGINE_DIR", "")
@@ -81,8 +82,8 @@ func TestAChosenFolderHoldsTheEngineAndTheIndexAndTheEnvironmentStillWins(t *tes
 	if def.Index() != filepath.Join(data, "memory") || !strings.Contains(strings.Join(def.Env(), "|"), "OMNI_MEMORY_DIR="+def.Index()) {
 		t.Errorf("default index = %q, env %v: the engine must be told where it is", def.Index(), def.Env())
 	}
-	t.Setenv("OMNI_ENGINE_DIR", `E:\dev\engine`)
-	if over, _ := Locate(`D:\Files\Omni`); over.Root != `E:\dev\engine` {
+	t.Setenv("OMNI_ENGINE_DIR", testpath.P(`E:\dev\engine`))
+	if over, _ := Locate(testpath.P(`D:\Files\Omni`)); over.Root != testpath.P(`E:\dev\engine`) {
 		t.Errorf("OMNI_ENGINE_DIR must win: %+v", over)
 	}
 }

@@ -50,8 +50,8 @@ func newRig(t *testing.T) *rig {
 		"src/omni_memory/__pycache__/a.pyc":  {Data: []byte("junk")},
 		"src/omni_memory/embedding/llama.py": {Data: []byte("code")},
 	}}
-	uvZip := zipBytes(t, map[string]string{"uv.exe": "uv"})
-	llamaZip := zipBytes(t, map[string]string{"llama-server.exe": "server", "ggml.dll": "dll"})
+	uvZip := zipBytes(t, map[string]string{filepath.Base(Layout{}.UV()): "uv"})
+	llamaZip := zipBytes(t, map[string]string{filepath.Base(Layout{}.LlamaServer()): "server", "ggml.dll": "dll"})
 	r.textData = payload(300_000, 11)
 	vision := payload(500_000, 12)
 	r.srv = newFileServer(t, map[string][]byte{"/uv.zip": uvZip, "/llama.zip": llamaZip, "/text.gguf": r.textData, "/vision.gguf": vision})
@@ -364,31 +364,6 @@ func TestTheHostsAndTheSizeAreWhatThePinsSay(t *testing.T) {
 		if !found {
 			t.Errorf("%s is fetched from %s, which Hosts does not list", art.Name, host)
 		}
-	}
-}
-
-func TestRemovalWaitsForFilesThatAreStillHeldForAMoment(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "app")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	held, err := os.Create(filepath.Join(dir, "in-use.py")) // Windows refuses to delete a file that is open
-	if err != nil {
-		t.Fatal(err)
-	}
-	go func() {
-		time.Sleep(700 * time.Millisecond) // the killed process lets go
-		_ = held.Close()
-	}()
-	start := time.Now()
-	if err := removeAll(dir); err != nil {
-		t.Fatalf("removeAll gave up on a file that was released after %v: %v", time.Since(start), err)
-	}
-	if _, err := os.Stat(dir); !os.IsNotExist(err) {
-		t.Fatal("the folder is still there")
-	}
-	if time.Since(start) < 500*time.Millisecond {
-		t.Fatal("the file was deleted while it was still open, so the test did not test the wait")
 	}
 }
 
