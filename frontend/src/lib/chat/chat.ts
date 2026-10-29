@@ -64,7 +64,7 @@ export function sends(event: { key: string; shiftKey: boolean; isComposing: bool
   return event.key === "Enter" && !event.shiftKey && !event.isComposing && draft.trim() !== "";
 }
 
-export type Phase = "loading" | "reading" | "thinking" | "answering" | "";
+export type Phase = "loading" | "reading" | "web" | "thinking" | "answering" | "";
 
 /** The line shown in place of an answer that has not started. */
 export function waiting(phase: Phase, text: string): string {

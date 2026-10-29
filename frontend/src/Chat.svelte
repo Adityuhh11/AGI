@@ -7,6 +7,8 @@
   import Card from "./lib/Card.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import RoundButton from "./lib/RoundButton.svelte";
+  import Icon from "./lib/Icon.svelte";
+  import PlusMenu from "./lib/chat/PlusMenu.svelte";
   import { METALS } from "./lib/palettes";
   import { dot, escapeStep, lastQuestion, meter, sends, thoughtFor, unloadsIn, waiting, type Phase } from "./lib/chat/chat";
   import { copyable } from "./lib/chat/copy";
@@ -23,6 +25,7 @@
   let live = $state<{ text: string; thinking: string; phase: Phase; status: string } | null>(null);
   let focused = $state(false); // the composer has the keyboard: its ring moves
   let historyOpen = $state(false);
+  let menuOpen = $state(false); // the + menu above the composer
   let history = $state<Summary[]>([]);
   let historyQuery = $state("");
   let confirm = $state<string>(""); // the conversation whose delete is waiting for a second click, or "all"
@@ -200,12 +203,31 @@
       event.preventDefault();
       showHistory();
     } else if (event.key === "Escape") {
+      if (menuOpen) {
+        menuOpen = false;
+        box?.focus();
+        return;
+      }
       const step = escapeStep(busy, historyOpen, draft);
       if (step === "stop") stop();
       else if (step === "history") historyOpen = false;
       else if (step === "close") Window.Close();
     }
   }
+
+  const toggleThinking = () => run(() => Chat.SetThinking(!info?.thinking));
+  const toggleWeb = () => run(() => Chat.SetWebSearch(!info?.web_search));
+
+  function openSource(url: string) {
+    Browser.OpenURL(url);
+  }
+  const hostOf = (url: string) => {
+    try {
+      return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      return url;
+    }
+  };
 
   function onProseClick(event: MouseEvent) {
     const link = (event.target as HTMLElement).closest("a");
@@ -378,6 +400,15 @@
                 <div class="prose" use:copyable={html} onclick={onProseClick}>{@html html}</div>
               {/if}
               {#if message.stopped}<p class="stopped">Stopped</p>{/if}
+              {#if message.sources?.length}
+                <div class="sources" aria-label="Sources">
+                  {#each message.sources as source (source.url)}
+                    <button type="button" class="source" title="{source.title}: {source.url}" onclick={() => openSource(source.url)}>
+                      <Icon name="web" size={12} />{hostOf(source.url)}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
               <div class="actions">
                 {#if message.text}<button type="button" class="btn quiet" onclick={() => copyAnswer(message.text)}>Copy</button>{/if}
                 {#if i === lastAnswer && canRetry}<button type="button" class="btn quiet" onclick={retry}>Try again</button>{/if}
@@ -413,34 +444,42 @@
       <form class="composer" onsubmit={(event) => { event.preventDefault(); submit(); }}>
         <LiquidRing speed={busy ? 1.5 : 0.6} running={focused || busy} metal={METALS[0]} radius={27} />
         <div class="plate">
-          <RoundButton
-            icon="brain"
-            look="tile"
-            label="Think"
-            title="Think before answering: slower, sometimes better"
-            on={info?.thinking}
-            pressed={info?.thinking ?? false}
-            disabled={off}
-            onclick={() => Chat.SetThinking(!info?.thinking)}
-          />
-          <textarea
-            bind:this={box}
-            bind:value={draft}
-            oninput={grow}
-            onkeydown={onBoxKey}
-            onfocus={() => (focused = true)}
-            onblur={() => (focused = false)}
-            rows="1"
-            placeholder={off ? "Turn Omni AI on to ask" : "Ask anything…"}
-            disabled={off}
-            spellcheck="true"
-            aria-label="Message"
-          ></textarea>
-          {#if busy}
-            <RoundButton icon="stop" look="solid" label="Stop (Esc)" onclick={stop} />
-          {:else}
-            <RoundButton icon="send" look="solid" type="submit" label="Send (Enter)" disabled={off || draft.trim() === ""} />
+          {#if info?.thinking || info?.web_search}
+            <!-- What is switched on, where the person can see it and turn it off; the box itself stays clear. -->
+            <div class="pills">
+              {#if info?.thinking}
+                <button type="button" class="pill" title="Thinking is on. Click to turn it off" onclick={toggleThinking}>
+                  <Icon name="brain" size={13} />Think<Icon name="close" size={11} />
+                </button>
+              {/if}
+              {#if info?.web_search}
+                <button type="button" class="pill" title="Web search is on. Click to turn it off" onclick={toggleWeb}>
+                  <Icon name="web" size={13} />Web<Icon name="close" size={11} />
+                </button>
+              {/if}
+            </div>
           {/if}
+          <div class="line">
+            <PlusMenu bind:open={menuOpen} thinking={info?.thinking ?? false} web={info?.web_search ?? false} disabled={off} onthinking={toggleThinking} onweb={toggleWeb} />
+            <textarea
+              bind:this={box}
+              bind:value={draft}
+              oninput={grow}
+              onkeydown={onBoxKey}
+              onfocus={() => (focused = true)}
+              onblur={() => (focused = false)}
+              rows="1"
+              placeholder={off ? "Turn Omni AI on to ask" : "Ask anything…"}
+              disabled={off}
+              spellcheck="true"
+              aria-label="Message"
+            ></textarea>
+            {#if busy}
+              <RoundButton icon="stop" look="solid" label="Stop (Esc)" onclick={stop} />
+            {:else}
+              <RoundButton icon="send" look="solid" type="submit" label="Send (Enter)" disabled={off || draft.trim() === ""} />
+            {/if}
+          </div>
         </div>
       </form>
       <div class="under">
@@ -812,11 +851,73 @@
   .plate {
     position: relative;
     display: flex;
-    align-items: flex-end;
-    gap: 8px;
+    flex-direction: column;
+    gap: 4px;
     padding: 6px;
     border-radius: 26.5px;
     background: #0d0d0e;
+  }
+  .line {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 4px 6px 0 8px;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px 0 8px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--lift);
+    color: var(--text-2);
+    font: 560 11.5px/1 var(--sans);
+    cursor: pointer;
+  }
+  .pill:hover {
+    color: var(--text);
+  }
+  .pill:focus-visible {
+    outline: 1px solid var(--chrome);
+    outline-offset: 2px;
+  }
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .source {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: none;
+    color: var(--text-3);
+    font: 500 11.5px/1 var(--sans);
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .source:hover {
+    color: var(--text);
+    background: var(--tile);
+  }
+  .source:focus-visible {
+    outline: 1px solid var(--chrome);
+    outline-offset: 2px;
   }
   textarea {
     flex: 1;
