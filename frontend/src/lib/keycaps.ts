@@ -1,4 +1,6 @@
-/** The keys of an accelerator ("Alt+Shift+Space") as the caps to draw. A "+" key is written "Ctrl++". */
+import { keyLabel } from "./platform.ts";
+
+/** The keys of an accelerator ("Alt+Shift+Space") as the caps to draw (symbols on a Mac). A "+" key is written "Ctrl++". */
 export function keycaps(accelerator: string): string[] {
   const keys = accelerator.split("+");
   const caps: string[] = [];
@@ -10,5 +12,5 @@ export function keycaps(accelerator: string): string[] {
       caps.push(keys[i]);
     }
   }
-  return caps;
+  return caps.map((key) => keyLabel(key));
 }

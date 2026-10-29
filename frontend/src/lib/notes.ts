@@ -1,6 +1,7 @@
 import type { Results } from "../../bindings/omni/internal/search";
 import type { Info } from "../../bindings/omni/internal/status";
 import type { Mode } from "./modes";
+import { combo } from "./platform.ts";
 
 /** One line shown above the results; a problem is shown in the danger colour. */
 export type Note = { text: string; problem: boolean };
@@ -29,7 +30,7 @@ export function notesFor(s: NoteState): Note[] {
   if (s.query.trim() === "") {
     if (s.info?.Engine === "failed") say(s.info.EngineMessage, true);
   } else if (s.effective === "tags") {
-    if (s.entries === 0) say("Nothing is tagged like that yet. Select a row and press Ctrl+T.");
+    if (s.entries === 0) say(`Nothing is tagged like that yet. Select a row and press ${combo("Ctrl+T")}.`);
   } else if (s.effective === "clip" || s.effective === "snip" || s.effective === "note" || s.effective === "ask") {
     if (s.answerNote) say(s.answerNote);
   } else if (s.effective === "apps") {

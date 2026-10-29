@@ -1,4 +1,5 @@
 import type { Item } from "./flatten";
+import { words } from "./platform.ts";
 
 /** Something you can do with the selected row, listed in the action panel (Ctrl+K). */
 export type Action = {
@@ -12,7 +13,7 @@ const open: Action = { id: "open", title: "Open", keys: "Enter" };
 const paste: Action = { id: "open", title: "Paste", keys: "Enter" };
 const copy: Action = { id: "copy", title: "Copy", keys: "Ctrl+Enter" };
 const forget: Action = { id: "delete", title: "Delete this entry", keys: "Ctrl+Delete" };
-const reveal: Action = { id: "reveal", title: "Show in Explorer", keys: "Ctrl+Enter" };
+const reveal: Action = { id: "reveal", title: `Show in ${words().fileManager}`, keys: "Ctrl+Enter" };
 const copyPath: Action = { id: "copy-path", title: "Copy path", keys: "Ctrl+Shift+C" };
 const admin: Action = { id: "admin", title: "Run as administrator", keys: "Ctrl+Shift+Enter" };
 const tag: Action = { id: "tag", title: "Add or remove a tag", keys: "Ctrl+T" };

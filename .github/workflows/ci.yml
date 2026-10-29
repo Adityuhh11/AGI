@@ -99,10 +99,21 @@ jobs:
           pid=$!
           sleep 10
           log="$HOME/Library/Logs/Omni/omni.log"
+          kill -0 "$pid" || { echo "the program is not running"; cat "$log"; exit 1; }
+          # A second start hands over to the running one, which opens the bar: the same path as the hotkey.
+          OMNI_INSTANCE=ci ./bin/omni
+          sleep 3
+          screencapture -x "$GITHUB_WORKSPACE/smoke.png" || echo "no screenshot"
           echo "--- the log"; cat "$log" || true
-          kill -0 "$pid" || { echo "the program is not running"; exit 1; }
+          kill -0 "$pid" || { echo "the program died when the bar opened"; exit 1; }
           grep -q "omni starting" "$log"
           kill "$pid"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mac-smoke
+          path: smoke.png
+          if-no-files-found: ignore
 
   engine:
     runs-on: windows-latest

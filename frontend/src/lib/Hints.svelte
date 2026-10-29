@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { combo } from "./platform";
   import type { Info } from "../../bindings/omni/internal/status";
   import { available, pastes } from "./actions";
   import { moment } from "./format";
@@ -19,16 +20,16 @@
 
 <footer class="hints">
   <span><kbd>Enter</kbd>{at !== null && player ? `play at ${moment(at)} in ${player}` : current && pastes(current) ? "paste" : "open"}</span>
-  {#if current && available(current, "reveal")}<span><kbd>Ctrl+Enter</kbd>reveal</span>{/if}
-  {#if current && available(current, "copy")}<span><kbd>Ctrl+Enter</kbd>copy</span>{/if}
-  <span><kbd>Ctrl+K</kbd>actions</span>
-  {#if pinned !== null}<span><kbd>Ctrl+P</kbd>{pinned ? "unpin" : "pin"}</span>{/if}
+  {#if current && available(current, "reveal")}<span><kbd>{combo("Ctrl+Enter")}</kbd>reveal</span>{/if}
+  {#if current && available(current, "copy")}<span><kbd>{combo("Ctrl+Enter")}</kbd>copy</span>{/if}
+  <span><kbd>{combo("Ctrl+K")}</kbd>actions</span>
+  {#if pinned !== null}<span><kbd>{combo("Ctrl+P")}</kbd>{pinned ? "unpin" : "pin"}</span>{/if}
   {#if current && current.kind !== "entry" && current.row.Matches && current.row.Matches.length > 1}
     <span><kbd>→</kbd>more</span>
   {/if}
-  <span><kbd>Tab</kbd>mode</span>
-  <span><kbd>Alt+Enter</kbd>web</span>
-  <span><kbd>Esc</kbd>close</span>
+  <span><kbd>{combo("Tab")}</kbd>mode</span>
+  <span><kbd>{combo("Alt+Enter")}</kbd>web</span>
+  <span><kbd>{combo("Esc")}</kbd>close</span>
   {#if info && info.IndexText && info.IndexState !== "uptodate"}
     <span class="index">{info.IndexText}</span>
   {/if}
