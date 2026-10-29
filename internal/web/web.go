@@ -1,6 +1,8 @@
 // Package web opens web searches and links in the user's browser. The browser is the one set in the
-// settings, not the Windows default: the launcher's owner may keep one browser for the system and use
+// settings, not the system's default: the launcher's owner may keep one browser for the system and use
 // another, and "open this search" must land in the one they are looking at.
+//
+// How a browser is found and started is the system's (apppath_windows.go, apppath_darwin.go).
 //
 // A Firefox-based browser (Zen, Firefox, LibreWolf...) is asked to search with `-search`, which uses the
 // engine chosen inside it; any other browser, or an explicit search_url, gets an address built from a
@@ -11,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -30,8 +31,8 @@ var firefoxFamily = map[string]bool{"zen": true, "firefox": true, "librewolf": t
 type Web struct {
 	cfg atomic.Pointer[webConfig] // replaced as a whole by Update, so a search never sees half a change
 
-	// find locates a browser by name; start runs a program without waiting; shell opens an address with
-	// the Windows default browser. Tests replace them.
+	// find locates a browser by name; start runs it without waiting; shell opens an address with
+	// the system's default browser. Tests replace them.
 	find  func(name string) (string, error)
 	start func(exe string, args ...string) error
 	shell func(address string) error
@@ -43,7 +44,7 @@ type webConfig struct {
 	links     []config.Quicklink
 }
 
-// New returns a Web for the configured browser (empty: the Windows default), search template (may be
+// New returns a Web for the configured browser (empty: the system's default), search template (may be
 // empty) and quicklinks.
 func New(browser, searchURL string, links []config.Quicklink) *Web {
 	w := &Web{find: appPath, start: start, shell: shellOpen}
@@ -63,7 +64,7 @@ func (w *Web) Search(text string) error {
 		return errors.New("nothing to search for")
 	}
 	c := w.cfg.Load()
-	if c.browser != "" && c.searchURL == "" && firefoxFamily[browserName(c.browser)] {
+	if searchesByCommandLine && c.browser != "" && c.searchURL == "" && firefoxFamily[browserName(c.browser)] {
 		exe, err := w.executable(c.browser)
 		if err != nil {
 			return err
@@ -90,7 +91,7 @@ func (w *Web) Open(address string) error {
 	return w.start(exe, address)
 }
 
-// executable is the browser's program: the configured path, or the program Windows registers under the name.
+// executable is the browser's program: the configured path, or what the system has under the name.
 func (w *Web) executable(browser string) (string, error) {
 	if filepath.IsAbs(browser) {
 		return browser, nil
@@ -102,11 +103,11 @@ func (w *Web) executable(browser string) (string, error) {
 	return exe, nil
 }
 
-// browserName is what a browser is called in the Firefox list and in Windows' registry: "Zen" and
-// "zen.exe" and `C:\Program Files\Zen Browser\zen.exe` are all zen.
+// browserName is what a browser is called in the Firefox list and in the system's own records: "Zen" and
+// "zen.exe" and `C:\Program Files\Zen Browser\zen.exe` and "/Applications/Zen.app" are all zen.
 func browserName(browser string) string {
 	name := strings.ToLower(filepath.Base(browser))
-	return strings.TrimSuffix(name, ".exe")
+	return strings.TrimSuffix(strings.TrimSuffix(name, ".exe"), ".app")
 }
 
 // Quicklink recognises a trigger word followed by text ("gh rust lifetimes") and returns the link and the text.
@@ -137,14 +138,4 @@ func (w *Web) Find(trigger string) (config.Quicklink, bool) {
 // Expand puts text, escaped for an address, where the template has {q}.
 func Expand(template, text string) string {
 	return strings.Replace(template, "{q}", url.QueryEscape(text), 1)
-}
-
-// start runs a program and lets it go: the launcher does not wait for a browser.
-func start(exe string, args ...string) error {
-	cmd := exec.Command(exe, args...)
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	go func() { _ = cmd.Wait() }()
-	return nil
 }

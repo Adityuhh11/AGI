@@ -12,6 +12,8 @@ import (
 // windowsShell is the real opener.
 type windowsShell struct{}
 
+func newShell() opener { return windowsShell{} }
+
 func (windowsShell) Default(path string) error {
 	verb, err := windows.UTF16PtrFromString("open")
 	if err != nil {
@@ -37,15 +39,6 @@ func (windowsShell) Editor(path string, line int) error {
 
 func (windowsShell) Reveal(path string) error {
 	return start(exec.Command("explorer.exe", "/select,"+path))
-}
-
-// start launches a program and lets it go: the launcher does not wait for editors.
-func start(cmd *exec.Cmd) error {
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	go func() { _ = cmd.Wait() }()
-	return nil
 }
 
 // visualStudioCode returns the path of Code.exe if it is installed in one of its usual places.

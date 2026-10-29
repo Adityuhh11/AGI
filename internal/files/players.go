@@ -21,25 +21,9 @@ type playerKind int
 const (
 	vlc playerKind = iota
 	mpv
-	mpc
+	mpc  // Media Player Classic (Windows)
+	iina // IINA (macOS), which passes `--mpv-` options on to mpv
 )
-
-// knownPlayer is a player the launcher knows how to ask for a moment, and where to look for it, best first. Their
-// command lines are the ones the players document: VLC `--start-time=<seconds>`, mpv `--start=<seconds>`, and Media
-// Player Classic (Home Cinema and BE) `/start <milliseconds>`.
-type knownPlayer struct {
-	name  string
-	kind  playerKind
-	exes  []string // program names, looked for on PATH and in App Paths
-	paths []string // under Program Files, Program Files (x86) and the user's Programs folder
-}
-
-var knownPlayers = []knownPlayer{
-	{"VLC", vlc, []string{"vlc.exe"}, []string{`VideoLAN\VLC\vlc.exe`}},
-	{"mpv", mpv, []string{"mpv.exe"}, []string{`mpv\mpv.exe`, `Programs\mpv\mpv.exe`}},
-	{"MPC-HC", mpc, []string{"mpc-hc64.exe", "mpc-hc.exe"}, []string{`MPC-HC\mpc-hc64.exe`, `K-Lite Codec Pack\MPC-HC64\mpc-hc64.exe`, `MPC-HC\mpc-hc.exe`}},
-	{"MPC-BE", mpc, []string{"mpc-be64.exe", "mpc-be.exe"}, []string{`MPC-BE x64\mpc-be64.exe`, `MPC-BE\mpc-be.exe`}},
-}
 
 // args is the command line that plays path from a moment, in seconds from the start.
 func (p Player) args(path string, seconds float64) []string {
@@ -51,6 +35,8 @@ func (p Player) args(path string, seconds float64) []string {
 		return []string{"--start-time=" + strconv.FormatFloat(seconds, 'f', 1, 64), path}
 	case mpv:
 		return []string{"--start=" + strconv.FormatFloat(seconds, 'f', 1, 64), path}
+	case iina:
+		return []string{"--mpv-start=" + strconv.FormatFloat(seconds, 'f', 1, 64), path}
 	default:
 		return []string{path, "/start", strconv.FormatInt(int64(seconds*1000), 10)}
 	}

@@ -1,9 +1,11 @@
 // Package files opens search results: it hands a file to the right program or shows it in
-// Explorer, and refuses anything that is not inside a folder the launcher indexes.
+// the file manager (Explorer, Finder), and refuses anything that is not inside a folder the launcher indexes.
+//
+// Launching is the system's: shell_windows.go and shell_darwin.go (and players_*.go for sounds and videos).
 //
 // The rule that matters: a file is opened with its default program only if that is known to be
-// harmless (documents, pictures, sounds and videos). Windows' default action for a script (.js, .bat, .ps1,
-// .hta, ...) is to RUN it, and a code search result must never do that, so everything else
+// harmless (documents, pictures, sounds and videos). The default action for a script (.js, .bat, .ps1, .hta, ... on
+// Windows; .command, .sh, .app on a Mac) is to RUN it, and a code search result must never do that, so everything else
 // opens in a text editor.
 package files
 
@@ -11,17 +13,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-// opener launches programs; the Windows implementation is in shell_windows.go.
+// opener launches programs; newShell makes the one for this system.
 type opener interface {
-	// Default opens path with the program Windows has chosen for its type.
+	// Default opens path with the program the system has chosen for its type.
 	Default(path string) error
 	// Editor opens path in a text editor, at line if the editor supports it (line > 0).
 	Editor(path string, line int) error
-	// Reveal shows path selected in an Explorer window.
+	// Reveal shows path selected in a file manager window.
 	Reveal(path string) error
 	// SeekPlayer is the first installed program that can start a recording at a moment, if there is one.
 	SeekPlayer() (Player, bool)
@@ -40,7 +43,7 @@ type Service struct {
 // call, so folders added in the settings count at once). dismiss is called after a file has been
 // handed over, to close the search bar.
 func New(roots func() []string, dismiss func()) *Service {
-	return newService(roots, dismiss, windowsShell{})
+	return newService(roots, dismiss, newShell())
 }
 
 func newService(roots func() []string, dismiss func(), shell opener) *Service {
@@ -91,7 +94,7 @@ func (s *Service) SeekPlayer() string {
 	return ""
 }
 
-// Reveal shows a search result in Explorer.
+// Reveal shows a search result in the file manager.
 func (s *Service) Reveal(path string) error {
 	if err := s.check(path); err != nil {
 		return err
@@ -131,7 +134,7 @@ func inside(roots []string, path string) bool {
 	return false
 }
 
-// defaultAppExtensions are the types that are safe to hand to whatever Windows associates with
+// defaultAppExtensions are the types that are safe to hand to whatever the system associates with
 // them: documents and pictures. Macro-enabled Office types (.docm, .xlsm) and old binary Office
 // formats are not here on purpose.
 var defaultAppExtensions = map[string]bool{
@@ -143,4 +146,13 @@ var defaultAppExtensions = map[string]bool{
 
 func opensInDefaultApp(path string) bool {
 	return defaultAppExtensions[strings.ToLower(filepath.Ext(path))] || isMedia(path)
+}
+
+// start launches a program and lets it go: the launcher does not wait for editors.
+func start(cmd *exec.Cmd) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
