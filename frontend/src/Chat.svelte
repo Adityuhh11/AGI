@@ -446,23 +446,23 @@
       <form class="composer" onsubmit={(event) => { event.preventDefault(); submit(); }}>
         <LiquidRing speed={busy ? 1.5 : 0.6} running={focused || busy} metal={METALS[0]} radius={27} />
         <div class="plate">
-          {#if info?.thinking || info?.web_search}
-            <!-- What is switched on, where the person can see it and turn it off; the box itself stays clear. -->
-            <div class="pills">
-              {#if info?.thinking}
-                <button type="button" class="pill" title="Thinking is on. Click to turn it off" onclick={toggleThinking}>
-                  <Icon name="brain" size={13} />Think<Icon name="close" size={11} />
-                </button>
-              {/if}
-              {#if info?.web_search}
-                <button type="button" class="pill" title="Web search is on. Click to turn it off" onclick={toggleWeb}>
-                  <Icon name="web" size={13} />Web<Icon name="close" size={11} />
-                </button>
-              {/if}
-            </div>
-          {/if}
           <div class="line">
             <PlusMenu bind:open={menuOpen} thinking={info?.thinking ?? false} web={info?.web_search ?? false} disabled={off} onthinking={toggleThinking} onweb={toggleWeb} />
+            {#if info?.thinking || info?.web_search}
+              <!-- What is switched on, beside the + that switched it: a click turns it off. The box keeps its one row. -->
+              <div class="pills">
+                {#if info?.thinking}
+                  <button type="button" class="pill" title="Thinking is on. Click to turn it off" onclick={toggleThinking}>
+                    <Icon name="brain" size={14} />Think
+                  </button>
+                {/if}
+                {#if info?.web_search}
+                  <button type="button" class="pill" title="Web search is on. Click to turn it off" onclick={toggleWeb}>
+                    <Icon name="web" size={14} />Web
+                  </button>
+                {/if}
+              </div>
+            {/if}
             <textarea
               bind:this={box}
               bind:value={draft}
@@ -854,7 +854,6 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 4px;
     padding: 6px;
     border-radius: 26.5px;
     background: #0d0d0e;
@@ -865,26 +864,29 @@
     gap: 8px;
   }
   .pills {
+    flex: none;
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 4px 6px 0 8px;
+    align-items: center;
+    gap: 4px;
+    height: 34px; /* the height of the round buttons, so the pills sit level with them when the box grows */
   }
   .pill {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    height: 24px;
-    padding: 0 8px 0 8px;
+    height: 26px;
+    padding: 0 10px 0 8px;
     border: 0;
-    border-radius: 12px;
+    border-radius: 13px;
     background: var(--lift);
     color: var(--text-2);
-    font: 560 11.5px/1 var(--sans);
+    font: 560 12px/1 var(--sans);
     cursor: pointer;
+    --wails-draggable: no-drag;
   }
   .pill:hover {
     color: var(--text);
+    background: var(--tile);
   }
   .pill:focus-visible {
     outline: 1px solid var(--chrome);

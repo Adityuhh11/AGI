@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
-  import type { View } from "../../../bindings/omni/internal/settingsui";
+  import { OmniAI, Service as Settings } from "../../../bindings/omni/internal/settingsui";
+  import type { ClipboardView, NotesHotkeyView, OmniAIView, View } from "../../../bindings/omni/internal/settingsui";
   import HotkeyField from "./HotkeyField.svelte";
 
   let { view }: { view: View } = $props();
@@ -18,6 +18,12 @@
   // svelte-ignore state_referenced_locally
   let lift = $state(view.SelectionEffect);
   let browsers = $state<string[]>([]);
+  // The other hotkeys live on pages of their own services; they are shown here, beside the search bar's, and saved there.
+  let clipboard = $state<ClipboardView | null>(null);
+  let chat = $state<OmniAIView | null>(null);
+  let notes = $state<NotesHotkeyView | null>(null);
+  let keysOpen = $state(false);
+  const keysSet = $derived([view.Hotkey, clipboard?.Hotkey, chat?.Hotkey, notes?.Hotkey].filter(Boolean).length);
   let error = $state("");
   let saved = $state(false);
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -38,7 +44,12 @@
   const options = $derived(browser === "" || browsers.includes(browser) ? browsers : [browser, ...browsers]);
   const QUERY = "{q}";
 
+  async function loadHotkeys() {
+    [clipboard, chat, notes] = await Promise.all([Settings.Clipboard(), OmniAI.View(), Settings.NotesHotkey()]);
+  }
+
   onMount(async () => {
+    loadHotkeys();
     browsers = (await Settings.Browsers()) ?? [];
   });
 
@@ -63,6 +74,21 @@
     return refused;
   }
 
+  // Each field shows its own refusal; the page reloads the hotkeys so an error from startup goes away once the key works.
+  async function afterKey(refused: string): Promise<string> {
+    if (refused === "") {
+      await loadHotkeys();
+      flashSaved();
+    }
+    return refused;
+  }
+  const saveClipboardKey = async (accelerator: string) => {
+    const now = await Settings.Clipboard();
+    return afterKey(await Settings.SaveClipboard(now.Enabled, now.Ignore ?? [], accelerator));
+  };
+  const saveChatKey = async (accelerator: string) => afterKey(await OmniAI.SetHotkey(accelerator));
+  const saveNotesKey = async (accelerator: string) => afterKey(await Settings.SetNotesHotkey(accelerator));
+
   async function saveLift() {
     error = await Settings.SetSelectionEffect(lift);
     if (error !== "") lift = !lift;
@@ -77,13 +103,42 @@
 </script>
 
 <h2>General</h2>
-<p class="lede">The hotkey and where web searches open. Changes apply at once.</p>
+<p class="lede">Hotkeys, and where web searches open. Changes apply at once.</p>
 
-<div class="field">
-  <span class="label" id="hotkey-label">Hotkey</span>
-  <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
-  <p class="help">Opens the search bar from any app. Windows-key combinations cannot be recorded here; put them in config.toml.</p>
+<!-- Four hotkeys would fill the page: they are one list that opens from its heading. -->
+<div class="keys">
+  <button type="button" class="head" aria-expanded={keysOpen} aria-controls="hotkey-list" onclick={() => (keysOpen = !keysOpen)}>
+    <span class="chevron" class:open={keysOpen} aria-hidden="true"></span>Hotkeys
+    <span class="count">{keysSet} set</span>
+  </button>
+  {#if keysOpen}
+    <ul id="hotkey-list">
+      <li title="Opens the search bar from any app. A hotkey pressed again while its window is in front closes it.">
+        <span class="label" id="hotkey-label">Search bar</span>
+        <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
+      </li>
+      {#if clipboard && chat && notes}
+        <li title="Opens the bar already listing what you copied. Windows keeps Win+V for its own history.">
+          <span class="label" id="clip-hotkey-label">Clipboard history</span>
+          <HotkeyField labelId="clip-hotkey-label" value={clipboard.Hotkey} clearable onsave={saveClipboardKey} />
+        </li>
+        {#if clipboard.HotkeyError}<li class="error">{clipboard.HotkeyError}</li>{/if}
+        <li title="Opens the chat window.">
+          <span class="label" id="ai-hotkey-label">Omni AI</span>
+          <HotkeyField labelId="ai-hotkey-label" value={chat.Hotkey} clearable onsave={saveChatKey} />
+        </li>
+        {#if chat.HotkeyError}<li class="error">{chat.HotkeyError}</li>{/if}
+        <li title="Opens the notes window.">
+          <span class="label" id="notes-hotkey-label">Notes</span>
+          <HotkeyField labelId="notes-hotkey-label" value={notes.Hotkey} clearable onsave={saveNotesKey} />
+        </li>
+        {#if notes.Error}<li class="error">{notes.Error}</li>{/if}
+      {/if}
+    </ul>
+    <p class="help">Windows-key combinations cannot be recorded here; put them in config.toml.</p>
+  {/if}
 </div>
+
 
 <div class="field">
   <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
@@ -121,3 +176,79 @@
 
 {#if error}<p class="error">{error}</p>{/if}
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
+
+<style>
+  .keys {
+    margin-bottom: 22px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px 14px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: 560 13px/1.2 var(--sans);
+    text-align: left;
+    cursor: pointer;
+  }
+  .head:focus-visible {
+    outline: 1px solid var(--chrome);
+    outline-offset: -2px;
+    border-radius: 12px;
+  }
+  .chevron {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 4px 0 2px;
+    border-right: 1.5px solid var(--text-3);
+    border-bottom: 1.5px solid var(--text-3);
+    transform: rotate(-45deg);
+    transition: transform 0.12s;
+  }
+  .chevron.open {
+    transform: rotate(45deg);
+  }
+  .count {
+    margin-left: auto;
+    color: var(--text-3);
+    font-weight: 450;
+    font-size: 12px;
+  }
+  ul {
+    margin: 0;
+    padding: 0 14px 4px;
+    list-style: none;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line);
+  }
+  li.error {
+    padding-top: 0;
+    border-top: 0;
+    color: var(--danger);
+    font-size: 12px;
+  }
+  .label {
+    font: 560 13px/1.2 var(--sans);
+  }
+  .keys .help {
+    margin: 0;
+    padding: 0 14px 12px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chevron {
+      transition: none;
+    }
+  }
+</style>

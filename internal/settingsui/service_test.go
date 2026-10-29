@@ -102,6 +102,7 @@ type harness struct {
 	history         *fakeHistory
 	clipHotkeys     []string // every accelerator RebindClipboard was asked for, in order
 	clipHotkeyError string
+	noteHotkeys     []string // every accelerator RebindNotes was asked for, in order
 	updates         *fakeUpdates
 	openedURL       string
 	index           *fakeIndexing
@@ -151,15 +152,25 @@ func newHarness(t *testing.T, refuse ...string) *harness {
 			return nil
 		},
 		ClipboardHotkeyError: func() string { return h.clipHotkeyError },
-		Updates:              h.updates,
-		Installer:            h.installer,
-		ExePath:              "C:/app/omni.exe",
-		Restart:              func() error { h.restarts++; return h.restartErr },
-		OpenURL:              func(a string) error { h.openedURL = a; return nil },
-		Autostart:            func() bool { return h.startup },
-		SetAutostart:         func(on bool) error { h.startup = on; return nil },
-		LogDir:               `C:\logs`,
-		Version:              "test",
+		RebindNotes: func(a string) error {
+			h.noteHotkeys = append(h.noteHotkeys, a)
+			for _, r := range refuse {
+				if a == r {
+					return errors.New("the hotkey " + a + " cannot be used: taken")
+				}
+			}
+			return nil
+		},
+		NotesHotkeyError: func() string { return "" },
+		Updates:          h.updates,
+		Installer:        h.installer,
+		ExePath:          "C:/app/omni.exe",
+		Restart:          func() error { h.restarts++; return h.restartErr },
+		OpenURL:          func(a string) error { h.openedURL = a; return nil },
+		Autostart:        func() bool { return h.startup },
+		SetAutostart:     func(on bool) error { h.startup = on; return nil },
+		LogDir:           `C:\logs`,
+		Version:          "test",
 	})
 	return h
 }

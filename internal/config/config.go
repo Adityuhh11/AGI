@@ -44,6 +44,8 @@ type Config struct {
 	Timer Timer `toml:"timer"`
 	// Clipboard is the searchable history of what is copied (internal/clipboard).
 	Clipboard Clipboard `toml:"clipboard"`
+	// Notes is the notes window (internal/notes).
+	Notes Notes `toml:"notes"`
 	// Chat is the local language model and its chat window (internal/llm, internal/chat).
 	Chat Chat `toml:"chat"`
 	// Snippets are texts kept to be pasted from the bar (internal/snippets).
@@ -99,6 +101,12 @@ type Clipboard struct {
 	// managers the history already leaves out.
 	Ignore []string `toml:"ignore,omitempty"`
 	// Hotkey, if set, opens the bar already listing what was copied ("Ctrl+Shift+V"). Empty means there is none.
+	Hotkey string `toml:"hotkey,omitempty"`
+}
+
+// Notes holds the settings of the notes window.
+type Notes struct {
+	// Hotkey, if set, opens the notes from anywhere and closes them again ("Ctrl+Alt+N"). Empty means there is none.
 	Hotkey string `toml:"hotkey,omitempty"`
 }
 
@@ -283,8 +291,8 @@ func (c Config) Validate() error {
 	if err := c.validateChat(); err != nil {
 		return err
 	}
-	if c.Clipboard.Hotkey != "" && strings.EqualFold(strings.ReplaceAll(c.Clipboard.Hotkey, " ", ""), strings.ReplaceAll(c.Hotkey, " ", "")) {
-		return fmt.Errorf("the clipboard hotkey %q is the launcher's own hotkey", c.Clipboard.Hotkey)
+	if err := c.validateHotkeys(); err != nil {
+		return err
 	}
 	for _, program := range c.Clipboard.Ignore {
 		if strings.TrimSpace(program) == "" {
@@ -341,17 +349,29 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// validateHotkeys refuses one combination for two jobs: the second job to claim it is named, so the message says which to change.
+func (c Config) validateHotkeys() error {
+	jobs := []struct{ name, owner, keys string }{
+		{"launcher", "the launcher's own", c.Hotkey},
+		{"clipboard", "the clipboard's", c.Clipboard.Hotkey},
+		{"chat", "the chat's", c.Chat.Hotkey},
+		{"notes", "the notes'", c.Notes.Hotkey},
+	}
+	squeeze := func(keys string) string { return strings.ToLower(strings.ReplaceAll(keys, " ", "")) }
+	for i, job := range jobs {
+		for _, earlier := range jobs[:i] {
+			if job.keys != "" && squeeze(job.keys) == squeeze(earlier.keys) {
+				return fmt.Errorf("the %s hotkey %q is %s hotkey", job.name, job.keys, earlier.owner)
+			}
+		}
+	}
+	return nil
+}
+
 // validateChat checks the Omni AI settings.
 func (c Config) validateChat() error {
 	chat := c.Chat
-	same := func(a, b string) bool {
-		return a != "" && strings.EqualFold(strings.ReplaceAll(a, " ", ""), strings.ReplaceAll(b, " ", ""))
-	}
 	switch {
-	case same(chat.Hotkey, c.Hotkey):
-		return fmt.Errorf("the chat hotkey %q is the launcher's own hotkey", chat.Hotkey)
-	case same(chat.Hotkey, c.Clipboard.Hotkey):
-		return fmt.Errorf("the chat hotkey %q is the clipboard's hotkey", chat.Hotkey)
 	case !slices.Contains(ChatLoads, chat.Load):
 		return fmt.Errorf("chat load %q must be one of %s", chat.Load, strings.Join(ChatLoads, ", "))
 	case !slices.Contains(ChatUnloadMinutes, chat.UnloadAfterMinutes):

@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { Service as Settings } from "../../../bindings/omni/internal/settingsui";
   import type { ClipboardView } from "../../../bindings/omni/internal/settingsui";
-  import HotkeyField from "./HotkeyField.svelte";
 
   let page = $state<ClipboardView | null>(null);
   let enabled = $state(false);
@@ -35,16 +34,6 @@
     flashSaved();
   }
 
-  // The hotkey field shows its own refusal; the rest of the page is saved with it.
-  async function saveHotkey(accelerator: string): Promise<string> {
-    const refused = await Settings.SaveClipboard(enabled, ignore.split("\n"), accelerator);
-    if (refused === "") {
-      await load();
-      flashSaved();
-    }
-    return refused;
-  }
-
   async function clear() {
     clearing = false;
     error = await Settings.ClearClipboard();
@@ -65,13 +54,6 @@
       Nothing leaves it. Copies a program marks as private, such as a password manager's, are never kept. Text copied from a web page or a terminal
       can still hold a secret this cannot know about: clear the history if it does.
     </p>
-  </div>
-
-  <div class="field">
-    <span class="label" id="clip-hotkey-label">Hotkey</span>
-    <HotkeyField labelId="clip-hotkey-label" value={page.Hotkey} clearable onsave={saveHotkey} />
-    {#if page.HotkeyError}<p class="error">{page.HotkeyError}</p>{/if}
-    <p class="help">Optional: opens the bar already listing what you copied. Windows keeps Win+V for its own history.</p>
   </div>
 
   <div class="field">
