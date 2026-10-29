@@ -46,22 +46,16 @@ int omniPasteboardPrivate(void) {
 	}
 }
 
+// The frontmost application is read from whichever thread asks: these are called by the watcher every few hundred milliseconds, and a hop to the main
+// thread would wait on a run loop that a test binary does not have.
 char *omniFrontmostName(void) {
-	__block char *name = NULL;
-	onMain(^{
-		NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-		name = copyString(app.localizedName);
-	});
-	return name;
+	NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+	return copyString(app.localizedName);
 }
 
 int omniClipFrontmostPID(void) {
-	__block int pid = 0;
-	onMain(^{
-		NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-		pid = app ? app.processIdentifier : 0;
-	});
-	return pid;
+	NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
+	return app ? app.processIdentifier : 0;
 }
 
 int omniSecureInput(void) {
