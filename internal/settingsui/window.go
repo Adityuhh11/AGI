@@ -114,20 +114,17 @@ func (w *Window) OpenAt(section string) {
 		AlwaysOnTop:      w.spec.onTop && (w.onTop == nil || w.onTop()),
 		URL:              url,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 255),
-		Windows:          application.WindowsWindow{Theme: application.Dark},
 	}
 	if w.spec.card {
 		options.Frameless = true
 		options.BackgroundType = application.BackgroundTypeTransparent
 		options.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
-		options.Windows = application.WindowsWindow{DisableFramelessWindowDecorations: true}
 	}
 	if w.spec.overlay {
 		options.Frameless = true
 		options.DisableResize = true
 		options.BackgroundType = application.BackgroundTypeTransparent
 		options.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
-		options.Windows = application.WindowsWindow{HiddenOnTaskbar: true, DisableFramelessWindowDecorations: true}
 		if screen := w.app.Screen.GetPrimary(); screen != nil {
 			options.Screen = screen
 			options.InitialPosition = application.WindowXY
@@ -135,6 +132,7 @@ func (w *Window) OpenAt(section string) {
 			options.Y = screen.WorkArea.Height / 5
 		}
 	}
+	platformWindow(&options, w.spec)
 	win := w.app.Window.NewWithOptions(options)
 	if !w.spec.overlay { // the timer is a small overlay, not a window to switch to
 		dock.Counter.Opened()

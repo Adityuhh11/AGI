@@ -30,6 +30,8 @@ func platformWindow(options *application.WebviewWindowOptions) {
 			application.MacWindowCollectionBehaviorFullScreenAuxiliary |
 			application.MacWindowCollectionBehaviorIgnoresCycle,
 		DisableShadow: true,
+		// The page draws the whole bar on a clear window; without this the window has an opaque plate behind it.
+		Backdrop: application.MacBackdropTransparent,
 	}
 }
 
