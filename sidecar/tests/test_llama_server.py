@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from omni_memory.embedding.llama_server import LlamaServer, ServerError, choose_device
+from omni_memory.embedding.llama_server import METAL, LlamaServer, ServerError, choose_device
 
 HERE = Path(__file__).parent
 FAKE = [sys.executable, str(HERE / "fake_llama_server.py")]
@@ -55,6 +55,18 @@ def test_other_machines(lines, want):
 def test_garbage_listings_choose_nothing():
     assert choose_device("") is None
     assert choose_device("llama-server: error: unknown argument") is None
+
+
+@pytest.fixture(autouse=True)
+def vulkan_machine(request, monkeypatch):
+    """The tests below describe a Windows machine with Vulkan; the Mac ones say `on_a_mac`."""
+    if "on_a_mac" not in request.fixturenames:
+        monkeypatch.setattr(sys, "platform", "win32")
+
+
+@pytest.fixture
+def on_a_mac(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "darwin")
 
 
 @pytest.fixture
@@ -202,3 +214,16 @@ def test_the_server_dies_when_the_engine_is_killed_without_a_chance_to_clean_up(
         pytest.fail("the server outlived the engine that was killed")
     finally:
         engine.kill()
+
+
+def test_a_mac_always_chooses_metal_whatever_the_server_lists(on_a_mac):
+    assert choose_device("") == METAL
+    assert choose_device(listing("Vulkan1: NVIDIA RTX A2000 (6144 MiB, 6000 MiB free)")) == METAL
+
+
+def test_on_a_mac_every_layer_goes_to_the_gpu_and_no_device_is_named(on_a_mac, server, capsys):
+    s = server()
+    s.start()
+    out = capsys.readouterr().err
+    assert s.device == "metal" and health(s) == 200
+    assert "-ngl 99" in out and "--device" not in out

@@ -45,8 +45,16 @@ class ServerError(RuntimeError):
     """llama-server could not be started or kept running; the message carries what it printed."""
 
 
+# The one GPU of an Apple Silicon Mac. Its memory is the Mac's own, so there is no card to pick by
+# name and no video memory to fit into: the server runs every layer on the GPU and no `--device`.
+METAL = "metal"
+
+
 def choose_device(listing: str) -> str | None:
-    """The id (`Vulkan1`) of the discrete GPU in `--list-devices` output, or None for the CPU."""
+    """The device to start on: on a Mac `METAL`; elsewhere the id (`Vulkan1`) of the discrete GPU in
+    `--list-devices` output, or None for the CPU."""
+    if sys.platform == "darwin":
+        return METAL
     devices = [
         (m["id"], m["name"]) for line in listing.splitlines() if (m := _DEVICE_LINE.match(line))
     ]
@@ -114,6 +122,8 @@ class LlamaServer:
             process.wait()
 
     def _list_devices(self) -> str:
+        if sys.platform == "darwin":
+            return ""  # a Mac is not asked which devices it has (choose_device)
         try:
             done = subprocess.run(
                 [*self._exe, "--list-devices"],
@@ -147,11 +157,12 @@ class LlamaServer:
         port = _free_port()
         self.api_key = secrets.token_hex(16)
         self.url = f"http://127.0.0.1:{port}"
-        offload = (
-            ["-ngl", "99", "--device", device_id]
-            if device_id
-            else ["-ngl", "0", "--device", "none"]
-        )
+        if device_id is None:
+            offload = ["-ngl", "0", "--device", "none"]
+        elif device_id == METAL:
+            offload = ["-ngl", "99"]
+        else:
+            offload = ["-ngl", "99", "--device", device_id]
         command = [
             *self._exe,
             "-m",

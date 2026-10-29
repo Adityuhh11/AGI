@@ -1,4 +1,3 @@
-
 import pytest
 
 from omni_memory.config import ConfigError, Settings
