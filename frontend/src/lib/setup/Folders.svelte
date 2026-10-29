@@ -66,7 +66,12 @@
           <span class="name">{row.Name}</span>
         </label>
         <span class="path mono" title={row.Path}>{row.Path}</span>
-        {#if row.Checked && holds(row)}<span class="holds">{holds(row)}</span>{/if}
+        {#if row.Checked && row.Blocked}
+          <span class="holds">
+            macOS has not let Omni read this folder yet.
+            <button type="button" class="btn quiet" onclick={() => Settings.OpenFileAccessSettings()}>Open System Settings</button>
+          </span>
+        {:else if row.Checked && holds(row)}<span class="holds">{holds(row)}</span>{/if}
         {#each leftOut(row) as folder (folder)}
           <span class="out">
             Left out: <span class="mono">{folder}</span>

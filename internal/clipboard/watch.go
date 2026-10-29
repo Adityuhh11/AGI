@@ -29,7 +29,7 @@ type Clip struct {
 	Private bool
 }
 
-// Source is the clipboard as the watcher sees it. WindowsSource is the real one.
+// Source is the clipboard as the watcher sees it. NewSource makes the real one (source_windows.go, source_darwin.go).
 type Source interface {
 	// Sequence changes whenever anything is copied.
 	Sequence() uint32

@@ -38,7 +38,7 @@ func pin(url string, data []byte) enginesetup.Artifact {
 // withPins serves a fake llama.cpp zip and a fake model, points the package's pins at them and gives the test a Setup.
 func withPins(t *testing.T) (*Setup, chan error, *atomic.Int32) {
 	t.Helper()
-	llama := zipOf(t, map[string]string{"llama-server.exe": "server"})
+	llama := zipOf(t, map[string]string{serverName: "server"})
 	model := bytes.Repeat([]byte("m"), 50_000)
 	var asked atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

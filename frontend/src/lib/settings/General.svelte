@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isMac, words } from "../platform";
   import { onMount } from "svelte";
   import { OmniAI, Service as Settings } from "../../../bindings/omni/internal/settingsui";
   import type { ClipboardView, NotesHotkeyView, OmniAIView, View } from "../../../bindings/omni/internal/settingsui";
@@ -118,7 +119,7 @@
         <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
       </li>
       {#if clipboard && chat && notes}
-        <li title="Opens the bar already listing what you copied. Windows keeps Win+V for its own history.">
+        <li title={isMac ? "Opens the bar already listing what you copied." : "Opens the bar already listing what you copied. Windows keeps Win+V for its own history."}>
           <span class="label" id="clip-hotkey-label">Clipboard history</span>
           <HotkeyField labelId="clip-hotkey-label" value={clipboard.Hotkey} clearable onsave={saveClipboardKey} />
         </li>
@@ -135,14 +136,14 @@
         {#if notes.Error}<li class="error">{notes.Error}</li>{/if}
       {/if}
     </ul>
-    <p class="help">Windows-key combinations cannot be recorded here; put them in config.toml.</p>
+    {#if !isMac}<p class="help">Windows-key combinations cannot be recorded here; put them in config.toml.</p>{/if}
   {/if}
 </div>
 
 
 <div class="field">
   <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
-  <p class="help">The search bar is then ready as soon as Windows is. It starts quietly, with no window.</p>
+  <p class="help">The search bar is then ready as soon as {isMac ? "your Mac" : "Windows"} is. It starts quietly, with no window.</p>
 </div>
 
 <div class="field">
@@ -153,7 +154,7 @@
 <div class="field">
   <label class="label" for="browser">Browser for web searches and links</label>
   <select id="browser" bind:value={browser} onchange={() => save()}>
-    <option value="">Windows default browser</option>
+    <option value="">{words().defaultBrowser}</option>
     {#each options as name (name)}
       <option value={name}>{NAMES[name] ?? name}</option>
     {/each}

@@ -19,6 +19,7 @@
   const roots = $derived(view.Roots ?? []);
 
   const folderText = $derived(Object.fromEntries((search?.Folders ?? []).map((f) => [f.Root, f.Text])));
+  const refused = $derived(new Set((search?.Folders ?? []).filter((f) => f.Blocked).map((f) => f.Root)));
   const holds = $derived(Object.fromEntries((search?.Surveys ?? []).map((f) => [f.Root, surveyLine(f)])));
 
   // On an index that exists a click only changes the draft; "Save and re-index" is what starts the work. Before anything
@@ -206,6 +207,9 @@
           <span class="where">
             <span class="path mono" title={root}>{root}</span>
             {#if folderText[root]}<span class="state">{folderText[root]}</span>{/if}
+            {#if refused.has(root)}
+              <button type="button" class="btn quiet" onclick={() => Settings.OpenFileAccessSettings()}>Open System Settings</button>
+            {/if}
             {#if holds[root]}<span class="state">{holds[root]}</span>{/if}
           </span>
           {#if confirming === root}

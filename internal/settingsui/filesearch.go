@@ -61,6 +61,8 @@ type FolderView struct {
 	Root  string
 	State string // waiting, indexing, uptodate or failed
 	Text  string
+	// Blocked says the system has not let Omni read the folder (a Mac asks for each protected one); Text then says what to do.
+	Blocked bool
 }
 
 // Search returns the File search page; the window asks again every second or two.
@@ -187,7 +189,24 @@ func (s *Service) AddFolder() string {
 		return ""
 	}
 	folder = filepath.Clean(folder)
-	return reason(s.o.Store.Update(func(c *config.Config) { c.Roots = append(c.Roots, folder) }))
+	msg := reason(s.o.Store.Update(func(c *config.Config) { c.Roots = append(c.Roots, folder) }))
+	if msg == "" {
+		s.ask([]string{folder})
+	}
+	return msg
+}
+
+// OpenFileAccessSettings opens the page of the system's settings where the person lets Omni read a folder it was refused. It is for a Mac; Windows has no such page.
+func (s *Service) OpenFileAccessSettings() string { return reason(openAccessSettings()) }
+
+// ask reads each folder once, one after the other and in the background. On a Mac the first read of a protected folder makes the system ask the person,
+// with the folder's name in the question, so asking while the person is adding the folder is when the question makes sense; asked one at a time the questions do not pile up.
+func (s *Service) ask(folders []string) {
+	go func() {
+		for _, folder := range folders {
+			s.blocked(folder)
+		}
+	}()
 }
 
 // RemoveFolder stops indexing a folder and drops what it held from the index. Exclusions inside it go too.
@@ -239,6 +258,8 @@ func (s *Service) folders(engineState string, hold bool) []FolderView {
 	for _, f := range s.o.Indexing.Folders() {
 		view := FolderView{Root: f.Root, State: string(f.State)}
 		switch {
+		case s.isBlocked(f.Root):
+			view.Blocked, view.Text = true, blockedText
 		case engineState == "off":
 			view.State, view.Text = "waiting", "Waits for file search to be turned on"
 		case hold:

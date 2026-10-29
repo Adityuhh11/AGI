@@ -1,11 +1,13 @@
 // Package apps knows which applications are installed, finds them as the user types, and starts them.
 //
-// The list comes from Windows itself: everything the Start Menu shows (desktop programs, Store apps
-// and games), as `Get-StartApps` reports it. It is kept in memory, cached on disk so it is there before
-// the first keystroke, and refreshed in the background, so a keystroke never waits for Windows.
+// The list comes from the system itself. On Windows it is everything the Start Menu shows (desktop programs, Store apps
+// and games), as `Get-StartApps` reports it (list_windows.go); on a Mac it is the .app bundles in the applications folders
+// (list_darwin.go). It is kept in memory, cached on disk so it is there before the first keystroke, and refreshed in the
+// background, so a keystroke never waits for the system.
 package apps
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"sync"
@@ -14,10 +16,13 @@ import (
 	"omni/internal/rank"
 )
 
-// App is one entry of the Start Menu.
+// ErrGone means the app was uninstalled since the list was made.
+var ErrGone = errors.New("it is no longer installed")
+
+// App is one installed application.
 type App struct {
-	// ID is what Windows calls the entry (its AppUserModelID, or the path of its executable); it is
-	// stable across refreshes, so history and tags can hang on it.
+	// ID is what the system calls the entry (on Windows its AppUserModelID, or the path of its executable; on a Mac the path of
+	// its bundle); it is stable across refreshes, so history and tags can hang on it.
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }

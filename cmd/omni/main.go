@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -57,6 +56,9 @@ import (
 var version = "dev"
 
 func main() {
+	if runHelper() {
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == removeDataFlag {
 		if err := runRemoveData(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -64,12 +66,8 @@ func main() {
 		}
 		return
 	}
-	if cfgDir, err := os.UserConfigDir(); err == nil {
-		if cacheDir, err := os.UserCacheDir(); err == nil {
-			if err := migrateFromAGI(cfgDir, cacheDir); err != nil {
-				fmt.Fprintln(os.Stderr, err) // the log is not open yet; the program still starts, with settings of its own
-			}
-		}
+	if err := migrateEarlierVersions(); err != nil {
+		fmt.Fprintln(os.Stderr, err) // the log is not open yet; the program still starts, with settings of its own
 	}
 	closeLog := setUpLog()
 	defer closeLog()
@@ -82,14 +80,13 @@ func main() {
 
 const maxLogBytes = 5 << 20
 
-// setUpLog sends the log to the file omni.log under %LOCALAPPDATA%\Omni\logs as well as to the
+// setUpLog sends the log to the file omni.log in config.LogDir() as well as to the
 // console, if there is one: the release build has no console window, so the file is the only record.
 func setUpLog() (closeLog func()) {
-	dir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	logDir, err := config.LogDir()
 	if err != nil {
 		return func() {}
 	}
-	logDir := filepath.Join(dir, "Omni", "logs")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return func() {}
 	}
@@ -153,13 +150,17 @@ func run(afterUpdate bool) error {
 
 	// A second launch (the shortcut clicked again) does not start a second launcher or engine: it
 	// exits right inside application.New and the running one shows the search bar instead.
-	cacheDir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	dataDir, err := config.DataDir()
 	if err != nil {
-		return fmt.Errorf("locate the cache directory: %w", err)
+		return err
+	}
+	logDir, err := config.LogDir()
+	if err != nil {
+		return err
 	}
 	var bar *panel.Panel
-	iconDir := filepath.Join(cacheDir, "Omni", "icons")
-	catalog := apps.NewCatalog(filepath.Join(cacheDir, "Omni", "apps.json"), iconDir)
+	iconDir := filepath.Join(dataDir, "icons")
+	catalog := apps.NewCatalog(filepath.Join(dataDir, "apps.json"), iconDir)
 	// Everything below that needs the indexed folders asks the store when it needs them, so folders
 	// added in the settings count at once.
 	roots := func() []string { return store.Get().Roots }
@@ -170,9 +171,9 @@ func run(afterUpdate bool) error {
 		}
 		return byID
 	}
-	thumbnails := files.Thumbnails(roots, filepath.Join(cacheDir, "Omni", "thumbs"))
+	thumbnails := files.Thumbnails(roots, filepath.Join(dataDir, "thumbs"))
 	icons := apps.Icons(catalog.Index, iconDir)
-	app := application.New(application.Options{
+	options := application.Options{
 		Name: "Omni",
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -181,16 +182,14 @@ func run(afterUpdate bool) error {
 				return thumbnails(icons(next))
 			},
 		},
-		// The page never sees Alt+Space (Windows takes it as the system-menu key), so the settings'
-		// hotkey field hears about it from here. Emitting from a goroutine keeps the window procedure free.
-		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.KeyMenuFilter(func(accelerator string) {
-			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
-		})},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               instanceID(),
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
 		},
-	})
+	}
+	platformOptions(&options)
+	app := application.New(options)
+	platformSetup(app)
 
 	// The engine dies with the launcher, even if the launcher is killed from the task manager.
 	if err := sidecar.KillWithLauncher(); err != nil {
@@ -276,7 +275,7 @@ func run(afterUpdate bool) error {
 
 	// What was copied is kept only while the history is switched on in the settings. Its own copies (a paste,
 	// "copy path") carry this program's name and are not kept.
-	clipStore, err := clipboard.OpenStore(filepath.Join(cacheDir, "Omni", "clipboard.json"))
+	clipStore, err := clipboard.OpenStore(filepath.Join(dataDir, "clipboard.json"))
 	if err != nil {
 		return err
 	}
@@ -286,14 +285,14 @@ func run(afterUpdate bool) error {
 	}
 	clipEnabled := func() bool { return store.Get().Clipboard.Enabled }
 	clips := clipboard.NewManager(clipStore,
-		clipboard.NewWatcher(clipboard.WindowsSource{}, clipStore, clipEnabled,
+		clipboard.NewWatcher(clipboard.NewSource(), clipStore, clipEnabled,
 			func() []string { return store.Get().Clipboard.Ignore }, strings.TrimSuffix(filepath.Base(self), ".exe")),
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		clipEnabled)
 	bar.OnShow = clips.Poll // a copy a moment before the bar opened is in the list
 	snips := snippets.New(func() []config.Snippet { return store.Get().Snippets },
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
-		func() string { clip, _ := (clipboard.WindowsSource{}).Read(); return clip.Text })
+		func() string { clip, _ := clipboard.NewSource().Read(); return clip.Text })
 	settingsWindow := settingsui.NewWindow(app)
 	setupWindow := settingsui.NewSetupWindow(app)
 	notesWindow := settingsui.NewNotesWindow(app)
@@ -401,7 +400,7 @@ func run(afterUpdate bool) error {
 		application.NewService(opener),
 		application.NewService(palette.With(palette.New(catalog, history, browser, opener, clips, snips, func(section string) { settingsWindow.OpenAt(section) }, bar.HideForLaunch), palette.Extras{
 			Copy: func(text string) error {
-				if !app.Clipboard.SetText(text) {
+				if !clipboard.OwnCopy(func() bool { return app.Clipboard.SetText(text) }) { // the history must not keep what this program copied
 					return errors.New("the clipboard is in use by another program; try again")
 				}
 				return nil
@@ -434,7 +433,7 @@ func run(afterUpdate bool) error {
 			ClearHistory: func() error { _, err := chatSvc.ClearHistory(); return err },
 			RebindHotkey: func(accelerator string) error { return chatKey.Rebind(accelerator, toggleChat) },
 			HotkeyError:  chatKey.Error,
-			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			OpenFolder:   openFolder,
 		})),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
@@ -447,14 +446,14 @@ func run(afterUpdate bool) error {
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
 			},
 			Browsers:             web.Installed,
-			OpenFolder:           func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			OpenFolder:           openFolder,
 			Clipboard:            clips,
 			RebindClipboard:      func(accelerator string) error { return bar.RebindFill(accelerator, "clip: ") },
 			ClipboardHotkeyError: bar.FillError,
 			RebindNotes:          func(accelerator string) error { return notesKey.Rebind(accelerator, notesWindow.Toggle) },
 			NotesHotkeyError:     notesKey.Error,
 			Updates:              checker,
-			Installer:            update.NewInstaller(filepath.Join(cacheDir, "Omni", "update")),
+			Installer:            update.NewInstaller(filepath.Join(dataDir, "update")),
 			ExePath:              self,
 			Restart: func() error {
 				if err := update.StartNew(self, os.Getpid()); err != nil {
@@ -469,7 +468,7 @@ func run(afterUpdate bool) error {
 			Autostart:    autostart.Enabled,
 			SetAutostart: autostart.Set,
 			Engine:       engine.Status,
-			LogDir:       filepath.Join(cacheDir, "Omni", "logs"),
+			LogDir:       logDir,
 			Place:        setup,
 			Version:      version,
 		})),
@@ -628,7 +627,7 @@ func run(afterUpdate bool) error {
 		// The list of installed apps is served from its cache at once and rebuilt in the background,
 		// again whenever a program is installed or removed.
 		go catalog.Run(ctx)
-		go watcher.Watch(ctx, apps.StartMenuFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
+		go watcher.Watch(ctx, apps.WatchedFolders(), 3*time.Second, 30*time.Second, func(string) { catalog.Refresh() })
 		watchFolders(cfg.Roots)
 	})
 

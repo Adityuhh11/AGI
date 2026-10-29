@@ -17,14 +17,14 @@ import (
 const refreshEvery = 24 * time.Hour
 
 // Catalog keeps an Index true to what is installed: it loads the last list from disk, then rebuilds it
-// from Windows in the background.
+// from the system in the background.
 type Catalog struct {
 	// Index is what searches read.
 	Index *Index
 
 	cache string
 	icons string                                    // where icons are cached; empty to not warm them
-	list  func(ctx context.Context) ([]byte, error) // Get-StartApps as JSON; tests replace it
+	list  func(ctx context.Context) ([]App, error) // what the system lists as installed (list_windows.go, list_darwin.go); tests replace it
 	alive func([]App) []App                        // drops entries whose file is gone; tests replace it, because that depends on the machine
 	now   func() time.Time
 	poke  chan struct{}
@@ -34,7 +34,7 @@ type Catalog struct {
 // NewCatalog returns a catalog that caches its list in the file cache and the icons of its apps in the
 // folder icons.
 func NewCatalog(cache, icons string) *Catalog {
-	return &Catalog{Index: &Index{}, cache: cache, icons: icons, list: startApps, alive: withoutDead, now: time.Now, poke: make(chan struct{}, 1)}
+	return &Catalog{Index: &Index{}, cache: cache, icons: icons, list: list, alive: withoutDead, now: time.Now, poke: make(chan struct{}, 1)}
 }
 
 // warmIcons makes the icons of the current list in the background, one pass at a time.
@@ -81,18 +81,17 @@ func (c *Catalog) Run(ctx context.Context) {
 	}
 }
 
-// rebuild reads the list from Windows. A failure keeps the list there was.
+// rebuild asks the system for the list. A failure keeps the list there was.
 func (c *Catalog) rebuild(ctx context.Context) {
 	start := time.Now()
-	data, err := c.list(ctx)
+	apps, err := c.list(ctx)
 	if err != nil {
 		log.Printf("apps: could not list the installed apps: %v", err)
 		return
 	}
-	apps, err := parse(data)
 	apps = c.alive(apps)
-	if err != nil || len(apps) == 0 {
-		log.Printf("apps: the list from Windows was unusable (%d apps, error %v); keeping the old one", len(apps), err)
+	if len(apps) == 0 {
+		log.Print("apps: the system listed no apps; keeping the old list")
 		return
 	}
 	c.Index.Set(apps)

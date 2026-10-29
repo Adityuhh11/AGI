@@ -6,6 +6,7 @@ import (
 	"omni/internal/config"
 	"omni/internal/indexing"
 	"omni/internal/sidecar"
+	"omni/internal/testpath"
 )
 
 func infoFor(cfg config.Config, engine sidecar.State, index indexing.State) Info {
@@ -19,7 +20,7 @@ func infoFor(cfg config.Config, engine sidecar.State, index indexing.State) Info
 
 func TestInfoReportsTheCurrentSettings(t *testing.T) {
 	cfg := config.Default()
-	cfg.Hotkey, cfg.Roots, cfg.Search.Enabled = "Ctrl+Alt+K", []string{`C:\Docs`}, true
+	cfg.Hotkey, cfg.Roots, cfg.Search.Enabled = "Ctrl+Alt+K", []string{testpath.P(`C:\Docs`)}, true
 	got := infoFor(cfg, sidecar.StateReady, indexing.UpToDate)
 	if got.Hotkey != "Ctrl+Alt+K" || len(got.Roots) != 1 || !got.FileSearch || got.Engine != "ready" {
 		t.Fatalf("got %+v", got)

@@ -12,6 +12,7 @@ import (
 
 	"omni/internal/config"
 	"omni/internal/sidecar"
+	"omni/internal/testpath"
 )
 
 // fakeEngine answers like the real one: each job needs two checks to finish.
@@ -126,7 +127,7 @@ func runOnce(t *testing.T, engine Engine, roots []string) (*Manager, bool) {
 
 func TestCycleSyncsRootsInOrderAndTotalsThem(t *testing.T) {
 	fake := newFake()
-	roots := []string{`C:\a`, `C:\b`}
+	roots := []string{testpath.P(`C:\a`), testpath.P(`C:\b`)}
 	m, ok := runOnce(t, fake, roots)
 	if !ok {
 		t.Fatalf("cycle failed: %v", m.Status())
@@ -141,8 +142,8 @@ func TestCycleSyncsRootsInOrderAndTotalsThem(t *testing.T) {
 }
 
 func TestCycleForgetsSourcesThatAreNoLongerConfigured(t *testing.T) {
-	fake := newFake(sidecar.Source{ID: "root-old", Root: `C:\old`, Files: 9, Chunks: 99})
-	m, ok := runOnce(t, fake, []string{`C:\a`})
+	fake := newFake(sidecar.Source{ID: "root-old", Root: testpath.P(`C:\old`), Files: 9, Chunks: 99})
+	m, ok := runOnce(t, fake, []string{testpath.P(`C:\a`)})
 	if !ok || len(fake.deleted) != 1 || fake.deleted[0] != "root-old" {
 		t.Fatalf("deleted %v, status %+v", fake.deleted, m.Status())
 	}
@@ -152,17 +153,17 @@ func TestCycleForgetsSourcesThatAreNoLongerConfigured(t *testing.T) {
 }
 
 func TestARootThatWasDeletedIsForgottenAndNotSynced(t *testing.T) {
-	fake := newFake(sidecar.Source{ID: config.SourceID(`C:\gone`), Root: `C:\gone`, Files: 9, Chunks: 99})
-	m := New(fake, []string{`C:\gone`, `C:\kept`}, func() bool { return true }, nil)
+	fake := newFake(sidecar.Source{ID: config.SourceID(testpath.P(`C:\gone`)), Root: testpath.P(`C:\gone`), Files: 9, Chunks: 99})
+	m := New(fake, []string{testpath.P(`C:\gone`), testpath.P(`C:\kept`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
-	m.deleted = func(root string) bool { return root == `C:\gone` }
+	m.deleted = func(root string) bool { return root == testpath.P(`C:\gone`) }
 	if !m.cycle(context.Background(), nil) {
 		t.Fatalf("cycle failed: %v", m.Status())
 	}
-	if len(fake.deleted) != 1 || fake.deleted[0] != config.SourceID(`C:\gone`) {
+	if len(fake.deleted) != 1 || fake.deleted[0] != config.SourceID(testpath.P(`C:\gone`)) {
 		t.Errorf("deleted sources %v, want the removed folder's", fake.deleted)
 	}
-	if len(fake.submitted) != 1 || fake.submitted[0] != `C:\kept` {
+	if len(fake.submitted) != 1 || fake.submitted[0] != testpath.P(`C:\kept`) {
 		t.Errorf("submitted %v, want only the kept root", fake.submitted)
 	}
 	if got := m.Status().Chunks; got != 10 {
@@ -195,7 +196,7 @@ func TestWasDeleted(t *testing.T) {
 func TestCycleWaitsForARunningJobThenSubmits(t *testing.T) {
 	fake := newFake()
 	fake.busyWith = "job-leftover"
-	m, ok := runOnce(t, fake, []string{`C:\a`})
+	m, ok := runOnce(t, fake, []string{testpath.P(`C:\a`)})
 	if !ok || len(fake.submitted) != 1 {
 		t.Fatalf("submitted %v, status %+v", fake.submitted, m.Status())
 	}
@@ -203,8 +204,8 @@ func TestCycleWaitsForARunningJobThenSubmits(t *testing.T) {
 
 func TestOneFailingRootDoesNotStopTheOthers(t *testing.T) {
 	fake := newFake()
-	fake.failRoot = `C:\a`
-	m, ok := runOnce(t, fake, []string{`C:\a`, `C:\b`})
+	fake.failRoot = testpath.P(`C:\a`)
+	m, ok := runOnce(t, fake, []string{testpath.P(`C:\a`), testpath.P(`C:\b`)})
 	if ok {
 		t.Fatal("cycle reported success")
 	}
@@ -218,7 +219,7 @@ func TestOneFailingRootDoesNotStopTheOthers(t *testing.T) {
 
 func TestRunSyncsAgainOnRescan(t *testing.T) {
 	fake := newFake()
-	m := New(fake, []string{`C:\a`}, func() bool { return true }, nil)
+	m := New(fake, []string{testpath.P(`C:\a`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	ctx, cancel := context.WithCancel(context.Background())
@@ -237,7 +238,7 @@ func TestRunSyncsAgainOnRescan(t *testing.T) {
 }
 
 func TestStatusText(t *testing.T) {
-	root := `C:\dev\Sample Data`
+	root := testpath.P(`C:\dev\Sample Data`)
 	tests := []struct {
 		status Status
 		want   string
@@ -267,7 +268,7 @@ func waitFor(t *testing.T, condition func() bool) {
 
 func TestAChangedFolderIsSyncedAloneAndAnUnchangedOneIsLeftBe(t *testing.T) {
 	fake := newFake()
-	roots := []string{`C:\a`, `C:\b`, `C:\c`}
+	roots := []string{testpath.P(`C:\a`), testpath.P(`C:\b`), testpath.P(`C:\c`)}
 	m := New(fake, roots, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
@@ -283,18 +284,18 @@ func TestAChangedFolderIsSyncedAloneAndAnUnchangedOneIsLeftBe(t *testing.T) {
 	}
 	waitFor(t, func() bool { return len(submitted()) == 3 }) // the first, full sync
 
-	m.Changed(`C:\b`)
+	m.Changed(testpath.P(`C:\b`))
 	waitFor(t, func() bool { return len(submitted()) == 4 })
-	m.Changed(`C:\b`)
-	m.Changed(`C:\c`)
+	m.Changed(testpath.P(`C:\b`))
+	m.Changed(testpath.P(`C:\c`))
 	waitFor(t, func() bool { return len(submitted()) >= 5 })
 	time.Sleep(50 * time.Millisecond) // nothing else may follow
 	got := submitted()
-	if got[3] != `C:\b` || len(got) > 6 {
+	if got[3] != testpath.P(`C:\b`) || len(got) > 6 {
 		t.Fatalf("submitted %v: after the full sync only the changed roots may be synced", got)
 	}
 	for _, root := range got[3:] {
-		if root == `C:\a` {
+		if root == testpath.P(`C:\a`) {
 			t.Fatalf("the unchanged root was synced again: %v", got)
 		}
 	}
@@ -307,7 +308,7 @@ func TestABackgroundSyncDoesNotFlashWaitingForTheEngine(t *testing.T) {
 	fake := newFake()
 	var states []State
 	var mu sync.Mutex
-	m := New(fake, []string{`C:\a`}, func() bool { return true }, func(s Status) {
+	m := New(fake, []string{testpath.P(`C:\a`)}, func() bool { return true }, func(s Status) {
 		mu.Lock()
 		defer mu.Unlock()
 		states = append(states, s.State)
@@ -318,7 +319,7 @@ func TestABackgroundSyncDoesNotFlashWaitingForTheEngine(t *testing.T) {
 	mu.Lock()
 	states = nil
 	mu.Unlock()
-	m.cycle(context.Background(), map[string]bool{`C:\a`: true})
+	m.cycle(context.Background(), map[string]bool{testpath.P(`C:\a`): true})
 	mu.Lock()
 	defer mu.Unlock()
 	for _, s := range states {
@@ -329,10 +330,10 @@ func TestABackgroundSyncDoesNotFlashWaitingForTheEngine(t *testing.T) {
 }
 
 func TestAFullSyncCoversWhatWasReportedBeforeIt(t *testing.T) {
-	m := New(newFake(), []string{`C:\a`}, func() bool { return true }, nil)
+	m := New(newFake(), []string{testpath.P(`C:\a`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
-	m.Changed(`C:\a`)
+	m.Changed(testpath.P(`C:\a`))
 	m.cycle(context.Background(), nil)
 	if left := m.takeDirty(); len(left) != 0 {
 		t.Errorf("a full sync left %v marked as changed", left)
@@ -341,24 +342,24 @@ func TestAFullSyncCoversWhatWasReportedBeforeIt(t *testing.T) {
 
 func TestExcludedFoldersGoToTheEngineRelativeToTheirOwnRoot(t *testing.T) {
 	fake := newFake()
-	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
+	m := New(fake, []string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
-	m.SetFolders([]string{`C:\a`, `C:\b`}, []string{`C:\a\vendor\skills`, `C:\b\old`})
+	m.SetFolders([]string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, []string{testpath.P(`C:\a\vendor\skills`), testpath.P(`C:\b\old`)})
 	if !m.cycle(context.Background(), nil) {
 		t.Fatalf("cycle failed: %v", m.Status())
 	}
-	if got := fake.excluded[`C:\a`]; len(got) != 1 || got[0] != "vendor/skills" {
+	if got := fake.excluded[testpath.P(`C:\a`)]; len(got) != 1 || got[0] != "vendor/skills" {
 		t.Errorf("root a was told to exclude %v", got)
 	}
-	if got := fake.excluded[`C:\b`]; len(got) != 1 || got[0] != "old" {
+	if got := fake.excluded[testpath.P(`C:\b`)]; len(got) != 1 || got[0] != "old" {
 		t.Errorf("root b was told to exclude %v", got)
 	}
 }
 
 func TestEverySyncCarriesTheIndexOptions(t *testing.T) {
 	fake := newFake()
-	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
+	m := New(fake, []string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	want := sidecar.IndexOptions{PDFPages: "text", Photos: "name", Videos: "content"}
@@ -389,13 +390,13 @@ func TestTheRetryPauseDoublesWithEachFailureUpToALimit(t *testing.T) {
 
 func TestSetFoldersChangesWhatIsIndexedAndDropsWhatIsNoLongerListed(t *testing.T) {
 	fake := newFake()
-	m := New(fake, []string{`C:\a`, `C:\b`}, func() bool { return true }, nil)
+	m := New(fake, []string{testpath.P(`C:\a`), testpath.P(`C:\b`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	if !m.cycle(context.Background(), nil) {
 		t.Fatalf("first cycle failed: %v", m.Status())
 	}
-	m.SetFolders([]string{`C:\b`, `C:\c`}, nil)
+	m.SetFolders([]string{testpath.P(`C:\b`), testpath.P(`C:\c`)}, nil)
 	select {
 	case <-m.rescan:
 	default:
@@ -404,10 +405,10 @@ func TestSetFoldersChangesWhatIsIndexedAndDropsWhatIsNoLongerListed(t *testing.T
 	if !m.cycle(context.Background(), nil) {
 		t.Fatalf("second cycle failed: %v", m.Status())
 	}
-	if _, kept := fake.sources[config.SourceID(`C:\a`)]; kept {
+	if _, kept := fake.sources[config.SourceID(testpath.P(`C:\a`))]; kept {
 		t.Error("the folder that was taken out of the list is still in the index")
 	}
-	if _, added := fake.sources[config.SourceID(`C:\c`)]; !added {
+	if _, added := fake.sources[config.SourceID(testpath.P(`C:\c`))]; !added {
 		t.Error("the folder that was added was not indexed")
 	}
 }
@@ -423,13 +424,13 @@ func TestTheSpeedsAreMeasuredDutiesAndAnUnknownOneIsBalanced(t *testing.T) {
 func TestPausingAndResumingTellTheEngineAndReportInTheStatus(t *testing.T) {
 	fake := newFake()
 	var changes int
-	m := New(fake, []string{`C:\a`}, func() bool { return true }, func(Status) { changes++ })
+	m := New(fake, []string{testpath.P(`C:\a`)}, func() bool { return true }, func(Status) { changes++ })
 	m.Pause()
 	m.Pause() // asking again changes nothing
 	if !m.Status().Paused || !fake.paused || fake.pauseCalls != 1 || changes != 1 {
 		t.Fatalf("paused %v, engine paused %v, %d pause calls, %d changes", m.Status().Paused, fake.paused, fake.pauseCalls, changes)
 	}
-	if got := (Status{State: Indexing, Root: `C:\a`, FilesTotal: 3, Paused: true}).String(); got != "Indexing paused" {
+	if got := (Status{State: Indexing, Root: testpath.P(`C:\a`), FilesTotal: 3, Paused: true}).String(); got != "Indexing paused" {
 		t.Fatalf("status line = %q", got)
 	}
 	m.Resume()
@@ -441,7 +442,7 @@ func TestPausingAndResumingTellTheEngineAndReportInTheStatus(t *testing.T) {
 func TestAnEngineThatIsNotUpYetIsToldTheSpeedAndThePauseWhenTheSyncStarts(t *testing.T) {
 	fake := newFake()
 	up := false
-	m := New(fake, []string{`C:\a`}, func() bool { return up }, nil)
+	m := New(fake, []string{testpath.P(`C:\a`)}, func() bool { return up }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	m.SetPace("gentle")
@@ -460,8 +461,8 @@ func TestAnEngineThatIsNotUpYetIsToldTheSpeedAndThePauseWhenTheSyncStarts(t *tes
 
 func TestEachFolderSaysWhereItIs(t *testing.T) {
 	fake := newFake()
-	fake.failRoot = `C:\bad`
-	m := New(fake, []string{`C:\good`, `C:\bad`}, func() bool { return true }, nil)
+	fake.failRoot = testpath.P(`C:\bad`)
+	m := New(fake, []string{testpath.P(`C:\good`), testpath.P(`C:\bad`)}, func() bool { return true }, nil)
 	m.poll = time.Millisecond
 	m.deleted = func(string) bool { return false }
 	before := m.Folders()
@@ -470,14 +471,14 @@ func TestEachFolderSaysWhereItIs(t *testing.T) {
 	}
 	m.cycle(context.Background(), nil)
 	got := m.Folders()
-	if got[0].Root != `C:\good` || got[0].State != UpToDate || got[0].Files != 3 || got[0].Chunks != 10 {
+	if got[0].Root != testpath.P(`C:\good`) || got[0].State != UpToDate || got[0].Files != 3 || got[0].Chunks != 10 {
 		t.Errorf("the good folder: %+v", got[0])
 	}
-	if got[1].Root != `C:\bad` || got[1].State != Failed || got[1].Message == "" {
+	if got[1].Root != testpath.P(`C:\bad`) || got[1].State != Failed || got[1].Message == "" {
 		t.Errorf("the failing folder: %+v", got[1])
 	}
-	m.SetFolders([]string{`C:\good`}, nil)
-	if after := m.Folders(); len(after) != 1 || after[0].Root != `C:\good` {
+	m.SetFolders([]string{testpath.P(`C:\good`)}, nil)
+	if after := m.Folders(); len(after) != 1 || after[0].Root != testpath.P(`C:\good`) {
 		t.Errorf("after removing a folder: %+v", after)
 	}
 }

@@ -245,7 +245,7 @@ func (s *Server) start(ctx context.Context) (Endpoint, sidecar.Process, <-chan e
 		if err != nil {
 			s.o.Logf("chat: %v; using the processor", err)
 		}
-		if id := ChooseDevice(listing); id != "" {
+		if id := chooseDevice(listing); id != "" {
 			attempts = []string{id, ""}
 		}
 	}
@@ -279,7 +279,7 @@ func (s *Server) launch(ctx context.Context, l Layout, deviceID string) (Endpoin
 	offload := []string{"-ngl", "0", "--device", "none"}
 	device := "cpu"
 	if deviceID != "" {
-		offload, device = []string{"-ngl", "99", "--device", deviceID}, "gpu"
+		offload, device = gpuArgs(deviceID), "gpu"
 	}
 	args := append([]string{
 		"-m", l.ModelFile(),

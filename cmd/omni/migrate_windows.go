@@ -50,3 +50,16 @@ func migrateFromAGI(configDir, cacheDir string) error {
 	}
 	return nil
 }
+
+// migrateEarlierVersions is what main runs at start: Windows builds up to 0.9.0 were called AGI (docs/RELEASING.md).
+func migrateEarlierVersions() error {
+	cfgDir, err := os.UserConfigDir()
+	if err != nil {
+		return nil
+	}
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil
+	}
+	return migrateFromAGI(cfgDir, cacheDir)
+}

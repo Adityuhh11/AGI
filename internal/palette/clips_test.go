@@ -143,8 +143,8 @@ func TestEnterPastesCopyCopiesDeleteForgets(t *testing.T) {
 }
 
 func TestAPasteThatCannotBeTypedComesBackAsTheReason(t *testing.T) {
-	s := clipService(t, &fakeClips{enabled: true, err: clipboard.ErrElevated})
-	if err := s.Do("clip:1", "open", ""); !errors.Is(err, clipboard.ErrElevated) {
+	s := clipService(t, &fakeClips{enabled: true, err: clipboard.ErrBlocked})
+	if err := s.Do("clip:1", "open", ""); !errors.Is(err, clipboard.ErrBlocked) {
 		t.Fatalf("err = %v: the page shows it above the list and the bar stays open", err)
 	}
 }

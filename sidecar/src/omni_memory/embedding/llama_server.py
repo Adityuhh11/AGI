@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import atexit
 import ctypes
+import http.client
 import logging
 import os
 import re
@@ -22,8 +23,6 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
 from collections import deque
 from collections.abc import Sequence
 from pathlib import Path
@@ -45,8 +44,22 @@ class ServerError(RuntimeError):
     """llama-server could not be started or kept running; the message carries what it printed."""
 
 
+# The one GPU of an Apple Silicon Mac. Its memory is the Mac's own, so there is no card to pick by
+# name and no video memory to fit into: the server runs every layer on the GPU and no `--device`.
+METAL = "metal"
+
+
+def _on_a_mac() -> bool:
+    """A function so a test can say which system it describes without touching `sys.platform`,
+    which the standard library reads too."""
+    return sys.platform == "darwin"
+
+
 def choose_device(listing: str) -> str | None:
-    """The id (`Vulkan1`) of the discrete GPU in `--list-devices` output, or None for the CPU."""
+    """The device to start on: on a Mac `METAL`; elsewhere the id (`Vulkan1`) of the discrete GPU in
+    `--list-devices` output, or None for the CPU."""
+    if _on_a_mac():
+        return METAL
     devices = [
         (m["id"], m["name"]) for line in listing.splitlines() if (m := _DEVICE_LINE.match(line))
     ]
@@ -114,6 +127,8 @@ class LlamaServer:
             process.wait()
 
     def _list_devices(self) -> str:
+        if _on_a_mac():
+            return ""  # a Mac is not asked which devices it has (choose_device)
         try:
             done = subprocess.run(
                 [*self._exe, "--list-devices"],
@@ -147,11 +162,12 @@ class LlamaServer:
         port = _free_port()
         self.api_key = secrets.token_hex(16)
         self.url = f"http://127.0.0.1:{port}"
-        offload = (
-            ["-ngl", "99", "--device", device_id]
-            if device_id
-            else ["-ngl", "0", "--device", "none"]
-        )
+        if device_id is None:
+            offload = ["-ngl", "0", "--device", "none"]
+        elif device_id == METAL:
+            offload = ["-ngl", "99"]
+        else:
+            offload = ["-ngl", "99", "--device", device_id]
         command = [
             *self._exe,
             "-m",
@@ -212,24 +228,32 @@ class LlamaServer:
 
     def _wait_until_healthy(self) -> None:
         deadline = time.monotonic() + self._start_timeout
-        request = urllib.request.Request(
-            self.url + "/health", headers={"Authorization": "Bearer " + self.api_key}
-        )
+        port = int(self.url.rsplit(":", 1)[1])
         while time.monotonic() < deadline:
             process = self._process
             if process is None or process.poll() is not None:
                 raise ServerError("llama-server stopped while starting: " + " | ".join(self._tail))
-            try:
-                with urllib.request.urlopen(request, timeout=2) as response:
-                    if response.status == 200:
-                        return
-            except (urllib.error.URLError, OSError):
-                pass
+            if _health(port, self.api_key) == 200:
+                return
             time.sleep(0.1)
         raise ServerError(
             f"llama-server was not ready after {self._start_timeout:.0f} s: "
             + " | ".join(self._tail)
         )
+
+
+def _health(port: int, api_key: str) -> int | None:
+    """The status of the server's /health, or None while it does not answer. Straight to the
+    loopback address with http.client: urllib would consult the system's proxy settings, and
+    nothing about a server on this machine may go through a proxy."""
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+    try:
+        connection.request("GET", "/health", headers={"Authorization": "Bearer " + api_key})
+        return connection.getresponse().status
+    except (OSError, http.client.HTTPException):
+        return None
+    finally:
+        connection.close()
 
 
 def _no_window() -> int:

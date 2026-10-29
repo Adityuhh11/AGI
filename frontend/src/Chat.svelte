@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { combo } from "./lib/platform";
   import { onMount, tick } from "svelte";
   import { Browser, Clipboard, Events, Window } from "@wailsio/runtime";
   import { Service as Chat } from "../bindings/omni/internal/chat";
@@ -325,8 +326,8 @@
       <span class="dot tone-{status.tone}" class:pulse={status.busy} title={status.label} role="img" aria-label={status.label}></span>
       <h1>Omni AI</h1>
       <div class="tools">
-        <RoundButton icon="plus" label="New chat" title="New chat (Ctrl+N)" onclick={newChat} />
-        <RoundButton icon="history" label="Past chats" title="Past chats (Ctrl+H)" on={historyOpen} pressed={historyOpen} onclick={showHistory} />
+        <RoundButton icon="plus" label="New chat" title={`New chat (${combo("Ctrl+N")})`} onclick={newChat} />
+        <RoundButton icon="history" label="Past chats" title={`Past chats (${combo("Ctrl+H")})`} on={historyOpen} pressed={historyOpen} onclick={showHistory} />
         <RoundButton icon="close" label="Close" title="Close (Esc)" onclick={() => Window.Close()} />
       </div>
     </header>

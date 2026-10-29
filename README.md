@@ -3,8 +3,8 @@
 A fast, private launcher for Windows. Press a hotkey, type, and open an app, search the web, paste a snippet, or find a
 file by what it *says*, not just what it is called. Everything runs on your computer.
 
-> **Status: early (0.5.x), Windows 11 only.** It is used daily by its author and a few friends. Expect rough edges;
-> please open an issue when you meet one. macOS and Linux are planned, not started.
+> **Status: early (0.5.x), Windows 11, and macOS (Apple Silicon) being added.** It is used daily by its author and a few friends. Expect rough edges;
+> please open an issue when you meet one. The Mac build has not run on a real Mac yet. Linux is planned, not started.
 
 - **Instant.** The bar is painted about 33 ms after the hotkey (median, measured), and never waits on a model.
 - **Light.** Idle, the launcher uses no CPU and about 270 MB of memory including its web view. File search is optional;
@@ -50,7 +50,16 @@ if you turn file search on; the launcher alone is a 13 MB file.
 4. Press **Alt+Shift+Space**. Change the hotkey in Settings > General; it tells you if another program already owns it.
    "Start when I sign in" is there too.
 
-To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
+**On a Mac** (Apple Silicon, macOS 13 or later), paste this into Terminal; it downloads `Omni.app`, checks it against the checksum GitHub published, and opens it:
+
+```sh
+curl -fsSL https://github.com/Adityuhh11/Omni/releases/latest/download/install.sh | sh
+```
+
+Omni is not signed by Apple, so a zip downloaded in a browser needs one extra step on first launch. [docs/INSTALL-MAC.md](docs/INSTALL-MAC.md) has that, the permissions
+macOS asks for, and how to update and remove it. Press **⌥⇧Space** for the bar.
+
+To update on Windows, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
 To remove it: Settings > Apps > Installed apps > Omni > Uninstall. It asks whether to delete what Omni saved too (the engine and models,
 the index, the Omni AI model, chats, clipboard history and settings, up to about 2.5 GB); your own files are never touched. For the zip, quit from the tray
 icon and delete the folder and the folders under [Where things are](#where-things-are).

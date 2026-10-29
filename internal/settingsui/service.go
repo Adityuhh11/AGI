@@ -112,17 +112,23 @@ type Options struct {
 type Service struct {
 	o Options
 
-	// movedTo says where Windows keeps a user folder that a configured folder is the old place of; tests replace it.
+	// movedTo says where the system keeps a user folder that a configured folder is the old place of (OneDrive on Windows); tests replace it.
 	movedTo func(root string) string
-	// known is where Windows keeps a user folder ("Documents", "Downloads"); tests replace it.
+	// known is where the system keeps a user folder ("Documents", "Downloads"); tests replace it.
 	known func(name string) (string, error)
+	// blocked says whether the system will not let this program read a folder, and reading it is also what makes a Mac ask the person for
+	// permission; tests replace it.
+	blocked func(root string) bool
+
+	probeMu sync.Mutex
+	probes  map[string]*probe // what isBlocked knows of each folder
 
 	mu         sync.Mutex
 	restartErr string // why the launcher could not restart itself after an update, if it could not
 }
 
 // New returns the service.
-func New(o Options) *Service { return &Service{o: o, movedTo: movedTo, known: knownFolder} }
+func New(o Options) *Service { return &Service{o: o, movedTo: movedTo, known: knownFolder, blocked: blocked} }
 
 // View is everything the window shows.
 type View struct {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"omni/internal/enginesetup"
+	"omni/internal/testpath"
 )
 
 func TestChoosingAFolderKeepsFileSearchInAnOmniFolderInsideItAndGoingBackIsPossible(t *testing.T) {
@@ -45,7 +46,7 @@ func TestAFolderAlreadyCalledOmniIsUsedAsItIs(t *testing.T) {
 	if got := dataDirIn(picked); got != picked {
 		t.Errorf("dataDirIn(%q) = %q", picked, got)
 	}
-	if got, want := dataDirIn(`D:\Files`), `D:\Files\Omni`; got != want {
+	if got, want := dataDirIn(testpath.P(`D:\Files`)), testpath.P(`D:\Files\Omni`); got != want {
 		t.Errorf("dataDirIn = %q, want %q", got, want)
 	}
 }
@@ -72,7 +73,7 @@ func TestACancelledPickerARefusedMoveAndAFolderThatCannotBeWrittenChangeNothing(
 	if msg := h.svc.ChooseDataFolder(); !strings.Contains(msg, "cannot keep its files") || h.store.Get().Search.DataDir != "" {
 		t.Fatalf("an unusable folder: %q, data_dir %q", msg, h.store.Get().Search.DataDir)
 	}
-	if h.place.layout.Root != `C:\default\engine` {
+	if h.place.layout.Root != testpath.P(`C:\default\engine`) {
 		t.Fatalf("a refused folder still moved the engine: %+v", h.place.layout)
 	}
 }

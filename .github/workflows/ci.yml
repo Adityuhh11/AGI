@@ -1,4 +1,4 @@
-# Builds and tests everything on a Windows runner for every pull request and every push to dev or main: the launcher
+# Builds and tests everything on a Windows runner (and a Mac one: launcher-macos, engine-macos) for every pull request and every push to dev or main: the launcher
 # (Go and the Svelte page) and the memory engine (Python). Real-hardware tests are skipped by themselves: the ones that
 # need a clipboard, a Start Menu or the models are switched on by environment variables. Also by hand:
 # `gh workflow run ci.yml`.
@@ -59,6 +59,72 @@ jobs:
           Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
           ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
 
+  # The Mac code is Objective-C through cgo, which cannot be compiled from Windows, so this runner is the only compiler it has
+  # (docs/superpowers/specs/2026-10-29-macos-design.md). It builds, vets and tests everything the Windows job does that makes sense
+  # on a Mac, then packages it as a release does (the last two steps).
+  launcher-macos:
+    runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Build (bindings, page, launcher)
+        run: ./scripts/build-mac.sh ci
+      - name: The program is for Apple Silicon
+        run: lipo -archs bin/omni | grep -qx arm64
+      - name: Go vet
+        run: go vet ./...
+      - name: Go tests
+        run: go test ./...
+      # The Mac downloads (uv, Python and its libraries, both llama.cpp builds) are run for real, which is the only proof the pins work on a Mac.
+      - name: The Mac downloads run
+        run: OMNI_REAL_INSTALL=1 go test ./internal/enginesetup ./internal/llm -run Real -v -timeout 20m
+      - name: Page tests and types
+        working-directory: frontend
+        run: |
+          npm test
+          npm run check
+      # The program is started for real, on a throwaway profile: a window class, an Objective-C call or an option that
+      # crashes at start shows here. (A runner has a screen session but no way to press the hotkey, so what the panel
+      # looks like is for a person to judge.)
+      - name: It starts and stays up
+        run: |
+          export HOME="$(mktemp -d)"
+          OMNI_INSTANCE=ci ./bin/omni &
+          pid=$!
+          sleep 10
+          log="$HOME/Library/Logs/Omni/omni.log"
+          kill -0 "$pid" || { echo "the program is not running"; cat "$log"; exit 1; }
+          # A second start hands over to the running one, which opens the bar: the same path as the hotkey.
+          OMNI_INSTANCE=ci ./bin/omni
+          sleep 3
+          screencapture -x "$GITHUB_WORKSPACE/smoke.png" || echo "no screenshot"
+          echo "--- the log"; cat "$log" || true
+          kill -0 "$pid" || { echo "the program died when the bar opened"; exit 1; }
+          grep -q "omni starting" "$log"
+          kill "$pid"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: mac-smoke
+          path: smoke.png
+          if-no-files-found: ignore
+      # What the Release workflow makes, made and tried on every pull request: Omni.app, its zip, and install.sh run for real against that zip.
+      - name: Package (Omni.app, zip, install.sh)
+        run: ./scripts/release-mac.sh
+      - name: Try the package
+        run: ./scripts/test-package-mac.sh
+
   engine:
     runs-on: windows-latest
     defaults:
@@ -74,5 +140,18 @@ jobs:
       - name: Pyright
         run: uv run pyright
       # The real model is not fetched, so the tests marked model and perf are left out (pyproject.toml).
+      - name: Tests
+        run: uv run pytest
+
+  engine-macos:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: sidecar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Environment
+        run: uv sync --frozen --python 3.12  # the version the installer pins (enginesetup.PythonVersion); the runner has 3.15
       - name: Tests
         run: uv run pytest

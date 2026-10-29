@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { combo } from "./lib/platform";
   import { onMount, tick } from "svelte";
   import { Browser } from "@wailsio/runtime";
   import { Service as Notes } from "../bindings/omni/internal/notes";
@@ -203,7 +204,7 @@
       <button type="button" class="btn quiet" onclick={back} title="Back to the notes (Esc)" aria-label="Back to the notes">←</button>
       <span class="state" aria-live="polite">{status || (editing.id === "" ? "New note" : "")}</span>
       <div class="tools">
-        <button type="button" class="btn quiet" class:on={preview} onclick={() => (preview = !preview)} title="Edit or read (Ctrl+E)">
+        <button type="button" class="btn quiet" class:on={preview} onclick={() => (preview = !preview)} title={`Edit or read (${combo("Ctrl+E")})`}>
           {preview ? "Edit" : "Read"}
         </button>
         {#if confirmDelete}
@@ -243,7 +244,7 @@
         autocomplete="off"
       />
       <div class="tools">
-        <button type="button" class="btn primary" onclick={() => create()} title="New note (Ctrl+N)">New</button>
+        <button type="button" class="btn primary" onclick={() => create()} title={`New note (${combo("Ctrl+N")})`}>New</button>
         <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">On top</button>
         <RoundButton icon="close" label="Close" onclick={() => Window.Close()} />
       </div>
@@ -262,7 +263,7 @@
         {/each}
       </ul>
     {:else if loaded}
-      <p class="none">{query ? `No note has “${query}” in it.` : "No notes yet. Press New, or Ctrl+N, and start typing."}</p>
+      <p class="none">{query ? `No note has “${query}” in it.` : `No notes yet. Press New, or ${combo("Ctrl+N")}, and start typing.`}</p>
     {/if}
   {/if}
   {#if problem && editing}<p class="error pad">{problem}</p>{/if}

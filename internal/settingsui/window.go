@@ -6,6 +6,8 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+
+	"omni/internal/dock"
 )
 
 // windowSpec is what tells the settings window, the setup guide, the notes window, the chat and the timer apart: all are the
@@ -112,20 +114,17 @@ func (w *Window) OpenAt(section string) {
 		AlwaysOnTop:      w.spec.onTop && (w.onTop == nil || w.onTop()),
 		URL:              url,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 255),
-		Windows:          application.WindowsWindow{Theme: application.Dark},
 	}
 	if w.spec.card {
 		options.Frameless = true
 		options.BackgroundType = application.BackgroundTypeTransparent
 		options.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
-		options.Windows = application.WindowsWindow{DisableFramelessWindowDecorations: true}
 	}
 	if w.spec.overlay {
 		options.Frameless = true
 		options.DisableResize = true
 		options.BackgroundType = application.BackgroundTypeTransparent
 		options.BackgroundColour = application.NewRGBA(0, 0, 0, 0)
-		options.Windows = application.WindowsWindow{HiddenOnTaskbar: true, DisableFramelessWindowDecorations: true}
 		if screen := w.app.Screen.GetPrimary(); screen != nil {
 			options.Screen = screen
 			options.InitialPosition = application.WindowXY
@@ -133,8 +132,15 @@ func (w *Window) OpenAt(section string) {
 			options.Y = screen.WorkArea.Height / 5
 		}
 	}
+	platformWindow(&options, w.spec)
 	win := w.app.Window.NewWithOptions(options)
+	if !w.spec.overlay { // the timer is a small overlay, not a window to switch to
+		dock.Counter.Opened()
+	}
 	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		if !w.spec.overlay {
+			dock.Counter.Closed()
+		}
 		w.mu.Lock()
 		if w.win == win { // not a newer window that replaced this one
 			w.win = nil
