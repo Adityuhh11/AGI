@@ -125,6 +125,7 @@ opened. The program touches the network in exactly these cases, all started or s
 | You press **Download and turn on** (or **Update**) in File search | `github.com`, `pypi.org`, `files.pythonhosted.org`, `huggingface.co` | ordinary downloads of pinned files |
 | You press **Download and turn on** (or **Update**) in Omni AI | `github.com`, `huggingface.co` | ordinary downloads of pinned files (llama.cpp and the model); nothing you ask is ever sent anywhere |
 | You open a web search or link | your browser | what you typed after the trigger |
+| You switch on **Search the web** in the Omni AI chat's + menu (off by default) | `duckduckgo.com`, or `wikipedia.org` when DuckDuckGo asks for a check; then the pages the model chooses to read | the model's search words (not your conversation); then ordinary page requests. Local and private addresses are refused |
 | You press **Check for updates**, or turned on the daily check (off by default) | `api.github.com` | a request for the latest release number, nothing about you |
 | You press **Update to X** | `github.com` | a download of that release, checked against its published SHA-256 |
 

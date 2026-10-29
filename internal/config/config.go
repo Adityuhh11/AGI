@@ -120,6 +120,9 @@ type Chat struct {
 	HistoryDays int `toml:"history_days"`
 	// Thinking lets the model reason before it answers: slower, and sometimes better.
 	Thinking bool `toml:"thinking"`
+	// WebSearch lets the model look things up on the web while it answers: its search words go to DuckDuckGo and the pages it
+	// reads are fetched from their sites. Off until the person switches it on, from the chat's + menu.
+	WebSearch bool `toml:"web_search"`
 	// OnTop keeps the chat window above other windows.
 	OnTop bool `toml:"on_top"`
 }

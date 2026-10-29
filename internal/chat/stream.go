@@ -24,6 +24,8 @@ type Request struct {
 	Stop []string `json:"stop,omitempty"`
 	// Template switches thinking per request: {"enable_thinking": false}.
 	Template map[string]bool `json:"chat_template_kwargs"`
+	// Tools are what the model may call instead of answering (tools.go); empty offers none.
+	Tools []Tool `json:"tools,omitempty"`
 }
 
 // NewRequest builds the request for the shown messages.
@@ -56,6 +58,14 @@ type chunk struct {
 		Delta struct {
 			Content   string `json:"content"`
 			Reasoning string `json:"reasoning_content"`
+			ToolCalls []struct {
+				Index    int    `json:"index"`
+				ID       string `json:"id"`
+				Function struct {
+					Name      string `json:"name"`
+					Arguments string `json:"arguments"`
+				} `json:"function"`
+			} `json:"tool_calls"`
 		} `json:"delta"`
 	} `json:"choices"`
 	Usage *struct {
@@ -65,27 +75,29 @@ type chunk struct {
 }
 
 // Complete sends the request and calls text and thinking with the pieces of the answer as they arrive. It returns when the
-// answer is finished or ctx ends; a cut answer is not an error to the caller, who keeps what arrived.
-func Complete(ctx context.Context, ep llm.Endpoint, req Request, text, thinking func(string)) (Usage, error) {
+// answer is finished or ctx ends; a cut answer is not an error to the caller, who keeps what arrived. When the model asked to
+// call tools instead of (or after) writing, the calls are returned whole.
+func Complete(ctx context.Context, ep llm.Endpoint, req Request, text, thinking func(string)) (Usage, []Call, error) {
 	body, err := json.Marshal(req)
 	if err != nil {
-		return Usage{}, err
+		return Usage{}, nil, err
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, ep.URL+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return Usage{}, err
+		return Usage{}, nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+ep.Key)
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return Usage{}, fmt.Errorf("ask the model: %w", err)
+		return Usage{}, nil, fmt.Errorf("ask the model: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return Usage{}, statusError(resp)
+		return Usage{}, nil, statusError(resp)
 	}
 	var usage Usage
+	var calls callBuilder
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64<<10), 4<<20)
 	for scanner.Scan() {
@@ -112,15 +124,18 @@ func Complete(ctx context.Context, ep llm.Endpoint, req Request, text, thinking 
 			if choice.Delta.Content != "" {
 				text(choice.Delta.Content)
 			}
+			for _, piece := range choice.Delta.ToolCalls {
+				calls.add(piece.Index, piece.ID, piece.Function.Name, piece.Function.Arguments)
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		if ctx.Err() != nil {
-			return usage, nil
+			return usage, nil, nil // cut: calls that were not finished are not run
 		}
-		return usage, fmt.Errorf("read the answer: %w", err)
+		return usage, nil, fmt.Errorf("read the answer: %w", err)
 	}
-	return usage, nil
+	return usage, calls.done(), nil
 }
 
 func statusError(resp *http.Response) error {

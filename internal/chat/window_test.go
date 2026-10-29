@@ -86,12 +86,12 @@ func TestWireMessagesPutTheSystemPromptFirstAndSkipEmptyAnswers(t *testing.T) {
 		{Role: "user", Text: "q1"}, {Role: "assistant", Text: "", Thinking: "hmm", Stopped: true},
 		{Role: "user", Text: "q2"}, {Role: "assistant", Text: "a2", Thinking: "secret reasoning"},
 	})
-	want := []Wire{{"system", "SYS"}, {"user", "q1"}, {"user", "q2"}, {"assistant", "a2"}}
+	want := []Wire{{Role: "system", Content: "SYS"}, {Role: "user", Content: "q1"}, {Role: "user", Content: "q2"}, {Role: "assistant", Content: "a2"}}
 	if len(got) != len(want) {
 		t.Fatalf("got %+v", got)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if got[i].Role != want[i].Role || got[i].Content != want[i].Content {
 			t.Errorf("message %d = %+v, want %+v", i, got[i], want[i])
 		}
 		if strings.Contains(got[i].Content, "secret") {
@@ -101,7 +101,7 @@ func TestWireMessagesPutTheSystemPromptFirstAndSkipEmptyAnswers(t *testing.T) {
 }
 
 func TestSystemPromptStatesTheDate(t *testing.T) {
-	got := SystemPrompt(time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC))
+	got := SystemPrompt(time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC), false)
 	if !strings.Contains(got, "Wednesday, 28 October 2026") {
 		t.Fatalf("system prompt lacks the date: %q", got)
 	}

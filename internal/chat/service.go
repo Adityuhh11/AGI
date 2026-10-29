@@ -61,6 +61,7 @@ type Info struct {
 	Enabled     bool   `json:"enabled"`
 	Installed   bool   `json:"installed"`
 	Thinking    bool   `json:"thinking"`
+	WebSearch   bool   `json:"web_search"`
 	KeepHistory bool   `json:"keep_history"`
 	State       string `json:"state"`
 	Message     string `json:"message"`
@@ -85,9 +86,12 @@ type Options struct {
 	Model Model
 	// Settings returns the current [chat] settings; SetThinking saves the thinking switch; Installed says whether the model
 	// and its server are on disk.
-	Settings    func() config.Chat
-	SetThinking func(on bool) error
-	Installed   func() bool
+	Settings     func() config.Chat
+	SetThinking  func(on bool) error
+	SetWebSearch func(on bool) error
+	Installed    func() bool
+	// Web looks things up for the model when [chat] web_search is on; nil means the model cannot.
+	Web Web
 	// Emit sends an event to the chat window; OpenSettings opens Settings on a page.
 	Emit         func(event string, data any)
 	OpenSettings func(section string)
@@ -139,8 +143,9 @@ func (s *Service) Info() Info {
 	cfg := s.o.Settings()
 	st := s.o.Model.Status()
 	info := Info{
-		Enabled: cfg.Enabled, Installed: s.o.Installed(), Thinking: cfg.Thinking, KeepHistory: cfg.KeepHistory,
-		State: string(st.State), Message: st.Message, Device: st.Device,
+		Enabled: cfg.Enabled, Installed: s.o.Installed(), Thinking: cfg.Thinking, WebSearch: cfg.WebSearch && s.o.Web != nil,
+		KeepHistory: cfg.KeepHistory,
+		State:       string(st.State), Message: st.Message, Device: st.Device,
 	}
 	if !st.UnloadsAt.IsZero() {
 		info.UnloadsAt = st.UnloadsAt.UnixMilli()
@@ -170,6 +175,18 @@ func (s *Service) Warm() {
 // SetThinking turns the model's reasoning before an answer on or off, from the next question on.
 func (s *Service) SetThinking(on bool) error {
 	if err := s.o.SetThinking(on); err != nil {
+		return err
+	}
+	s.Refresh()
+	return nil
+}
+
+// SetWebSearch lets the model look things up on the web while it answers, or not, from the next question on.
+func (s *Service) SetWebSearch(on bool) error {
+	if s.o.Web == nil {
+		return errors.New("web search is not available")
+	}
+	if err := s.o.SetWebSearch(on); err != nil {
 		return err
 	}
 	s.Refresh()

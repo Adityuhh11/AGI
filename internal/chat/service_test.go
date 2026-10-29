@@ -98,6 +98,7 @@ type rigT struct {
 	ev    *events
 	store *Store
 	cfg   *config.Chat
+	web   *fakeWeb
 }
 
 func newRig(t *testing.T) *rigT {
@@ -108,14 +109,16 @@ func newRig(t *testing.T) *rigT {
 	ev := &events{done: make(chan Done, 8)}
 	model := &fakeModel{ep: f.endpoint()}
 	store := newStore(t)
-	r := &rigT{llama: f, model: model, ev: ev, store: store, cfg: &cfg}
+	r := &rigT{llama: f, model: model, ev: ev, store: store, cfg: &cfg, web: &fakeWeb{}}
 	r.svc = NewService(Options{
 		Store: store, Model: model,
-		Settings:    func() config.Chat { return *r.cfg },
-		SetThinking: func(on bool) error { r.cfg.Thinking = on; return nil },
-		Installed:   func() bool { return true },
-		Emit:        ev.emit,
-		Now:         func() time.Time { return time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC) },
+		Settings:     func() config.Chat { return *r.cfg },
+		SetThinking:  func(on bool) error { r.cfg.Thinking = on; return nil },
+		SetWebSearch: func(on bool) error { r.cfg.WebSearch = on; return nil },
+		Web:          r.web,
+		Installed:    func() bool { return true },
+		Emit:         ev.emit,
+		Now:          func() time.Time { return time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC) },
 	})
 	return r
 }

@@ -50,6 +50,7 @@ import (
 	"omni/internal/update"
 	"omni/internal/watcher"
 	"omni/internal/web"
+	"omni/internal/websearch"
 )
 
 // version is the build's version, set by scripts/release.ps1 with -ldflags "-X main.version=...".
@@ -343,6 +344,8 @@ func run(afterUpdate bool) error {
 		Model:        chatModel,
 		Settings:     func() config.Chat { return store.Get().Chat },
 		SetThinking:  func(on bool) error { return store.Update(func(c *config.Config) { c.Chat.Thinking = on }) },
+		SetWebSearch: func(on bool) error { return store.Update(func(c *config.Config) { c.Chat.WebSearch = on }) },
+		Web:          websearch.New(),
 		Installed:    func() bool { return chatSetup.Layout().Installed() },
 		Emit:         func(event string, data any) { app.Event.Emit(event, data) },
 		OpenSettings: func(section string) { settingsWindow.OpenAt(section) },

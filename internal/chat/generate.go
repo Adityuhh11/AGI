@@ -74,7 +74,7 @@ func (s *Service) begin(question *Message) (View, error) {
 	s.mu.Unlock()
 	go func() {
 		defer close(finished)
-		s.generate(ctx, cfg.Thinking)
+		s.generate(ctx, cfg.Thinking, cfg.WebSearch && s.o.Web != nil)
 		cancel()
 	}()
 	return view, nil
@@ -91,6 +91,7 @@ type reply struct {
 	firstContent bool
 	endpoint     llm.Endpoint // the server that answered, to count the answer afterwards
 	haveEndpoint bool
+	sources      []Source // the pages the answer drew on, when it looked at the web
 }
 
 func (r *reply) addText(piece string, status func(Status)) {
@@ -139,7 +140,7 @@ func (r *reply) anything() bool {
 }
 
 // generate asks the model, streams the answer to the page and records it. It always ends with a Done event.
-func (s *Service) generate(ctx context.Context, thinking bool) {
+func (s *Service) generate(ctx context.Context, thinking, web bool) {
 	release := s.o.Model.Hold()
 	status := func(st Status) { s.o.Emit(EventStatus, st) }
 
@@ -159,7 +160,7 @@ func (s *Service) generate(ctx context.Context, thinking bool) {
 			}
 		}
 	}()
-	failed := s.answer(ctx, thinking, &r, status)
+	failed := s.answer(ctx, thinking, web, &r, status)
 	close(stopFlush)
 	<-flushed
 
@@ -181,7 +182,7 @@ func (s *Service) generate(ctx context.Context, thinking bool) {
 	}
 	if r.anything() {
 		text := r.text.String()
-		msg := Message{Role: "assistant", Text: text, Thinking: r.think.String(), Stopped: ctx.Err() != nil}
+		msg := Message{Role: "assistant", Text: text, Thinking: r.think.String(), Stopped: ctx.Err() != nil, Sources: r.sources}
 		if !r.thinkStart.IsZero() {
 			end := r.thinkEnd
 			if end.IsZero() {
@@ -227,8 +228,10 @@ func (s *Service) tokensOf(r *reply) int {
 	return utf8.RuneCountInString(text)/3 + messageOverhead
 }
 
-// answer does the work of one answer and returns why it failed, if it did. A stop is not a failure.
-func (s *Service) answer(ctx context.Context, thinking bool, r *reply, status func(Status)) error {
+// answer does the work of one answer and returns why it failed, if it did. A stop is not a failure. With web search on, the model
+// may ask for tools first: each round runs them and gives the results back, up to maxToolRounds, and the request after that has no
+// tools so the model has to answer.
+func (s *Service) answer(ctx context.Context, thinking, web bool, r *reply, status func(Status)) error {
 	if s.o.Model.Status().State != llm.Ready {
 		status(Status{Phase: "loading", Text: "Starting the model…"})
 	}
@@ -242,20 +245,53 @@ func (s *Service) answer(ctx context.Context, thinking bool, r *reply, status fu
 	r.endpoint, r.haveEndpoint = ep, true
 	status(Status{Phase: "reading", Text: "Reading…"})
 
-	req, err := s.prepare(ctx, ep, thinking)
+	req, spare, err := s.prepare(ctx, ep, thinking, web)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil
 		}
 		return err
 	}
-	for attempt := 0; ; attempt++ {
-		_, err = Complete(ctx, ep, req, func(piece string) { r.addText(piece, status) }, func(piece string) { r.addThinking(piece, status) })
-		if err == nil || ctx.Err() != nil {
-			return nil
-		}
-		if attempt > 0 || r.anything() {
+	var look *lookup
+	if web && spare*charsPerToken >= minToolChars {
+		look = &lookup{web: s.o.Web, chars: spare * charsPerToken, status: status, pages: map[string]bool{}, logf: s.o.Logf}
+		req.Tools = webTools()
+	}
+	for round := 1; ; round++ {
+		calls, err := s.complete(ctx, &ep, req, r, status)
+		if err != nil || ctx.Err() != nil || len(calls) == 0 || look == nil || round > maxToolRounds {
+			if look != nil {
+				r.sources = look.sources()
+			}
 			return err
+		}
+		calls = calls[:min(len(calls), maxCallsPerRound)]
+		req.Messages = append(req.Messages, assistantCalls(calls))
+		for _, c := range calls {
+			req.Messages = append(req.Messages, Wire{Role: "tool", ToolCallID: c.ID, Content: look.run(ctx, c)})
+		}
+		r.separate()
+		status(Status{Phase: "reading", Text: "Reading the results…"})
+		if round >= maxToolRounds || look.chars < minToolChars {
+			// Out of rounds or of room: the next request must answer. Without these words a model that wanted another search writes
+			// its call out as plain text, and that would be the answer the person reads.
+			req.Tools = nil
+			req.Messages = append(req.Messages, Wire{Role: "user", Content: "Answer now with what you have found. If it does not answer the question, say so. Do not search again."})
+		}
+	}
+}
+
+// complete sends the request and streams the reply into r. A model that dropped or ran out of graphics memory before it said
+// anything is started again, once. It returns the tools the model asked for.
+func (s *Service) complete(ctx context.Context, ep *llm.Endpoint, req Request, r *reply, status func(Status)) ([]Call, error) {
+	for attempt := 0; ; attempt++ {
+		before := r.size()
+		_, calls, err := Complete(ctx, *ep, req, func(piece string) { r.addText(piece, status) }, func(piece string) { r.addThinking(piece, status) })
+		if err == nil || ctx.Err() != nil {
+			return calls, nil
+		}
+		if attempt > 0 || r.size() > before {
+			return nil, err
 		}
 		switch {
 		case outOfMemory(err):
@@ -264,26 +300,28 @@ func (s *Service) answer(ctx context.Context, thinking bool, r *reply, status fu
 		case connectionLost(err):
 			status(Status{Phase: "loading", Text: "Starting the model again…"})
 		default:
-			return err
+			return nil, err
 		}
-		if ep, err = s.o.Model.Ensure(ctx); err != nil {
+		next, err := s.o.Model.Ensure(ctx)
+		if err != nil {
 			if ctx.Err() != nil {
-				return nil
+				return nil, nil
 			}
-			return err
+			return nil, err
 		}
-		r.endpoint = ep
+		*ep, r.endpoint = next, next
 	}
 }
 
 // prepare counts what the new question and the system prompt take, decides which messages the model is shown and builds the
-// request.
-func (s *Service) prepare(ctx context.Context, ep llm.Endpoint, thinking bool) (Request, error) {
+// request. spare is the tokens of the context still free after the messages and the room kept for the reply: what tool results
+// may take.
+func (s *Service) prepare(ctx context.Context, ep llm.Endpoint, thinking, web bool) (req Request, spare int, err error) {
 	cfg := s.o.Settings()
-	system := SystemPrompt(s.o.Now())
+	system := SystemPrompt(s.o.Now(), web)
 	sysTokens, err := Tokens(ctx, ep, system)
 	if err != nil {
-		return Request{}, err
+		return Request{}, 0, err
 	}
 	s.mu.Lock()
 	question := s.conv.Messages[len(s.conv.Messages)-1]
@@ -292,7 +330,7 @@ func (s *Service) prepare(ctx context.Context, ep llm.Endpoint, thinking bool) (
 	if questionTokens == 0 { // a question that is being answered again has been counted already
 		n, err := Tokens(ctx, ep, question.Text)
 		if err != nil {
-			return Request{}, err
+			return Request{}, 0, err
 		}
 		questionTokens = n + messageOverhead
 	}
@@ -302,9 +340,26 @@ func (s *Service) prepare(ctx context.Context, ep llm.Endpoint, thinking bool) (
 	s.systemTok = sysTokens + messageOverhead
 	s.conv.Messages[len(s.conv.Messages)-1].Tokens = questionTokens
 	reserve := Reserve(thinking, cfg.ContextTokens)
-	start, _, err := Fit(s.conv.Messages, s.systemTok, cfg.ContextTokens-reserve)
+	start, used, err := Fit(s.conv.Messages, s.systemTok, cfg.ContextTokens-reserve)
 	if err != nil {
-		return Request{}, err
+		return Request{}, 0, err
 	}
-	return NewRequest(WireMessages(system, s.conv.Messages[start:]), reserve, thinking), nil
+	return NewRequest(WireMessages(system, s.conv.Messages[start:]), reserve, thinking), cfg.ContextTokens - reserve - used, nil
+}
+
+// size is how much of an answer (text and reasoning) has arrived, to tell whether a failed request got anywhere.
+func (r *reply) size() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.text.Len() + r.think.Len()
+}
+
+// separate keeps what the model wrote before it asked for a tool apart from what it writes after.
+func (r *reply) separate() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.text.Len() > 0 {
+		r.text.WriteString("\n\n")
+		r.unsentText.WriteString("\n\n")
+	}
 }

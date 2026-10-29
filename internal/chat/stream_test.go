@@ -27,6 +27,7 @@ type fakeLlama struct {
 	drop          int           // how many completions requests have their connection cut
 	pause         time.Duration // between the pieces of the answer
 	hold          chan struct{} // when set, the answer waits for it after the first piece
+	toolRounds    [][]Call      // each request takes the first: the tools the model asks for in place of an answer
 }
 
 func newFakeLlama(t *testing.T) *fakeLlama {
@@ -62,6 +63,10 @@ func (f *fakeLlama) handle(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
 		f.requests = append(f.requests, req)
 		status, message, reasons, answer, pause, hold := f.status, f.statusMessage, f.reasons, f.answer, f.pause, f.hold
+		var calls []Call
+		if len(f.toolRounds) > 0 {
+			calls, f.toolRounds = f.toolRounds[0], f.toolRounds[1:]
+		}
 		cut := f.drop > 0
 		if cut {
 			f.drop--
@@ -92,6 +97,10 @@ func (f *fakeLlama) handle(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 			time.Sleep(pause)
 		}
+		if calls != nil {
+			f.streamCalls(w, calls)
+			return
+		}
 		for _, word := range strings.SplitAfter(reasons, " ") {
 			if word != "" {
 				send(map[string]string{"reasoning_content": word})
@@ -118,7 +127,7 @@ func TestCompleteStreamsTheAnswerAndTheReasoningSeparately(t *testing.T) {
 	f := newFakeLlama(t)
 	f.reasons, f.answer = "let me think ", "forty two"
 	var text, thought strings.Builder
-	usage, err := Complete(context.Background(), f.endpoint(), NewRequest([]Wire{{"user", "q"}}, 100, true),
+	usage, _, err := Complete(context.Background(), f.endpoint(), NewRequest([]Wire{{Role: "user", Content: "q"}}, 100, true),
 		func(s string) { text.WriteString(s) }, func(s string) { thought.WriteString(s) })
 	if err != nil {
 		t.Fatal(err)
@@ -131,7 +140,7 @@ func TestCompleteStreamsTheAnswerAndTheReasoningSeparately(t *testing.T) {
 func TestTheRequestSwitchesThinkingPerRequestAndStopsAtTheStrayTagOnlyWhenItIsOff(t *testing.T) {
 	f := newFakeLlama(t)
 	for _, thinking := range []bool{false, true} {
-		if _, err := Complete(context.Background(), f.endpoint(), NewRequest([]Wire{{"user", "q"}}, 123, thinking), func(string) {}, func(string) {}); err != nil {
+		if _, _, err := Complete(context.Background(), f.endpoint(), NewRequest([]Wire{{Role: "user", Content: "q"}}, 123, thinking), func(string) {}, func(string) {}); err != nil {
 			t.Fatal(err)
 		}
 		got := f.last()
@@ -147,7 +156,7 @@ func TestTheRequestSwitchesThinkingPerRequestAndStopsAtTheStrayTagOnlyWhenItIsOf
 func TestCompleteReturnsTheServersReasonForARefusal(t *testing.T) {
 	f := newFakeLlama(t)
 	f.status = http.StatusBadRequest
-	_, err := Complete(context.Background(), f.endpoint(), NewRequest(nil, 10, false), func(string) {}, func(string) {})
+	_, _, err := Complete(context.Background(), f.endpoint(), NewRequest(nil, 10, false), func(string) {}, func(string) {})
 	var se *StatusError
 	if !asStatus(err, &se) || se.Status != 400 || !strings.Contains(se.Message, "context is full") {
 		t.Fatalf("err = %v", err)
@@ -169,7 +178,7 @@ func TestCancellingKeepsWhatArrivedAndIsNotAnError(t *testing.T) {
 	var text strings.Builder
 	got := make(chan error, 1)
 	go func() {
-		_, err := Complete(ctx, f.endpoint(), NewRequest(nil, 10, false), func(s string) {
+		_, _, err := Complete(ctx, f.endpoint(), NewRequest(nil, 10, false), func(s string) {
 			text.WriteString(s)
 			cancel()
 		}, func(string) {})
@@ -197,4 +206,23 @@ func TestTokensCountsWhatTheServerSays(t *testing.T) {
 	if _, err := Tokens(context.Background(), llm.Endpoint{URL: f.URL, Key: "wrong"}, "x"); err == nil {
 		t.Fatal("a wrong key was accepted")
 	}
+}
+
+// streamCalls sends tool calls the way llama-server does: the name first, the arguments in two pieces.
+func (f *fakeLlama) streamCalls(w http.ResponseWriter, calls []Call) {
+	chunk := func(index int, id, name, arguments string) {
+		piece := map[string]any{"index": index, "function": map[string]string{"name": name, "arguments": arguments}}
+		if id != "" {
+			piece["id"] = id
+		}
+		b, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"tool_calls": []any{piece}}}}})
+		fmt.Fprintf(w, "data: %s\n\n", b)
+		w.(http.Flusher).Flush()
+	}
+	for i, c := range calls {
+		half := len(c.Arguments) / 2
+		chunk(i, c.ID, c.Name, c.Arguments[:half])
+		chunk(i, "", "", c.Arguments[half:])
+	}
+	fmt.Fprint(w, "data: [DONE]\n\n")
 }

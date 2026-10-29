@@ -27,6 +27,8 @@ type Message struct {
 	Tokens int `json:"tokens"`
 	// Stopped marks an answer the person cut short.
 	Stopped bool `json:"stopped,omitempty"`
+	// Sources are the web pages the answer drew on, when web search was on. What the model read is not kept, only where.
+	Sources []Source `json:"sources,omitempty"`
 }
 
 // Conversation is a chat as it is kept in a file.
