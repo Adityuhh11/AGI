@@ -139,12 +139,12 @@ is Objective-C through cgo, which cannot be compiled from Windows, so that runne
 | `files` | `Service`, `Player` arguments, the safe-to-open list | `ShellExecute`, `explorer /select`, VS Code and players by registry and folders | `open`, `open -R`, VS Code and players (VLC, IINA, mpv) |
 | `autostart` | doc | `HKCU\...\Run` | Wails login item (SMAppService) |
 | `clipboard` | history, filters, order of a paste | Win32 clipboard, `SendInput` Ctrl+V, elevation check | `NSPasteboard`, `CGEvent` Cmd+V, secure input and the Accessibility permission (`source_darwin.go`, `paste_darwin.go`, `pasteboard_darwin.m`) |
-| `watcher` | debounce, filter | `ReadDirectoryChangesW` | M3: FSEvents |
+| `watcher` | debounce, filter, the tests | `ReadDirectoryChangesW` | FSEvents through one stream (`watch_darwin.go`, `.m`) |
 | `sidecar` | supervisor, client | `taskkill /T`, Job Object | process groups and the reaper (`reaper_darwin.go`, `omni --reaper`) |
 | `enginesetup` | download, `Unzip`, `Untar`, install steps | `uv.exe`, `Scripts\python.exe`, zip pins | `uv`, `bin/python`, `.tar.gz` pins (one folder dropped, links kept) |
 | `llm` | server, setup | Vulkan device by name, `.exe` | Metal, every layer on the GPU, no `--device` |
 | `update` | check, download, swap | zip of `omni.exe`, rename-aside, job breakaway | the check only: no installer until the app is signed |
-| `settingsui` | the pages' services | Known Folders and OneDrive, Alt+Space filter | home-folder names, no filter |
+| `settingsui` | the pages' services | Known Folders and OneDrive, Alt+Space filter, no folder permission | home-folder names, no filter, the folder permission the system asks for (`access_darwin.go`) |
 | `panel` | placement, hotkey, state | Win32 and DWM cloak (`win32_windows.go`) | non-activating `NSPanel`, ordered in and out (`native_darwin.go`/`.m`) |
 | `dock` | the count of ordinary windows | nothing | Dock icon, ⌘Tab and menu bar while a window is open (`dock_darwin.go`) |
 | `tray` | the menu | colour icon (`tray_windows.go`) | template image (`tray_darwin.go`) |

@@ -289,10 +289,7 @@ func run(afterUpdate bool) error {
 			func() []string { return store.Get().Clipboard.Ignore }, strings.TrimSuffix(filepath.Base(self), ".exe")),
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		clipEnabled)
-	bar.OnShow = func() {
-		clips.Poll() // a copy a moment before the bar opened is in the list
-		appsShown(catalog)
-	}
+	bar.OnShow = clips.Poll // a copy a moment before the bar opened is in the list
 	snips := snippets.New(func() []config.Snippet { return store.Get().Snippets },
 		clipboard.NewPaster(app.Clipboard.SetText, bar.Previous, bar.Hide),
 		func() string { clip, _ := clipboard.NewSource().Read(); return clip.Text })

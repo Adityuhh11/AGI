@@ -16,6 +16,8 @@ import (
 type FolderChoice struct {
 	Name, Path string
 	Checked    bool
+	// Blocked says the system has not let Omni read the folder, which only matters for one that is ticked (a Mac asks for each protected folder).
+	Blocked bool
 }
 
 // suggested are the user folders worth offering, in the order the guide lists them. Downloads is offered but starts
@@ -31,10 +33,16 @@ var suggested = []struct {
 // Desktop and Pictures), then any other folder already being searched. With no folders yet the usual ones start ticked;
 // otherwise a folder is ticked exactly when it is being searched.
 func (s *Service) SuggestedFolders() []FolderChoice {
-	return suggestFolders(s.known, func(path string) bool {
+	out := suggestFolders(s.known, func(path string) bool {
 		info, err := os.Stat(path)
 		return err == nil && info.IsDir()
 	}, s.o.Store.Get().Roots)
+	for i := range out {
+		if out[i].Checked { // a folder that is not chosen is not read, so nothing asks about it
+			out[i].Blocked = s.blocked(out[i].Path)
+		}
+	}
+	return out
 }
 
 // suggestFolders is SuggestedFolders with the Windows lookup and the disk passed in.
@@ -74,6 +82,13 @@ func (s *Service) SetRoots(roots []string) string {
 	for _, root := range roots {
 		cleaned = append(cleaned, filepath.Clean(root))
 	}
+	var added []string
+	for _, root := range cleaned {
+		if !slices.Contains(s.o.Store.Get().Roots, root) {
+			added = append(added, root)
+		}
+	}
+	s.ask(added)
 	return reason(s.o.Store.Update(func(c *config.Config) {
 		c.Roots = cleaned
 		c.Exclude = slices.DeleteFunc(slices.Clone(c.Exclude), func(folder string) bool {

@@ -3,11 +3,9 @@ package main
 import (
 	"os"
 	"os/exec"
-	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"omni/internal/apps"
 	"omni/internal/sidecar"
 )
 
@@ -38,7 +36,3 @@ func openFolder(path string) error { return exec.Command("open", path).Start() }
 func platformSetup(app *application.App) {
 	app.Menu.SetApplicationMenu(application.DefaultApplicationMenu())
 }
-
-// appsShown refreshes the app list when the bar opens and the list is over a minute old: the application folders are not watched yet (milestone M3), and
-// reading them is a few milliseconds.
-func appsShown(catalog *apps.Catalog) { catalog.RefreshIfStale(time.Minute) }

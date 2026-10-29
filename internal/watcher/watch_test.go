@@ -1,5 +1,3 @@
-//go:build windows
-
 package watcher
 
 import (
@@ -21,7 +19,7 @@ func start(t *testing.T, root string) (<-chan string, func()) {
 		Watch(ctx, []string{root}, 200*time.Millisecond, time.Second, func(r string) { got <- r })
 		close(done)
 	}()
-	time.Sleep(200 * time.Millisecond) // the watch is registered with the operating system
+	time.Sleep(500 * time.Millisecond) // the watch is registered with the operating system
 	return got, func() {
 		cancel()
 		select {
@@ -53,7 +51,7 @@ func expectQuiet(t *testing.T, got <-chan string, why string) {
 	}
 }
 
-// settle waits out the late events Windows sometimes delivers after a change (a folder's own
+// settle waits out the late events the system sometimes delivers after a change (a folder's own
 // modified time, a virus scan touching the file) and drops what they cause. How a burst becomes one
 // report is tested on the debouncer, where time is exact.
 func settle(got <-chan string) {
@@ -127,7 +125,7 @@ func TestAFolderThatCannotBeWatchedDoesNotStopTheOthers(t *testing.T) {
 		close(done)
 	}()
 	defer func() { cancel(); <-done }()
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	if err := os.WriteFile(filepath.Join(good, "a.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -84,6 +84,9 @@ jobs:
         run: go vet ./...
       - name: Go tests
         run: go test ./...
+      # The Mac downloads (uv, Python and its libraries, both llama.cpp builds) are run for real, which is the only proof the pins work on a Mac.
+      - name: The Mac downloads run
+        run: OMNI_REAL_INSTALL=1 go test ./internal/enginesetup ./internal/llm -run Real -v -timeout 20m
       - name: Page tests and types
         working-directory: frontend
         run: |
