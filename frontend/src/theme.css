@@ -90,6 +90,19 @@ html[data-surface="settings"] body {
   user-select: text;
 }
 
+/* The notes, the chat and the settings are cards: a clear window with one rounded plate drawn by the page (lib/Card.svelte), so the
+   window itself must stay clear, and what scrolls is inside the card. Their scrollbars are thin and dark, not the system's. */
+html[data-surface="card"],
+html[data-surface="card"] body {
+  background: transparent;
+  overflow: hidden;
+  user-select: text;
+}
+html[data-surface="card"] * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

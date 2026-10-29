@@ -156,15 +156,20 @@ func (i *Installer) Install(ctx context.Context, report func(Progress)) error {
 	return os.WriteFile(l.Manifest(), body, 0o644)
 }
 
-// unpacked downloads a pinned zip and extracts it into dir, once: a marker file in dir records which
-// pin is there, so a repeat install does not download it again.
+// unpacked downloads a pinned zip and extracts it into dir, once.
 func (i *Installer) unpacked(ctx context.Context, a Artifact, dir string, report func(Progress)) error {
+	return i.Download.Unpack(ctx, a, dir, func(done, total int64) { report(Progress{Done: done, Total: total}) })
+}
+
+// Unpack downloads a pinned zip and extracts it into dir, once: a marker file in dir records which
+// pin is there, so a repeat does not download it again.
+func (d Downloader) Unpack(ctx context.Context, a Artifact, dir string, progress func(done, total int64)) error {
 	marker := filepath.Join(dir, ".pin")
 	if data, err := os.ReadFile(marker); err == nil && strings.TrimSpace(string(data)) == a.SHA256 {
 		return nil
 	}
 	archive := dir + ".zip"
-	if err := i.Download.Download(ctx, a, archive, func(done, total int64) { report(Progress{Done: done, Total: total}) }); err != nil {
+	if err := d.Download(ctx, a, archive, progress); err != nil {
 		return err
 	}
 	if err := removeAll(dir); err != nil {
@@ -274,6 +279,9 @@ func (i *Installer) Remove() error {
 	}
 	return nil
 }
+
+// RemoveAll deletes dir the way Remove does, for the other installers that keep their files in a folder of their own.
+func RemoveAll(dir string) error { return removeAll(dir) }
 
 // removeAll deletes dir, trying again for a few seconds: on Windows a process that has just been killed
 // still holds its files for a moment, and deleting them at once fails with a sharing violation.

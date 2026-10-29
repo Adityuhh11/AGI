@@ -28,7 +28,7 @@ Personal, local-first AI launcher for Windows. Go core + Wails v3 + Svelte UI + 
 - Sharp at every display scale: the process is per-monitor DPI aware (declared in `build/windows/omni.manifest`) and
   `scripts/build.ps1` fails a build that is not (`docs/decisions/0006-dpi-awareness.md`). Look at any new window at 125%.
 - Privacy: nothing leaves the machine except explicit calls to a configured LLM provider and requests the user
-  starts or switches on (the file-search download, the opt-in update check and the update the user presses to install, `docs/decisions/0005-update-check.md`).
+  starts or switches on (the file-search and Omni AI downloads, the opt-in update check and the update the user presses to install, `docs/decisions/0005-update-check.md`).
   No telemetry.
 - Config in `%APPDATA%\Omni\config.toml`; API keys in Windows Credential Manager, never in files or git.
 

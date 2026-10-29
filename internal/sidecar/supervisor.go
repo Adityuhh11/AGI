@@ -97,7 +97,7 @@ type Supervisor struct {
 // New prepares a supervisor: it picks the port and generates this run's token.
 func New(opts Options) (*Supervisor, error) {
 	if opts.Start == nil {
-		opts.Start = execStarter
+		opts.Start = ExecStarter
 	}
 	if opts.Backoff == nil {
 		opts.Backoff = defaultBackoff

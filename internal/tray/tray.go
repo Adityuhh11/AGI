@@ -18,16 +18,20 @@ type Tray struct {
 	status *application.MenuItem
 	pause  *application.MenuItem
 	update *application.MenuItem
+	chat   *application.MenuItem
 }
 
 // New adds the icon. Clicking it calls open; the menu offers open, notes, settings, rescan, pausing indexing and quit.
-func New(app *application.App, open, notes, settings, setup, rescan, togglePause func()) *Tray {
+func New(app *application.App, open, notes, chat, settings, setup, rescan, togglePause func()) *Tray {
 	menu := application.NewMenu()
 	status := menu.Add("Starting...")
 	status.SetEnabled(false)
 	menu.AddSeparator()
 	menu.Add("Open search").OnClick(func(*application.Context) { open() })
 	menu.Add("Notes").OnClick(func(*application.Context) { notes() })
+	ask := menu.Add("Omni AI")
+	ask.SetHidden(true) // shown once Omni AI is on
+	ask.OnClick(func(*application.Context) { chat() })
 	menu.Add("Settings").OnClick(func(*application.Context) { settings() })
 	menu.Add("Set up Omni...").OnClick(func(*application.Context) { setup() })
 	update := menu.Add("Update available")
@@ -41,7 +45,15 @@ func New(app *application.App, open, notes, settings, setup, rescan, togglePause
 
 	icon := app.SystemTray.New().SetIcon(icon).SetMenu(menu).OnClick(open)
 	icon.SetTooltip("Omni")
-	return &Tray{icon: icon, menu: menu, status: status, pause: pause, update: update}
+	return &Tray{icon: icon, menu: menu, status: status, pause: pause, update: update, chat: ask}
+}
+
+// SetChat shows the Omni AI item while Omni AI is on. It may be called from any goroutine.
+func (t *Tray) SetChat(on bool) {
+	application.InvokeAsync(func() {
+		t.chat.SetHidden(!on)
+		t.menu.Update()
+	})
 }
 
 // SetPaused makes the pause item say what pressing it does. It may be called from any goroutine.

@@ -24,12 +24,15 @@ const snippetPreviewLength = 40
 // are seeded with, and they can be found by typing their names.
 type command struct {
 	id, title, prefix string
+	// alias is another word that finds the row (`chat` finds “Ask Omni AI”).
+	alias string
 }
 
 var commands = []command{
-	{"cmd:clipboard", "Clipboard history", "clip: "},
-	{"cmd:snippets", "Snippets", "snip: "},
-	{"cmd:notes", "Notes", "note: "},
+	{"cmd:clipboard", "Clipboard history", "clip: ", ""},
+	{"cmd:snippets", "Snippets", "snip: ", ""},
+	{"cmd:notes", "Notes", "note: ", ""},
+	{"cmd:ask", "Ask Omni AI", "ask: ", "chat"},
 }
 
 func commandFor(id string) (command, bool) {
@@ -52,7 +55,7 @@ func commandItems(text string) []Item {
 	}
 	var items []Item
 	for _, c := range commands {
-		if rank.Match(text, c.title).Strong {
+		if rank.Match(text, c.title).Strong || (c.alias != "" && rank.Match(text, c.alias).Strong) {
 			items = append(items, c.item())
 		}
 	}

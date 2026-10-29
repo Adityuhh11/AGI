@@ -436,3 +436,45 @@ func TestAConfigWithoutTheBatteryKeyWaitsForPower(t *testing.T) {
 		t.Fatalf("Load: %v, PauseOnBattery %v; want it on unless the file says off", err, got.Search.PauseOnBattery)
 	}
 }
+
+func TestOmniAIIsOffByDefaultLoadsOnDemandAndKeepsHistory(t *testing.T) {
+	got := Default().Chat
+	if got.Enabled || got.Hotkey != "" || got.Thinking {
+		t.Fatalf("chat must start off, with no hotkey and no thinking: %+v", got)
+	}
+	if got.Load != "when_asked" || got.UnloadAfterMinutes != 10 || got.ContextTokens != 8192 || !got.KeepHistory || got.HistoryDays != 90 || !got.OnTop {
+		t.Fatalf("defaults = %+v", got)
+	}
+}
+
+func TestChatSettingsRoundTripAndAreValidated(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfg := Default()
+	cfg.Chat = Chat{Enabled: true, Hotkey: "Ctrl+Alt+A", Load: "at_start", UnloadAfterMinutes: 0, ContextTokens: 16384, KeepHistory: false, HistoryDays: 0, Thinking: true, OnTop: false}
+	if err := cfg.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	back, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Chat != cfg.Chat {
+		t.Fatalf("round trip = %+v, want %+v", back.Chat, cfg.Chat)
+	}
+
+	for name, change := range map[string]func(*Config){
+		"load":             func(c *Config) { c.Chat.Load = "always" },
+		"unload minutes":   func(c *Config) { c.Chat.UnloadAfterMinutes = 7 },
+		"context":          func(c *Config) { c.Chat.ContextTokens = 5000 },
+		"history days":     func(c *Config) { c.Chat.HistoryDays = -1 },
+		"history too long": func(c *Config) { c.Chat.HistoryDays = 366 },
+		"launcher hotkey":  func(c *Config) { c.Chat.Hotkey = "alt+shift+space" },
+		"clipboard hotkey": func(c *Config) { c.Clipboard.Hotkey = "Ctrl+Alt+A"; c.Chat.Hotkey = "Ctrl+Alt+A" },
+	} {
+		bad := Default()
+		change(&bad)
+		if err := bad.Validate(); err == nil {
+			t.Errorf("%s: an invalid chat setting was accepted", name)
+		}
+	}
+}
