@@ -31,3 +31,11 @@ without the `v` is what `scripts/release.ps1 -Version` takes, what the program r
    matches that digest, so a release without one cannot be installed from the program. (The update looks for the zip by name; the
    installer is for people installing, and is never fetched by the program.)
 6. Bring `dev` up to date with `main`.
+
+## Builds from before the rename
+
+Releases up to `0.9.0` were called AGI. Their update button looks for `agi-X.Y.Z-windows-x64.zip` holding `agi.exe`, so a person on one of
+them is offered a release only if it carries that file too. For as long as such people matter, add it to each release: the same
+`omni.exe` copied to `agi.exe`, zipped as `agi-X.Y.Z-windows-x64.zip`, uploaded with `gh release upload vX.Y.Z` before publishing.
+On its first start the program moves the settings from the `AGI` folders and keeps using the engine where it is
+(`cmd/omni/migrate.go`).

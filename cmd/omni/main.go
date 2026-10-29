@@ -64,6 +64,13 @@ func main() {
 		}
 		return
 	}
+	if cfgDir, err := os.UserConfigDir(); err == nil {
+		if cacheDir, err := os.UserCacheDir(); err == nil {
+			if err := migrateFromAGI(cfgDir, cacheDir); err != nil {
+				fmt.Fprintln(os.Stderr, err) // the log is not open yet; the program still starts, with settings of its own
+			}
+		}
+	}
 	closeLog := setUpLog()
 	defer closeLog()
 	if err := run(finishUpdate()); err != nil {

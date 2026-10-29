@@ -219,7 +219,11 @@ func (i *Installer) syncPython(ctx context.Context, report func(Progress)) error
 		run = i.defaultUV
 	}
 	if err := run(ctx, l.App(), env, []string{"sync", "--frozen", "--no-dev", "--python", PythonVersion}, out); err != nil {
-		return fmt.Errorf("%w\n%s", err, out.tail())
+		tail := out.tail()
+		if strings.Contains(tail, "os error 448") { // Windows refused a link in the folder; another folder usually has none
+			return fmt.Errorf("%w\n%s\nWindows would not let Python be set up in this folder. Choose another one with Change folder (for example C:\\OmniData) and try again", err, tail)
+		}
+		return fmt.Errorf("%w\n%s", err, tail)
 	}
 	return removeAll(cache) // the wheels are in the environment now; keep the folder small
 }
