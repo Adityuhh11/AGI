@@ -3,6 +3,8 @@
 package status
 
 import (
+	"log"
+
 	"omni/internal/config"
 	"omni/internal/indexing"
 	"omni/internal/sidecar"
@@ -65,4 +67,16 @@ func (s *Service) Info() Info {
 		info.IndexState, info.IndexText = "off", ""
 	}
 	return info
+}
+
+// maxPageError is the most of a page error the log keeps: a stack can be long, and the log is one file for everything.
+const maxPageError = 2000
+
+// PageError writes a script error of a window to the log. The message the person sees says the details are in the log; without this
+// they were only in a console nobody can open.
+func (s *Service) PageError(message string) {
+	if len(message) > maxPageError {
+		message = message[:maxPageError] + "..."
+	}
+	log.Printf("page error: %s", message)
 }

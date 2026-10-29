@@ -2,11 +2,20 @@
  * The safety net for every window: a script error nobody expected shows a short message in the window instead of
  * leaving it blank or stuck. The error itself goes to the console; what the person sees is in plain words.
  */
+import { Service as Status } from "../../bindings/omni/internal/status";
+
+/** What went wrong as text: an error's stack when it has one. */
+function describe(error: unknown): string {
+  if (error instanceof Error) return error.stack ?? error.message;
+  return String(error);
+}
+
 export function catchUnexpected() {
   let shown: HTMLElement | null = null;
 
   const show = (error: unknown) => {
     console.error(error);
+    Status.PageError(describe(error)).catch(() => {}); // the log is where the message says the details are
     if (shown) return;
     const note = document.createElement("div");
     note.setAttribute("role", "alert");
