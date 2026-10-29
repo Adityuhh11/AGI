@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -26,3 +27,6 @@ func runHelper() bool {
 	}
 	return false
 }
+
+// openFolder shows a folder in Finder.
+func openFolder(path string) error { return exec.Command("open", path).Start() }

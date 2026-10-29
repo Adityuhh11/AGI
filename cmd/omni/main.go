@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -433,7 +432,7 @@ func run(afterUpdate bool) error {
 			ClearHistory: func() error { _, err := chatSvc.ClearHistory(); return err },
 			RebindHotkey: func(accelerator string) error { return chatKey.Rebind(accelerator, toggleChat) },
 			HotkeyError:  chatKey.Error,
-			OpenFolder:   func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			OpenFolder:   openFolder,
 		})),
 		application.NewService(settingsui.New(settingsui.Options{
 			Store:    store,
@@ -446,7 +445,7 @@ func run(afterUpdate bool) error {
 					SetTitle("Choose a folder to search").PromptForSingleSelection()
 			},
 			Browsers:             web.Installed,
-			OpenFolder:           func(path string) error { return exec.Command("explorer.exe", path).Start() },
+			OpenFolder:           openFolder,
 			Clipboard:            clips,
 			RebindClipboard:      func(accelerator string) error { return bar.RebindFill(accelerator, "clip: ") },
 			ClipboardHotkeyError: bar.FillError,
