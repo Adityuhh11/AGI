@@ -6,6 +6,8 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
+
+	"omni/internal/dock"
 )
 
 // windowSpec is what tells the settings window, the setup guide, the notes window, the chat and the timer apart: all are the
@@ -134,7 +136,13 @@ func (w *Window) OpenAt(section string) {
 		}
 	}
 	win := w.app.Window.NewWithOptions(options)
+	if !w.spec.overlay { // the timer is a small overlay, not a window to switch to
+		dock.Counter.Opened()
+	}
 	win.OnWindowEvent(events.Common.WindowClosing, func(*application.WindowEvent) {
+		if !w.spec.overlay {
+			dock.Counter.Closed()
+		}
 		w.mu.Lock()
 		if w.win == win { // not a newer window that replaced this one
 			w.win = nil

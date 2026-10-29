@@ -3,9 +3,11 @@ package main
 import (
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"omni/internal/apps"
 	"omni/internal/sidecar"
 )
 
@@ -30,3 +32,13 @@ func runHelper() bool {
 
 // openFolder shows a folder in Finder.
 func openFolder(path string) error { return exec.Command("open", path).Start() }
+
+// platformSetup gives the program a real application menu. It shows while a window is open (internal/dock), and without its Edit
+// menu ⌘C, ⌘V, ⌘X and ⌘A do nothing in the page's text fields: on a Mac those keys are menu items.
+func platformSetup(app *application.App) {
+	app.Menu.SetApplicationMenu(application.DefaultApplicationMenu())
+}
+
+// appsShown refreshes the app list when the bar opens and the list is over a minute old: the application folders are not watched yet (milestone M3), and
+// reading them is a few milliseconds.
+func appsShown(catalog *apps.Catalog) { catalog.RefreshIfStale(time.Minute) }

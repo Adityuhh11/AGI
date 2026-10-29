@@ -1,10 +1,14 @@
 // Package panel owns the search bar window: it opens on a global hotkey, takes the keyboard,
 // and gives it back to the app the user came from when it closes.
 //
-// The window is never hidden, only cloaked (see cloak), because Wails' own Show() and Hide() cost
+// On Windows the window is never hidden, only cloaked (see cloak), because Wails' own Show() and Hide() cost
 // about 70 ms and stop the web view from rendering. Cloaked, the page stays painted and
 // uncloaking is nearly instant. A cloaked window still owns the keyboard focus, so closing the
 // panel hands focus back to the window that had it before.
+//
+// On a Mac the window is an NSPanel that never activates the program, so the app the person came from stays the active one and
+// closing the panel is just ordering it out; "cloak" there is that (native_darwin.go). What a system provides is in win32_windows.go
+// and native_darwin.go: where the window is, which one had the keyboard, and the screen under the mouse.
 package panel
 
 import (
@@ -60,7 +64,7 @@ type Panel struct {
 func New(app *application.App, hotkey string) *Panel {
 	// The window takes the keyboard when it is created; remember who had it to give it back.
 	p := &Panel{app: app, keys: app.GlobalShortcut, hotkey: hotkey, heightDIP: barHeightDIP, previous: foregroundWindow()}
-	p.win = app.Window.NewWithOptions(application.WebviewWindowOptions{
+	options := application.WebviewWindowOptions{
 		Name:          "panel",
 		Title:         "Omni",
 		Width:         widthDIP,
@@ -79,11 +83,9 @@ func New(app *application.App, hotkey string) *Panel {
 		BackgroundType:   application.BackgroundTypeTransparent,
 		BackgroundColour: application.NewRGBA(0, 0, 0, 0),
 		URL:              "/",
-		Windows: application.WindowsWindow{
-			HiddenOnTaskbar:                   true,
-			DisableFramelessWindowDecorations: true,
-		},
-	})
+	}
+	platformWindow(&options)
+	p.win = app.Window.NewWithOptions(options)
 	p.win.OnWindowEvent(events.Common.WindowLostFocus, func(*application.WindowEvent) {
 		p.hide(false) // the user clicked elsewhere: do not steal the focus back
 	})

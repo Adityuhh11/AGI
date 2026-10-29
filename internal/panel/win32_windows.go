@@ -3,6 +3,7 @@ package panel
 import (
 	"unsafe"
 
+	"github.com/wailsapp/wails/v3/pkg/application"
 	"golang.org/x/sys/windows"
 )
 
@@ -34,6 +35,14 @@ const (
 	swpNoZOrder             = 0x0004
 	dwmwaCloak              = 13
 )
+
+// platformWindow adds what only Windows needs to the panel window's options.
+func platformWindow(options *application.WebviewWindowOptions) {
+	options.Windows = application.WindowsWindow{
+		HiddenOnTaskbar:                   true,
+		DisableFramelessWindowDecorations: true,
+	}
+}
 
 type point struct{ X, Y int32 }
 

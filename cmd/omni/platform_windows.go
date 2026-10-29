@@ -5,6 +5,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"omni/internal/apps"
 	"omni/internal/settingsui"
 )
 
@@ -23,3 +24,9 @@ func runHelper() bool { return false }
 
 // openFolder shows a folder in Explorer.
 func openFolder(path string) error { return exec.Command("explorer.exe", path).Start() }
+
+// platformSetup does what only Windows needs once the application exists. Nothing: its windows carry their own menus, and the program has no application menu.
+func platformSetup(*application.App) {}
+
+// appsShown is what the app list does when the bar opens. Nothing on Windows: the Start Menu folders are watched and the list refreshes by itself.
+func appsShown(*apps.Catalog) {}
