@@ -38,10 +38,13 @@ type Asset struct {
 	SHA256 string
 }
 
-// assetOf picks the Windows zip of a release out of GitHub's list of its files. A zip whose digest is missing,
-// is not SHA-256 or is not 64 hex digits is left out: nothing is installed that cannot be checked.
+// assetOf picks the zip this system installs from out of GitHub's list of a release's files (assetName). A zip whose digest is
+// missing, is not SHA-256 or is not 64 hex digits is left out: nothing is installed that cannot be checked.
 func assetOf(version string, files []githubFile) Asset {
-	want := "omni-" + version + "-windows-x64.zip"
+	want := assetName(version)
+	if want == "" {
+		return Asset{}
+	}
 	for _, f := range files {
 		if f.Name != want {
 			continue
