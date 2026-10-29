@@ -17,21 +17,29 @@ const removeDataFlag = "--remove-data"
 
 // runRemoveData finds where this user's data is and deletes it. A missing folder is not an error.
 func runRemoveData() error {
-	cache, err := os.UserCacheDir() // %LOCALAPPDATA%
+	dataDir, err := config.DataDir()
 	if err != nil {
-		return fmt.Errorf("locate the cache directory: %w", err)
+		return err
+	}
+	logDir, err := config.LogDir()
+	if err != nil {
+		return err
 	}
 	settingsFile, err := config.Path()
 	if err != nil {
 		return err
 	}
-	var dataDir string
+	var chosenDir string
 	if _, statErr := os.Stat(settingsFile); statErr == nil { // Load would make the file if it were missing
 		if cfg, err := config.Load(settingsFile); err == nil {
-			dataDir = cfg.Search.DataDir
+			chosenDir = cfg.Search.DataDir
 		}
 	}
-	return removeData(filepath.Join(cache, "Omni"), filepath.Dir(settingsFile), dataDir)
+	err = removeData(dataDir, filepath.Dir(settingsFile), chosenDir)
+	if !strings.HasPrefix(logDir, dataDir) { // the Mac keeps its log in ~/Library/Logs/Omni, outside the data
+		err = errors.Join(err, removeData(logDir, logDir, ""))
+	}
+	return err
 }
 
 // removeData deletes the program's own folders: appData (the engine, the index, caches, clipboard history, the log) and

@@ -7,17 +7,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"omni/internal/config"
 )
 
 // Layout is the engine folder and the paths inside it, and where the index is kept.
 type Layout struct {
 	Root string
-	// Memory is the folder of the index; empty means the engine's own default, %LOCALAPPDATA%\Omni\memory.
+	// Memory is the folder of the index; empty means memory inside config.DataDir().
 	Memory string
 }
 
-// Locate returns where the engine and the index live: under dataDir (the engine in dataDir\engine, the index in
-// dataDir\memory) when the person chose a folder for them, else %LOCALAPPDATA%\Omni\engine and \memory. The folder in
+// Locate returns where the engine and the index live: under dataDir (the engine in dataDir/engine, the index in
+// dataDir/memory) when the person chose a folder for them, else engine and memory inside config.DataDir(). The folder in
 // OMNI_ENGINE_DIR (for developers who keep an engine somewhere else) wins over both.
 func Locate(dataDir string) (Layout, error) {
 	if dir := os.Getenv("OMNI_ENGINE_DIR"); dir != "" {
@@ -26,11 +28,11 @@ func Locate(dataDir string) (Layout, error) {
 	if dataDir != "" {
 		return Layout{Root: filepath.Join(dataDir, "engine"), Memory: filepath.Join(dataDir, "memory")}, nil
 	}
-	cache, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	data, err := config.DataDir()
 	if err != nil {
 		return Layout{}, fmt.Errorf("locate the engine folder: %w", err)
 	}
-	return Layout{Root: filepath.Join(cache, "Omni", "engine")}, nil
+	return Layout{Root: filepath.Join(data, "engine")}, nil
 }
 
 // Index is the folder the engine keeps its index in.
@@ -38,11 +40,11 @@ func (l Layout) Index() string {
 	if l.Memory != "" {
 		return l.Memory
 	}
-	cache, err := os.UserCacheDir()
+	data, err := config.DataDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(cache, "Omni", "memory")
+	return filepath.Join(data, "memory")
 }
 
 // HasIndex reports whether an index has been built in Index.
@@ -82,12 +84,8 @@ func (l Layout) Installed() bool {
 	return true
 }
 
-// Env is what the engine process needs to find its llama.cpp server and its models, and the index when it is kept
-// somewhere other than the default.
+// Env is what the engine process needs to find its llama.cpp server, its models and its index. The engine does not know
+// where a system keeps its data, so it is always told.
 func (l Layout) Env() []string {
-	env := []string{"OMNI_LLAMA_SERVER=" + l.LlamaServer(), "OMNI_MODEL_DIR=" + l.Models()}
-	if l.Memory != "" {
-		env = append(env, "OMNI_MEMORY_DIR="+l.Memory)
-	}
-	return env
+	return []string{"OMNI_LLAMA_SERVER=" + l.LlamaServer(), "OMNI_MODEL_DIR=" + l.Models(), "OMNI_MEMORY_DIR=" + l.Index()}
 }

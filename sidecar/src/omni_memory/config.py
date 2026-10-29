@@ -20,7 +20,7 @@ class Settings:
     """Everything tunable about the engine. Defaults are the values measured in ADR 0001."""
 
     index_dir: Path
-    llama_server: Path | None = None  # llama-server.exe, from OMNI_LLAMA_SERVER
+    llama_server: Path | None = None  # the llama.cpp server program, from OMNI_LLAMA_SERVER
     model_dir: Path | None = None  # the folder with the two GGUF files (OMNI_MODEL_DIR)
     model_id: str = MODEL_ID
     dim: int = EMBEDDING_DIM
@@ -46,19 +46,13 @@ class Settings:
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> Settings:
-        """The llama.cpp server and the models come from `OMNI_LLAMA_SERVER` and `OMNI_MODEL_DIR`
-        (the launcher sets both). The index is in `OMNI_MEMORY_DIR` if set, else in the Omni/memory
-        folder under `%LOCALAPPDATA%`."""
+        """The llama.cpp server, the models and the index come from `OMNI_LLAMA_SERVER`,
+        `OMNI_MODEL_DIR` and `OMNI_MEMORY_DIR` (the launcher sets all three). The engine does not
+        guess where a system keeps its data."""
         env = os.environ if environ is None else environ
         server, models = env.get("OMNI_LLAMA_SERVER"), env.get("OMNI_MODEL_DIR")
         llama_server = Path(server) if server else None
         model_dir = Path(models) if models else None
         if override := env.get("OMNI_MEMORY_DIR"):
             return cls(index_dir=Path(override), llama_server=llama_server, model_dir=model_dir)
-        if local := env.get("LOCALAPPDATA"):
-            return cls(
-                index_dir=Path(local) / "Omni" / "memory",
-                llama_server=llama_server,
-                model_dir=model_dir,
-            )
-        raise ConfigError("cannot locate the index: set OMNI_MEMORY_DIR (LOCALAPPDATA is unset)")
+        raise ConfigError("cannot locate the index: set OMNI_MEMORY_DIR")

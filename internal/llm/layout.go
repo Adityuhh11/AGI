@@ -5,13 +5,15 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+
+	"omni/internal/config"
 )
 
 // Layout is the folder the model and its server live in.
 type Layout struct{ Root string }
 
-// Locate returns where Omni AI is kept: dataDir\chat when the person chose a folder for the downloads, else
-// %LOCALAPPDATA%\Omni\chat. The folder in OMNI_CHAT_DIR (for developers) wins over both.
+// Locate returns where Omni AI is kept: dataDir/chat when the person chose a folder for the downloads, else
+// chat inside config.DataDir(). The folder in OMNI_CHAT_DIR (for developers) wins over both.
 func Locate(dataDir string) (Layout, error) {
 	if dir := os.Getenv("OMNI_CHAT_DIR"); dir != "" {
 		return Layout{Root: dir}, nil
@@ -19,11 +21,11 @@ func Locate(dataDir string) (Layout, error) {
 	if dataDir != "" {
 		return Layout{Root: filepath.Join(dataDir, "chat")}, nil
 	}
-	cache, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	data, err := config.DataDir()
 	if err != nil {
 		return Layout{}, fmt.Errorf("locate the chat folder: %w", err)
 	}
-	return Layout{Root: filepath.Join(cache, "Omni", "chat")}, nil
+	return Layout{Root: filepath.Join(data, "chat")}, nil
 }
 
 // Dir is the folder llama.cpp is unpacked into.

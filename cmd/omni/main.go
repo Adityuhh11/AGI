@@ -64,12 +64,8 @@ func main() {
 		}
 		return
 	}
-	if cfgDir, err := os.UserConfigDir(); err == nil {
-		if cacheDir, err := os.UserCacheDir(); err == nil {
-			if err := migrateFromAGI(cfgDir, cacheDir); err != nil {
-				fmt.Fprintln(os.Stderr, err) // the log is not open yet; the program still starts, with settings of its own
-			}
-		}
+	if err := migrateEarlierVersions(); err != nil {
+		fmt.Fprintln(os.Stderr, err) // the log is not open yet; the program still starts, with settings of its own
 	}
 	closeLog := setUpLog()
 	defer closeLog()
@@ -82,14 +78,13 @@ func main() {
 
 const maxLogBytes = 5 << 20
 
-// setUpLog sends the log to the file omni.log under %LOCALAPPDATA%\Omni\logs as well as to the
+// setUpLog sends the log to the file omni.log in config.LogDir() as well as to the
 // console, if there is one: the release build has no console window, so the file is the only record.
 func setUpLog() (closeLog func()) {
-	dir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	logDir, err := config.LogDir()
 	if err != nil {
 		return func() {}
 	}
-	logDir := filepath.Join(dir, "Omni", "logs")
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return func() {}
 	}
@@ -153,13 +148,17 @@ func run(afterUpdate bool) error {
 
 	// A second launch (the shortcut clicked again) does not start a second launcher or engine: it
 	// exits right inside application.New and the running one shows the search bar instead.
-	cacheDir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	dataDir, err := config.DataDir()
 	if err != nil {
-		return fmt.Errorf("locate the cache directory: %w", err)
+		return err
+	}
+	logDir, err := config.LogDir()
+	if err != nil {
+		return err
 	}
 	var bar *panel.Panel
-	iconDir := filepath.Join(cacheDir, "Omni", "icons")
-	catalog := apps.NewCatalog(filepath.Join(cacheDir, "Omni", "apps.json"), iconDir)
+	iconDir := filepath.Join(dataDir, "icons")
+	catalog := apps.NewCatalog(filepath.Join(dataDir, "apps.json"), iconDir)
 	// Everything below that needs the indexed folders asks the store when it needs them, so folders
 	// added in the settings count at once.
 	roots := func() []string { return store.Get().Roots }
@@ -170,7 +169,7 @@ func run(afterUpdate bool) error {
 		}
 		return byID
 	}
-	thumbnails := files.Thumbnails(roots, filepath.Join(cacheDir, "Omni", "thumbs"))
+	thumbnails := files.Thumbnails(roots, filepath.Join(dataDir, "thumbs"))
 	icons := apps.Icons(catalog.Index, iconDir)
 	app := application.New(application.Options{
 		Name: "Omni",
@@ -276,7 +275,7 @@ func run(afterUpdate bool) error {
 
 	// What was copied is kept only while the history is switched on in the settings. Its own copies (a paste,
 	// "copy path") carry this program's name and are not kept.
-	clipStore, err := clipboard.OpenStore(filepath.Join(cacheDir, "Omni", "clipboard.json"))
+	clipStore, err := clipboard.OpenStore(filepath.Join(dataDir, "clipboard.json"))
 	if err != nil {
 		return err
 	}
@@ -454,7 +453,7 @@ func run(afterUpdate bool) error {
 			RebindNotes:          func(accelerator string) error { return notesKey.Rebind(accelerator, notesWindow.Toggle) },
 			NotesHotkeyError:     notesKey.Error,
 			Updates:              checker,
-			Installer:            update.NewInstaller(filepath.Join(cacheDir, "Omni", "update")),
+			Installer:            update.NewInstaller(filepath.Join(dataDir, "update")),
 			ExePath:              self,
 			Restart: func() error {
 				if err := update.StartNew(self, os.Getpid()); err != nil {
@@ -469,7 +468,7 @@ func run(afterUpdate bool) error {
 			Autostart:    autostart.Enabled,
 			SetAutostart: autostart.Set,
 			Engine:       engine.Status,
-			LogDir:       filepath.Join(cacheDir, "Omni", "logs"),
+			LogDir:       logDir,
 			Place:        setup,
 			Version:      version,
 		})),
