@@ -10,6 +10,13 @@ export function duration(seconds: number): string {
   return `about ${hours} h ${rest} min`;
 }
 
+/** A moment in a recording as a player writes it, and as the bar shows a match ("at 1:23"): 0:07, 1:23, 1:02:03. */
+export function moment(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const two = (n: number) => String(n).padStart(2, "0");
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}` : `${Math.floor(s / 60)}:${two(s % 60)}`;
+}
+
 /** A size: "under 1 MB", "13 MB", "3.2 GB". */
 export function size(bytes: number): string {
   const mb = bytes / (1024 * 1024);

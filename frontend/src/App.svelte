@@ -20,7 +20,7 @@
   import { METALS, nextMetal } from "./lib/palettes";
   import ResultRow from "./lib/ResultRow.svelte";
   import { actionsFor, available, type Way } from "./lib/actions";
-  import { filePathOf, flatten, openLine, pathOf, pinIdOf, step, tagIdOf, type Item } from "./lib/flatten";
+  import { filePathOf, flatten, openLine, pathOf, pinIdOf, step, tagIdOf, timeOf, type Item } from "./lib/flatten";
   import { keyCommand } from "./lib/keys";
   import { asksForFiles, cycle, escapeStep, label, type Mode } from "./lib/modes";
   import { notesFor } from "./lib/notes";
@@ -69,6 +69,12 @@
   const showingPins = $derived(query.trim() === "" && mode === "all"); // nothing typed: the bar lists what is pinned
   const items = $derived<Item[]>(flatten(fileRows, expanded, entries, showingPins, info?.GroupResults ?? false));
   const current = $derived<Item | undefined>(items[selected]);
+  // The program a moment in a recording opens in ("VLC"), or "" when none can be asked: asked when such a row is selected, so
+  // a player installed meanwhile counts, and the hint says which Enter will do.
+  let player = $state("");
+  $effect(() => {
+    if (current && current.kind !== "entry" && timeOf(current) !== null) Files.SeekPlayer().then((name) => (player = name));
+  });
   const firstApp = $derived(items.findIndex((i) => i.kind === "entry" && i.entry.Kind === "app"));
   const firstFile = $derived(items.findIndex((i) => i.kind === "row"));
   const sections = $derived(firstApp >= 0 && firstFile >= 0); // two kinds of rows: label them
@@ -254,7 +260,7 @@
     answerNote = answer.Note ?? "";
     selected = 0;
     clearTimeout(timer);
-    if ((effective === "all" && !info?.FilesInBar && !asksForFiles(query)) || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip" || effective === "note") {
+    if ((effective === "all" && !info?.FilesInBar && !asksForFiles(query)) || effective === "apps" || effective === "web" || effective === "tags" || effective === "clip" || effective === "snip" || effective === "note" || effective === "ask") {
       token++;
       pending = false;
       results = null;
@@ -358,7 +364,10 @@
       await attempt(() => Palette.Do(id, how, query), update);
       if (how === "delete") update(); // what was listed has changed
     } else if (how === "reveal") await attempt(() => Files.Reveal(pathOf(item)));
-    else await attempt(() => Files.Open(pathOf(item), openLine(item)));
+    else {
+      const at = timeOf(item); // a moment in a recording opens in a player at that moment, when one can be asked to
+      await attempt(() => (at === null ? Files.Open(pathOf(item), openLine(item)) : Files.OpenAt(pathOf(item), at)));
+    }
   }
 
   /** Alt+Enter: search the web for what is typed, from any mode. */
@@ -581,7 +590,7 @@
                   {/if}
                 {/each}
               </div>
-              <Hints {current} pinned={current && pinningOf(current) ? pinningOf(current) === "unpin" : null} {info} />
+              <Hints {current} {player} pinned={current && pinningOf(current) ? pinningOf(current) === "unpin" : null} {info} />
             {/if}
           </div>
         {/if}

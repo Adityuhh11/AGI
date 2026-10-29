@@ -6,6 +6,9 @@
   import "./lib/settings/forms.css";
   import { when } from "./lib/format";
   import { render, toggleTask } from "./lib/markdown";
+  import Card from "./lib/Card.svelte";
+  import RoundButton from "./lib/RoundButton.svelte";
+  import { Window } from "@wailsio/runtime";
 
   const SAVE_AFTER_MS = 400;
   const PIN_KEY = "omni-notes-on-top";
@@ -169,7 +172,7 @@
   }
 
   onMount(() => {
-    document.documentElement.dataset.surface = "settings";
+    document.documentElement.dataset.surface = "card";
     try {
       onTop = localStorage.getItem(PIN_KEY) !== "false";
     } catch {
@@ -193,6 +196,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
+<Card>
 <main>
   {#if editing}
     <header>
@@ -209,6 +213,7 @@
           <button type="button" class="btn quiet" onclick={() => (confirmDelete = true)} title="Delete this note">Delete</button>
         {/if}
         <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">On top</button>
+        <RoundButton icon="close" label="Close" onclick={() => Window.Close()} />
       </div>
     </header>
     {#if preview}
@@ -240,6 +245,7 @@
       <div class="tools">
         <button type="button" class="btn primary" onclick={() => create()} title="New note (Ctrl+N)">New</button>
         <button type="button" class="btn quiet" class:on={onTop} aria-pressed={onTop} onclick={togglePin} title="Keep above other windows">On top</button>
+        <RoundButton icon="close" label="Close" onclick={() => Window.Close()} />
       </div>
     </header>
     {#if problem}<p class="error pad">{problem}</p>{/if}
@@ -261,22 +267,28 @@
   {/if}
   {#if problem && editing}<p class="error pad">{problem}</p>{/if}
 </main>
+</Card>
 
 <style>
   main {
     display: flex;
+    flex: 1;
     flex-direction: column;
-    height: 100vh;
+    min-height: 0;
     max-width: none;
-    background: var(--plate);
     color: var(--text);
   }
   header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 12px 14px 10px 20px;
     border-bottom: 1px solid var(--line);
+    --wails-draggable: drag; /* the window is moved by holding the header anywhere but on a control */
+  }
+  header :global(button),
+  header input {
+    --wails-draggable: no-drag;
   }
   header input {
     flex: 1;

@@ -44,7 +44,7 @@ func running(pid int) bool {
 
 func TestKillingAProcessKillsWhatItStarted(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "child.pid")
-	proc, err := execStarter(context.Background(), Spec{
+	proc, err := ExecStarter(context.Background(), Spec{
 		Exe:  os.Args[0],
 		Args: []string{"-test.run=TestHelperProcess"},
 		Env:  append(os.Environ(), "OMNI_HELPER=parent", "OMNI_HELPER_PID="+pidFile),

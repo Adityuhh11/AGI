@@ -52,6 +52,9 @@ type Match struct {
 	Snippet  string
 	// Line is where the match starts in a code or text file (0 if unknown), for opening an editor there.
 	Line int
+	// Timed says the match is a moment in a sound or a video, Seconds from its start: a player can open it there.
+	Timed   bool
+	Seconds float64
 }
 
 // Row is one file in the result list.
@@ -63,7 +66,10 @@ type Row struct {
 	Kind string
 	// Line is the first line of the best match in a code or text file (0 if unknown), so an editor
 	// can open the file there.
-	Line    int
+	Line int
+	// Timed and Seconds are those of the best match: the moment a player opens the file at.
+	Timed   bool
+	Seconds float64
 	Score   float64
 	Matches []Match // best first; at most three
 }
@@ -189,6 +195,12 @@ func (s *Service) row(file sidecar.File) (Row, bool) {
 	}
 	for _, chunk := range file.Chunks {
 		match := Match{Location: location(chunk.Locator), Snippet: chunk.Snippet, Line: firstLine(chunk.Locator)}
+		if t := parseLocator(chunk.Locator).T; t != nil {
+			match.Timed, match.Seconds = true, *t
+		}
+		if len(row.Matches) == 0 {
+			row.Timed, row.Seconds = match.Timed, match.Seconds
+		}
 		row.Matches = append(row.Matches, match)
 		if row.Line == 0 {
 			row.Line = match.Line

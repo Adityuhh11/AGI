@@ -21,6 +21,7 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **Web and quicklinks** | `?` or `web:` searches in the browser you choose. `gh rust lifetimes` opens that search on GitHub; add your own quicklinks. |
 | **Clipboard history** *(off until you switch it on)* | `clip:` lists what you copied, newest first. Enter pastes it into the program you came from. Skips copies marked private, password managers and programs you list. |
 | **Snippets** | Text you paste often, with `{date}`, `{time}` and `{clipboard}` filled in. `snip:` or a keyword. |
+| **Omni AI** *(optional)* | `ask:` (or `ai:`, `chat:`) opens a small chat window that stays above other windows and answers with a language model that runs on this computer: Liquid AI's LFM3-1.7B, 1 GB, downloaded once from Settings > Omni AI. Conversations are kept as plain files you can clear in one click; the model is loaded when you ask and unloaded when idle (you choose when). An optional hotkey opens it; a Think button lets it reason first. It is a small model: it is for quick questions, rewrites and explanations. |
 | **Notes** | `note:` lists your notes; `note: buy milk` makes one. They are markdown files in `%APPDATA%\Omni\notes`, opened in a small window that stays above other windows (and can be resized, searched and deleted). |
 | **Timer and pomodoro** | `timer 25`, `timer 90s`, `timer 1h30 tea` or `pomodoro`: a small timer sits at the edge of the screen and keeps going when you close it. Lengths are in Settings > Timer. |
 | **Calculator and conversions** | `12*7+3`, `15% of 80`, `5 km in miles`, `72 f in c`: the answer is the first row; Enter copies it. |
@@ -51,7 +52,7 @@ if you turn file search on; the launcher alone is a 13 MB file.
 
 To update, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
 To remove it: Settings > Apps > Installed apps > Omni > Uninstall. It asks whether to delete what Omni saved too (the engine and models,
-the index, clipboard history and settings, up to about 1.2 GB); your own files are never touched. For the zip, quit from the tray
+the index, the Omni AI model, chats, clipboard history and settings, up to about 2.5 GB); your own files are never touched. For the zip, quit from the tray
 icon and delete the folder and the folders under [Where things are](#where-things-are).
 
 ### Turning on file search
@@ -122,11 +123,13 @@ opened. The program touches the network in exactly these cases, all started or s
 | When | Where | What is sent |
 |---|---|---|
 | You press **Download and turn on** (or **Update**) in File search | `github.com`, `pypi.org`, `files.pythonhosted.org`, `huggingface.co` | ordinary downloads of pinned files |
+| You press **Download and turn on** (or **Update**) in Omni AI | `github.com`, `huggingface.co` | ordinary downloads of pinned files (llama.cpp and the model); nothing you ask is ever sent anywhere |
 | You open a web search or link | your browser | what you typed after the trigger |
+| You switch on **Search the web** in the Omni AI chat's + menu (off by default) | `duckduckgo.com`, or `wikipedia.org` when DuckDuckGo asks for a check; then the pages the model chooses to read | the words the model chooses to search for (it composes them from your question and, after a read, from pages; it is a small model); then ordinary requests for pages that searches returned or that you wrote. Local and private addresses are refused |
 | You press **Check for updates**, or turned on the daily check (off by default) | `api.github.com` | a request for the latest release number, nothing about you |
 | You press **Update to X** | `github.com` | a download of that release, checked against its published SHA-256 |
 
-The engine listens on `127.0.0.1` only, behind a random per-run token, and rejects foreign `Host` headers.
+The engine and the Omni AI model server listen on `127.0.0.1` only, behind a random per-run token (the engine also rejects foreign `Host` headers).
 Clipboard history is off by default and stored only on your machine. See [`docs/decisions/0005-update-check.md`](docs/decisions/0005-update-check.md).
 
 ## Settings and where things are
@@ -162,6 +165,8 @@ audio    = 'name'        # name | content: audio files and the soundtrack of vid
 | The index | `%LOCALAPPDATA%\Omni\memory` |
 | Clipboard history | `%LOCALAPPDATA%\Omni\clipboard.json` (only if switched on) |
 | Notes | `%APPDATA%\Omni\notes\*.md`, one file per note |
+| Omni AI conversations | `%APPDATA%\Omni\chats\*.json`, one file per chat (not encrypted) |
+| Omni AI model and its server | `%LOCALAPPDATA%\Omni\chat` (only after you turn Omni AI on; in the folder chosen for the downloads if you chose one) |
 | What you launched, tags, pins | `%APPDATA%\Omni\state.json` |
 
 ## Build from source

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -25,6 +26,9 @@ import (
 	"omni/internal/state"
 	"omni/internal/web"
 )
+
+// askPrefix is the start of text typed in the Ask mode: `ask:`, `ai:` or `chat:`.
+var askPrefix = regexp.MustCompile(`(?i)^(ask|ai|chat)\s*:`)
 
 // The modes of the bar: what a search covers. The page cycles them with Tab; a prefix typed in the text
 // (`app: code`) chooses one too, so the chip and the text never disagree.
@@ -40,6 +44,8 @@ const (
 	ModeSnip = "snip"
 	// ModeNotes lists the notes (`note:`), also not reached by Tab.
 	ModeNotes = "note"
+	// ModeAsk asks Omni AI (`ask:`, `ai:`, `chat:`), also not reached by Tab.
+	ModeAsk = "ask"
 )
 
 const (
@@ -131,7 +137,7 @@ type Service struct {
 	// openSettings shows the Settings window on a page (settingsui.Window.OpenAt).
 	openSettings func(section string)
 	dismiss      func()
-	now     func() time.Time
+	now          func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the
@@ -158,6 +164,10 @@ func (s *Service) Query(raw, mode string) Answer {
 	}
 	if mode == ModeNotes {
 		answer.Items, answer.Note = s.noteItems(text)
+		return answer
+	}
+	if mode == ModeAsk {
+		answer.Items, answer.Note = s.askItems(text)
 		return answer
 	}
 	if mode == ModeFiles {
@@ -227,6 +237,9 @@ func parse(raw, mode string) (string, string) {
 	if mode == ModeNotes {
 		return mode, strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "note:"))
 	}
+	if mode == ModeAsk {
+		return mode, strings.TrimSpace(askPrefix.ReplaceAllString(strings.TrimSpace(raw), ""))
+	}
 	if name, rest, found := strings.Cut(raw, ":"); found {
 		switch strings.ToLower(strings.TrimSpace(name)) {
 		case "app", "apps":
@@ -239,6 +252,8 @@ func parse(raw, mode string) (string, string) {
 			return ModeSnip, strings.TrimSpace(rest)
 		case "note": // not "notes": that is the file search's Documents scope (internal/search/scope.go)
 			return ModeNotes, strings.TrimSpace(rest)
+		case "ask", "ai", "chat":
+			return ModeAsk, strings.TrimSpace(rest)
 		}
 	}
 	return mode, strings.TrimSpace(raw)
@@ -299,6 +314,9 @@ func (s *Service) Do(id, action, typed string) error {
 	}
 	if rest, ok := strings.CutPrefix(id, "note:"); ok {
 		return s.doNote(rest, action)
+	}
+	if rest, ok := strings.CutPrefix(id, "ask:"); ok {
+		return s.doAsk(rest, action)
 	}
 	if answer, ok := strings.CutPrefix(id, "calc:"); ok {
 		return s.doCalc(answer, action)

@@ -26,12 +26,12 @@ func TestRemovingTheDataDeletesOmnisFoldersAndTheTwoInsideAChosenOneButNothingBe
 	neighbour := filepath.Join(root, "Local", "OtherProgram", "keep.txt")
 	otherInChosen := filepath.Join(chosen, "notes.txt")
 	fill(t, filepath.Join(appData, "engine", "e.bin"), filepath.Join(appData, "memory", "meta.db"), filepath.Join(appData, "logs", "omni.log"),
-		filepath.Join(settings, "config.toml"), filepath.Join(chosen, "engine", "e.bin"), filepath.Join(chosen, "memory", "meta.db"), neighbour, otherInChosen)
+		filepath.Join(settings, "config.toml"), filepath.Join(chosen, "engine", "e.bin"), filepath.Join(chosen, "memory", "meta.db"), filepath.Join(chosen, "chat", "m.gguf"), neighbour, otherInChosen)
 
 	if err := removeData(appData, settings, chosen); err != nil {
 		t.Fatal(err)
 	}
-	for _, gone := range []string{appData, settings, filepath.Join(chosen, "engine"), filepath.Join(chosen, "memory")} {
+	for _, gone := range []string{appData, settings, filepath.Join(chosen, "engine"), filepath.Join(chosen, "memory"), filepath.Join(chosen, "chat")} {
 		if exists(gone) {
 			t.Errorf("%s is still there", gone)
 		}

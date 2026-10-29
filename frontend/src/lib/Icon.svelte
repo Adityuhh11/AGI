@@ -1,6 +1,6 @@
 <script lang="ts">
   interface Props {
-    name: "code" | "text" | "image" | "video" | "audio" | "file" | "app" | "web" | "tag" | "pin" | "clip" | "snippet" | "settings" | "calc" | "system" | "note" | "timer";
+    name: "code" | "text" | "image" | "video" | "audio" | "file" | "app" | "web" | "tag" | "pin" | "clip" | "snippet" | "settings" | "calc" | "system" | "note" | "timer" | "chat" | "plus" | "history" | "close" | "brain" | "send" | "stop";
     size?: number;
   }
   let { name, size = 20 }: Props = $props();
@@ -23,6 +23,13 @@
     calc: "M7 3.5h10a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z M8.5 6.5h7v3h-7z M9 13h.01 M12 13h.01 M15 13h.01 M9 16.5h.01 M12 16.5h.01 M15 16.5h.01",
     system: "M12 4v8 M7.2 6.8a7 7 0 1 0 9.6 0",
     note: "M6 4h12a1 1 0 0 1 1 1v10l-4 4H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z M14.5 19v-3.5a.5.5 0 0 1 .5-.5h4 M8.5 8.5h7 M8.5 12h4",
+    chat: "M5 5.5h14a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1h-7l-4.5 3.5V16H5a1 1 0 0 1-1-1V6.5a1 1 0 0 1 1-1z M8.5 10h7",
+    plus: "M12 5v14 M5 12h14",
+    history: "M4 12a8 8 0 1 0 2.5-5.8 M4 5v3.6h3.6 M12 8v4.2l2.8 1.8",
+    close: "M6.5 6.5l11 11 M17.5 6.5l-11 11",
+    brain: "M12 5.2v13.6 M9.6 4.4A2.9 2.9 0 0 0 6.9 7a2.9 2.9 0 0 0-1.7 2.6 2.8 2.8 0 0 0 .8 2.1 2.9 2.9 0 0 0 .5 4.7A2.8 2.8 0 0 0 9.5 19.6 2.6 2.6 0 0 0 12 18.2 M14.4 4.4A2.9 2.9 0 0 1 17.1 7a2.9 2.9 0 0 1 1.7 2.6 2.8 2.8 0 0 1-.8 2.1 2.9 2.9 0 0 1-.5 4.7 2.8 2.8 0 0 1-3.5 3.2A2.6 2.6 0 0 1 12 18.2 M8.5 10.2h1.7 M13.8 13.6h1.7",
+    send: "M12 19V6 M6.5 11.5 12 6l5.5 5.5",
+    stop: "M8 8h8v8H8z",
     timer: "M12 7a7 7 0 1 0 0 14 7 7 0 0 0 0-14z M12 11v4l2.4 1.4 M10 3.5h4 M12 3.5V7",
     app: "M5 5h5.5v5.5H5z M13.5 5H19v5.5h-5.5z M5 13.5h5.5V19H5z M13.5 13.5H19V19h-5.5z",
   };

@@ -107,7 +107,8 @@ func TestTheBuiltInCommandRowsAreFoundByTheirNamesInAllMode(t *testing.T) {
 		return strings.Join(out, "|")
 	}
 	for typed, want := range map[string]string{
-		"clip": "Clipboard history", "clipb": "Clipboard history", "snip": "Snippets", "sn": "Snippets", "ch": "Clipboard history",
+		"clip": "Clipboard history", "clipb": "Clipboard history", "snip": "Snippets", "sn": "Snippets", "ch": "Clipboard history|Ask Omni AI", // chat is an alias of Ask Omni AI
+		"chat": "Ask Omni AI", "ask": "Ask Omni AI",
 		"c": "", "zzz": "",
 	} {
 		if got := titlesOf(s.Query(typed, ModeAll)); got != want {

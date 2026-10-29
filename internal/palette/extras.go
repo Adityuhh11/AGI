@@ -18,6 +18,11 @@ type Extras struct {
 	// Notes is the notes folder and OpenNote shows the notes window on a note ("new" for an empty one).
 	Notes    NoteBook
 	OpenNote func(id string)
+	// Assistant is Omni AI. AskChat opens the chat window on a new conversation and asks it the text (nothing if empty);
+	// OpenChat opens the window on a saved conversation.
+	Assistant Assistant
+	AskChat   func(text string)
+	OpenChat  func(id string)
 	// Timer is the countdown and the pomodoro.
 	Timer TimerControl
 	// Sound offers to search the sound of audio files and videos (offer.go).

@@ -30,7 +30,7 @@ export function notesFor(s: NoteState): Note[] {
     if (s.info?.Engine === "failed") say(s.info.EngineMessage, true);
   } else if (s.effective === "tags") {
     if (s.entries === 0) say("Nothing is tagged like that yet. Select a row and press Ctrl+T.");
-  } else if (s.effective === "clip" || s.effective === "snip" || s.effective === "note") {
+  } else if (s.effective === "clip" || s.effective === "snip" || s.effective === "note" || s.effective === "ask") {
     if (s.answerNote) say(s.answerNote);
   } else if (s.effective === "apps") {
     if (s.local === 0) say(`No app matched “${s.query.replace(/^\s*apps?:/i, "").trim()}”`);
