@@ -132,7 +132,7 @@ is Objective-C through cgo, which cannot be compiled from Windows, so that runne
 | Package | Shared | Windows | macOS |
 |---|---|---|---|
 | `config` | settings, validation | `paths_windows.go`: data in `%LOCALAPPDATA%\Omni`, log in `...\Omni\logs` | `paths_darwin.go`: `~/Library/Application Support/Omni`, log in `~/Library/Logs/Omni` |
-| `apps` | `Index`, `Catalog`, `icons.go` (HTTP, cache) | Start Menu through PowerShell (`list_`, `parse_`, `launch_`, `focus_`, `icon_windows.go`) | scan of `.app` bundles, `open` (`list_`, `launch_darwin.go`); icons M1 |
+| `apps` | `Index`, `Catalog`, `icons.go` (HTTP, cache) | Start Menu through PowerShell (`list_`, `parse_`, `launch_`, `focus_`, `icon_windows.go`) | scan of `.app` bundles, `open` (`list_`, `launch_darwin.go`), icons from `NSWorkspace` (`icon_darwin.go`/`.m`), refreshed when the bar opens |
 | `system` | `Run`, `Command` | lock, sleep, Task Manager, Recycle Bin, Settings | lock, sleep, Activity Monitor, Trash, System Settings |
 | `power` | doc | `GetSystemPowerStatus` | `pmset -g batt` |
 | `web` | `Web`, quicklinks | registry App Paths, `ShellExecute`, `-search` on Firefox-based browsers | `.app` lookup, `open -a`; searches by address |
@@ -145,7 +145,9 @@ is Objective-C through cgo, which cannot be compiled from Windows, so that runne
 | `llm` | server, setup | Vulkan device by name, `.exe` | Metal, every layer on the GPU, no `--device` |
 | `update` | check, download, swap | zip of `omni.exe`, rename-aside, job breakaway | the check only: no installer until the app is signed |
 | `settingsui` | the pages' services | Known Folders and OneDrive, Alt+Space filter | home-folder names, no filter |
-| `panel` | placement, hotkey, state | Win32 and DWM cloak | M1: non-activating `NSPanel` |
+| `panel` | placement, hotkey, state | Win32 and DWM cloak (`win32_windows.go`) | non-activating `NSPanel`, ordered in and out (`native_darwin.go`/`.m`) |
+| `dock` | the count of ordinary windows | nothing | Dock icon, ⌘Tab and menu bar while a window is open (`dock_darwin.go`) |
+| `tray` | the menu | colour icon (`tray_windows.go`) | template image (`tray_darwin.go`) |
 | `cmd/omni` | `main.go` | `platform_windows.go`, `migrate_windows.go` | `platform_darwin.go`, `migrate_darwin.go` |
 | `cmd/panelbench` | | all of it (`main_windows.go`) | |
 
