@@ -57,6 +57,9 @@ import (
 var version = "dev"
 
 func main() {
+	if runHelper() {
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == removeDataFlag {
 		if err := runRemoveData(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -171,7 +174,7 @@ func run(afterUpdate bool) error {
 	}
 	thumbnails := files.Thumbnails(roots, filepath.Join(dataDir, "thumbs"))
 	icons := apps.Icons(catalog.Index, iconDir)
-	app := application.New(application.Options{
+	options := application.Options{
 		Name: "Omni",
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -180,16 +183,13 @@ func run(afterUpdate bool) error {
 				return thumbnails(icons(next))
 			},
 		},
-		// The page never sees Alt+Space (Windows takes it as the system-menu key), so the settings'
-		// hotkey field hears about it from here. Emitting from a goroutine keeps the window procedure free.
-		Windows: application.WindowsOptions{WndProcInterceptor: settingsui.KeyMenuFilter(func(accelerator string) {
-			go application.Get().Event.Emit("hotkey:alt-space", accelerator)
-		})},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID:               instanceID(),
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { bar.Show() },
 		},
-	})
+	}
+	platformOptions(&options)
+	app := application.New(options)
 
 	// The engine dies with the launcher, even if the launcher is killed from the task manager.
 	if err := sidecar.KillWithLauncher(); err != nil {
