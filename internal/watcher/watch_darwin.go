@@ -60,9 +60,8 @@ func (s *stream) event(path string, flags uint32) {
 			continue // another folder that merely starts with the same letters
 		}
 		if flags&mustScan != 0 || relevant(rel) {
-			s.fire.poke(root.name)
+			s.fire.poke(root.name) // every root the path is under, as a watch on each would on Windows: one folder can be inside another
 		}
-		return
 	}
 }
 

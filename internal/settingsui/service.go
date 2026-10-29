@@ -120,6 +120,9 @@ type Service struct {
 	// permission; tests replace it.
 	blocked func(root string) bool
 
+	probeMu sync.Mutex
+	probes  map[string]*probe // what isBlocked knows of each folder
+
 	mu         sync.Mutex
 	restartErr string // why the launcher could not restart itself after an update, if it could not
 }

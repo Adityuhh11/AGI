@@ -65,6 +65,31 @@ func settle(got <-chan string) {
 	}
 }
 
+func TestAFolderInsideAnotherWatchedFolderIsReportedForBoth(t *testing.T) {
+	outer := t.TempDir()
+	inner := filepath.Join(outer, "Projects")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan string, 16)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go Watch(ctx, []string{outer, inner}, 200*time.Millisecond, time.Second, func(r string) { got <- r })
+	time.Sleep(1500 * time.Millisecond) // the watches are registered, and the system's look back is over
+	if err := os.WriteFile(filepath.Join(inner, "note.md"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for deadline := time.After(3 * time.Second); len(seen) < 2; {
+		select {
+		case r := <-got:
+			seen[r] = true
+		case <-deadline:
+			t.Fatalf("reported %v, want both %s and %s", seen, outer, inner)
+		}
+	}
+}
+
 func TestChangesUnderAFolderAreReportedOnceTheyGoQuiet(t *testing.T) {
 	root := t.TempDir()
 	got, stop := start(t, root)

@@ -38,10 +38,15 @@ codesign --verify --deep --strict "$app"
 echo "--- it starts and stays up, as Finder would start it"
 home="$work/home"
 mkdir -p "$home"
-env -i HOME="$home" PATH=/usr/bin:/bin:/usr/sbin:/sbin OMNI_INSTANCE=pkg "$app/Contents/MacOS/omni" &
-pid=$!
+# Started from a shell that exits, so the program is nobody's child here, as it is not when Finder starts it (a stopped child of this script would stay listed until waited for).
+pid="$(sh -c 'env -i HOME="$1" PATH=/usr/bin:/bin:/usr/sbin:/sbin OMNI_INSTANCE=pkg "$2" >/dev/null 2>&1 & echo $!' sh "$home" "$app/Contents/MacOS/omni")"
 sleep 10
 log="$home/Library/Logs/Omni/omni.log"
 kill -0 "$pid" || { echo "the installed program is not running"; cat "$log" || true; exit 1; }
 grep -q "omni starting" "$log"
+
+echo "--- an update stops the running program first"
+run_install
+if kill -0 "$pid" 2>/dev/null; then echo "the old program is still running after the update"; exit 1; fi
+[ -x "$app/Contents/MacOS/omni" ]
 echo "ok"

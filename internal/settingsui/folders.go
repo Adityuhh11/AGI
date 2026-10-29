@@ -37,9 +37,14 @@ func (s *Service) SuggestedFolders() []FolderChoice {
 		info, err := os.Stat(path)
 		return err == nil && info.IsDir()
 	}, s.o.Store.Get().Roots)
+	chosen := map[string]bool{}
+	for _, root := range s.o.Store.Get().Roots {
+		chosen[config.SourceID(root)] = true
+	}
 	for i := range out {
-		if out[i].Checked { // a folder that is not chosen is not read, so nothing asks about it
-			out[i].Blocked = s.blocked(out[i].Path)
+		// Only a folder already chosen is read: a first-run tick is a suggestion, and reading it would make a Mac ask about it before the person has agreed.
+		if chosen[config.SourceID(out[i].Path)] {
+			out[i].Blocked = s.isBlocked(out[i].Path)
 		}
 	}
 	return out
@@ -84,12 +89,11 @@ func (s *Service) SetRoots(roots []string) string {
 	}
 	var added []string
 	for _, root := range cleaned {
-		if !slices.Contains(s.o.Store.Get().Roots, root) {
+		if !slices.Contains(s.o.Store.Get().Roots, root) && !slices.Contains(added, root) {
 			added = append(added, root)
 		}
 	}
-	s.ask(added)
-	return reason(s.o.Store.Update(func(c *config.Config) {
+	msg := reason(s.o.Store.Update(func(c *config.Config) {
 		c.Roots = cleaned
 		c.Exclude = slices.DeleteFunc(slices.Clone(c.Exclude), func(folder string) bool {
 			for _, root := range cleaned {
@@ -100,6 +104,10 @@ func (s *Service) SetRoots(roots []string) string {
 			return true
 		})
 	}))
+	if msg == "" { // a folder that was not added is not asked about
+		s.ask(added)
+	}
+	return msg
 }
 
 // LeaveOut asks for a folder inside root and leaves it out of the index; what it held is dropped at the next sync.

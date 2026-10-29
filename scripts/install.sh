@@ -46,8 +46,13 @@ ditto -x -k "$work/omni.zip" "$work/new"
 [ -d "$work/new/Omni.app" ] || fail "the download does not hold Omni.app"
 codesign --verify --deep --strict "$work/new/Omni.app" || fail "the app's signature is broken; nothing was installed"
 
-# An older Omni that is running is asked to stop first, so the new one is not started beside it.
-if pkill -TERM -f "$dir/Omni.app/Contents/MacOS/omni" 2>/dev/null; then sleep 2; fi
+# An older Omni that is running is asked to stop first, so the new one is not swapped in under it and "open" does not just bring the old one forward.
+# It gets ten seconds to put its work away (the pattern is a regular expression, so the folder's own characters are escaped), then it is stopped.
+running="$(printf %s "$dir/Omni.app/Contents/MacOS/omni" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
+if pkill -TERM -f "^$running" 2>/dev/null; then
+	for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -f "^$running" >/dev/null || break; sleep 1; done
+	pkill -KILL -f "^$running" 2>/dev/null || true
+fi
 rm -rf "$dir/Omni.app"
 mv "$work/new/Omni.app" "$dir/Omni.app"
 echo "Installed $dir/Omni.app"

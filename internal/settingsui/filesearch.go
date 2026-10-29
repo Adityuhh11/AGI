@@ -189,8 +189,11 @@ func (s *Service) AddFolder() string {
 		return ""
 	}
 	folder = filepath.Clean(folder)
-	s.ask([]string{folder})
-	return reason(s.o.Store.Update(func(c *config.Config) { c.Roots = append(c.Roots, folder) }))
+	msg := reason(s.o.Store.Update(func(c *config.Config) { c.Roots = append(c.Roots, folder) }))
+	if msg == "" {
+		s.ask([]string{folder})
+	}
+	return msg
 }
 
 // OpenFileAccessSettings opens the page of the system's settings where the person lets Omni read a folder it was refused. It is for a Mac; Windows has no such page.
@@ -255,7 +258,7 @@ func (s *Service) folders(engineState string, hold bool) []FolderView {
 	for _, f := range s.o.Indexing.Folders() {
 		view := FolderView{Root: f.Root, State: string(f.State)}
 		switch {
-		case s.blocked(f.Root):
+		case s.isBlocked(f.Root):
 			view.Blocked, view.Text = true, blockedText
 		case engineState == "off":
 			view.State, view.Text = "waiting", "Waits for file search to be turned on"

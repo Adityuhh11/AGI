@@ -94,8 +94,8 @@ jobs:
             $name = Split-Path $file -Leaf
             $local = 'sha256:' + (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
             $remote = gh release view $tag --json assets --jq ".assets[] | select(.name==`"$name`") | .digest"
-            if ($remote -ne $local) { throw "$name has digest '$remote' on GitHub, not $want" }
-            Write-Host "$name $want"
+            if ($remote -ne $local) { throw "$name has digest '$remote' on GitHub, not $local" }
+            Write-Host "$name $local"
           }
 
   # The Mac files, added to the draft the Windows job made (so this job waits for it, and for its check that the tag is on main).
