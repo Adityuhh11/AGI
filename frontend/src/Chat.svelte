@@ -445,24 +445,24 @@
            has the keyboard or an answer is coming, and rests as a still metal edge otherwise. -->
       <form class="composer" onsubmit={(event) => { event.preventDefault(); submit(); }}>
         <LiquidRing speed={busy ? 1.5 : 0.6} running={focused || busy} metal={METALS[0]} radius={27} />
+        {#if info?.thinking || info?.web_search}
+          <!-- What is switched on floats over the box's top edge, so it takes no room in the row: a click turns it off. -->
+          <div class="pills">
+            {#if info?.thinking}
+              <button type="button" class="pill" title="Thinking is on. Click to turn it off" aria-label="Thinking is on. Click to turn it off" onclick={toggleThinking}>
+                <Icon name="brain" size={14} />
+              </button>
+            {/if}
+            {#if info?.web_search}
+              <button type="button" class="pill" title="Web search is on. Click to turn it off" aria-label="Web search is on. Click to turn it off" onclick={toggleWeb}>
+                <Icon name="web" size={14} />
+              </button>
+            {/if}
+          </div>
+          {/if}
         <div class="plate">
           <div class="line">
             <PlusMenu bind:open={menuOpen} thinking={info?.thinking ?? false} web={info?.web_search ?? false} disabled={off} onthinking={toggleThinking} onweb={toggleWeb} />
-            {#if info?.thinking || info?.web_search}
-              <!-- What is switched on, beside the + that switched it: a click turns it off. The box keeps its one row. -->
-              <div class="pills">
-                {#if info?.thinking}
-                  <button type="button" class="pill" title="Thinking is on. Click to turn it off" onclick={toggleThinking}>
-                    <Icon name="brain" size={14} />Think
-                  </button>
-                {/if}
-                {#if info?.web_search}
-                  <button type="button" class="pill" title="Web search is on. Click to turn it off" onclick={toggleWeb}>
-                    <Icon name="web" size={14} />Web
-                  </button>
-                {/if}
-              </div>
-            {/if}
             <textarea
               bind:this={box}
               bind:value={draft}
@@ -864,18 +864,19 @@
     gap: 8px;
   }
   .pills {
-    flex: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 16px;
     display: flex;
-    align-items: center;
-    gap: 4px;
-    height: 34px; /* the height of the round buttons, so the pills sit level with them when the box grows */
+    gap: 6px;
   }
   .pill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
     height: 26px;
-    padding: 0 10px 0 8px;
+    width: 26px;
+    padding: 0;
     border: 0;
     border-radius: 13px;
     background: var(--lift);
