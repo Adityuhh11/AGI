@@ -15,6 +15,10 @@ Developer ID, no notarization, no Mac App Store, no Homebrew cask until the owne
 - Homebrew announced that casks failing Gatekeeper would be dropped from 1 September 2026, so a cask is closed to us until we are notarized.
 - Ad-hoc signed apps are identified by the hash of their bytes, so an update looks like a different app and macOS silently drops the Accessibility grant. A stable self-signed certificate keeps the grant (reported by other developers; to be verified on the friend's Mac).
 
+- The bar, the cards and the timer are clear windows, and a Mac web view can only be made clear through an undocumented WebKit key that Wails uses
+  only when built with `-tags private_mac_apis` (found in the first screenshot of the bar: an opaque plate behind it). The tag is on in `scripts/build-mac.sh`. It rules out the Mac App Store,
+  which this decision rules out already; Developer ID and notarization are not affected.
+
 ## Alternatives rejected
 
 | Option | Why not |
