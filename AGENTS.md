@@ -14,6 +14,8 @@ Personal, local-first AI launcher for Windows. Go core + Wails v3 + Svelte UI + 
 ## Code rules
 
 - **Modular:** one package = one job. `internal/<name>/` packages expose a small API; their internals stay private.
+- **Two systems, kept apart:** shared logic in `x.go`, Windows code only in `x_windows.go`, Mac code only in `x_darwin.go` (tests likewise); no
+  system API in a shared file. The table is in `docs/ARCHITECTURE.md`; keep it current in the same commit.
 - **Small files.** If a file needs scrolling to understand, split it by responsibility.
 - **Names over comments.** Comment the *why*, never the *what*. Every Go package has a package doc comment.
 - **Errors:** wrap with context (`fmt.Errorf("load config: %w", err)`); never swallow.

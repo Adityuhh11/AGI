@@ -5,7 +5,7 @@ New here? The repository's `README.md` explains what Omni is, how to install it 
 | Doc | Answers |
 |---|---|
 | `STATUS.md` | What is built, what is next, known gaps. Read first. |
-| `ARCHITECTURE.md` | How the system fits together: modules, data flow, on-disk formats, invariants. |
+| `ARCHITECTURE.md` | How the system fits together: modules, data flow, on-disk formats, invariants, and which code is for Windows and which for a Mac. |
 | `api.md` | The HTTP contract the Go launcher codes against: process contract, routes, status codes. |
 | `PERFORMANCE.md` | Measured speed and resource use, with a graphics card and without one; how each number was taken. |
 | `DISTRIBUTION.md` | Why Windows warns about an unsigned program, and the route to a signed, trusted install. |
