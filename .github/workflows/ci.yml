@@ -89,6 +89,20 @@ jobs:
         run: |
           npm test
           npm run check
+      # The program is started for real, on a throwaway profile: a window class, an Objective-C call or an option that
+      # crashes at start shows here. (A runner has a screen session but no way to press the hotkey, so what the panel
+      # looks like is for a person to judge.)
+      - name: It starts and stays up
+        run: |
+          export HOME="$(mktemp -d)"
+          OMNI_INSTANCE=ci ./bin/omni &
+          pid=$!
+          sleep 10
+          log="$HOME/Library/Logs/Omni/omni.log"
+          echo "--- the log"; cat "$log" || true
+          kill -0 "$pid" || { echo "the program is not running"; exit 1; }
+          grep -q "omni starting" "$log"
+          kill "$pid"
 
   engine:
     runs-on: windows-latest
