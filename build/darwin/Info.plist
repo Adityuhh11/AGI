@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The bundle's description, filled in by scripts/release-mac.sh ({VERSION}). The bundle id is the identity macOS keeps every permission
+     under (folders, Accessibility, the login item), so it never changes. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.adityuhh11.omni</string>
+	<key>CFBundleName</key>
+	<string>Omni</string>
+	<key>CFBundleDisplayName</key>
+	<string>Omni</string>
+	<key>CFBundleExecutable</key>
+	<string>omni</string>
+	<key>CFBundleIconFile</key>
+	<string>omni</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>{VERSION}</string>
+	<key>CFBundleVersion</key>
+	<string>{VERSION}</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<!-- No Dock icon at start: Omni lives in the menu bar. The setup guide and Settings take one while they are open. -->
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<!-- What macOS says when it asks the person for a folder; the questions are asked when a folder is chosen for file search. -->
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Omni reads this folder to search it, because you chose it for file search.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Omni reads this folder to search it, because you chose it for file search.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Omni reads this folder to search it, because you chose it for file search.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Omni reads this drive to search it, because you chose it for file search.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Omni reads this volume to search it, because you chose it for file search.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Omni asks Finder to empty the Trash when you run that action.</string>
+</dict>
+</plist>

@@ -16,6 +16,8 @@ import (
 type FolderChoice struct {
 	Name, Path string
 	Checked    bool
+	// Blocked says the system has not let Omni read the folder, which only matters for one that is ticked (a Mac asks for each protected folder).
+	Blocked bool
 }
 
 // suggested are the user folders worth offering, in the order the guide lists them. Downloads is offered but starts
@@ -31,10 +33,21 @@ var suggested = []struct {
 // Desktop and Pictures), then any other folder already being searched. With no folders yet the usual ones start ticked;
 // otherwise a folder is ticked exactly when it is being searched.
 func (s *Service) SuggestedFolders() []FolderChoice {
-	return suggestFolders(s.known, func(path string) bool {
+	out := suggestFolders(s.known, func(path string) bool {
 		info, err := os.Stat(path)
 		return err == nil && info.IsDir()
 	}, s.o.Store.Get().Roots)
+	chosen := map[string]bool{}
+	for _, root := range s.o.Store.Get().Roots {
+		chosen[config.SourceID(root)] = true
+	}
+	for i := range out {
+		// Only a folder already chosen is read: a first-run tick is a suggestion, and reading it would make a Mac ask about it before the person has agreed.
+		if chosen[config.SourceID(out[i].Path)] {
+			out[i].Blocked = s.isBlocked(out[i].Path)
+		}
+	}
+	return out
 }
 
 // suggestFolders is SuggestedFolders with the Windows lookup and the disk passed in.
@@ -74,7 +87,13 @@ func (s *Service) SetRoots(roots []string) string {
 	for _, root := range roots {
 		cleaned = append(cleaned, filepath.Clean(root))
 	}
-	return reason(s.o.Store.Update(func(c *config.Config) {
+	var added []string
+	for _, root := range cleaned {
+		if !slices.Contains(s.o.Store.Get().Roots, root) && !slices.Contains(added, root) {
+			added = append(added, root)
+		}
+	}
+	msg := reason(s.o.Store.Update(func(c *config.Config) {
 		c.Roots = cleaned
 		c.Exclude = slices.DeleteFunc(slices.Clone(c.Exclude), func(folder string) bool {
 			for _, root := range cleaned {
@@ -85,6 +104,10 @@ func (s *Service) SetRoots(roots []string) string {
 			return true
 		})
 	}))
+	if msg == "" { // a folder that was not added is not asked about
+		s.ask(added)
+	}
+	return msg
 }
 
 // LeaveOut asks for a folder inside root and leaves it out of the index; what it held is dropped at the next sync.

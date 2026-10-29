@@ -61,6 +61,14 @@ verifies the zip's SHA-256).
 | **Scoop bucket** | Developer audience; a manifest in our own repo. | Small audience; fine as a cheap extra. |
 | **Microsoft Store (MSIX)** | Store-signed, no SmartScreen warning, and **individual developer registration is now free** (Microsoft, September 2025). | Largest effort and the most risk: a packaged app has a different identity and file-system view (our `%LOCALAPPDATA%\Omni\engine`, the `Run` key and the self-updater all behave differently or are disallowed); an app that downloads and runs executables may fail certification. Treat as a later experiment, not the plan. |
 
+## macOS
+
+A Mac asks the same two questions in other words: Gatekeeper (is this signed by an Apple-registered developer?) and the permission prompts. The route, which costs nothing, is in
+[decision 0010](decisions/0010-macos-distribution-without-apple-account.md): `Omni.app` signed ad hoc (Apple Silicon will not run a binary with no signature, and an ad-hoc one is free
+but gives Gatekeeper nothing to trust), a one-line `install.sh` whose download is not quarantined and so is not stopped by Gatekeeper, and the zip with the Open Anyway steps for
+browser downloads ([INSTALL-MAC.md](INSTALL-MAC.md)). Developer ID, notarization and a Homebrew cask wait for the $99 Apple Developer Program; they change `scripts/release-mac.sh`, not the app.
+Each release's Mac files are built and attested by the same Release workflow.
+
 ## Decisions the owner has to make
 
 1. **A licence.** The repo is public with none, so by default nobody may use or copy it, and SignPath requires an OSI licence. MIT or

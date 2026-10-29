@@ -21,10 +21,14 @@ without the `v` is what `scripts/release.ps1 -Version` takes, what the program r
    (`.github/workflows/release.yml`) refuses a tag that is not on `main`, builds the zip and the installer on a clean Windows
    machine with `scripts\release.ps1`, runs the installer for real (`scripts\test-installer.ps1`), attaches a build-provenance
    attestation, and makes a **draft** release `Omni X.Y.Z` with both files, checking that GitHub's digest of each is the one built.
+   A second job then builds the Mac files on a clean Mac with `scripts/release-mac.sh` (`Omni.app` in `omni-X.Y.Z-macos-arm64.zip`, signed ad hoc, and `install.sh`), runs
+   `scripts/test-package-mac.sh` (install.sh against that zip, the bundle, the program started in Finder's bare environment), attests both files and adds them to the same draft with the same digest check.
+   If the Mac job fails the draft still holds the Windows files; fix it, delete the draft and the tag, and tag again.
    By hand (`gh workflow run release.yml`) it only uploads the files as an artifact. On a machine with Inno Setup,
    `scripts\release.ps1 -Version X.Y.Z` makes the same two files in `dist\` (the zip alone if the compiler is missing).
 3. Smoke-test the files from the draft with a clean profile (`APPDATA` and `LOCALAPPDATA` pointed at an empty folder, and `OMNI_INSTANCE=x`
-   to run beside the launcher in use): it starts, the setup guide opens, Settings > About says `X.Y.Z`.
+   to run beside the launcher in use): it starts, the setup guide opens, Settings > About says `X.Y.Z`. On a Mac, run `install.sh` from the draft's file
+   (it fetches the *latest published* release, so for a draft use `OMNI_API` as the script's header says, or open the zip by hand) and go through the checklist in the macOS spec, section 10.
 4. Write the notes in the draft (they say what a person gets, not what changed in the code, and name anything that does not work
    yet) and publish it.
 5. Download the published zip and compare its SHA-256 with the digest GitHub shows. The one-click update installs only a file that

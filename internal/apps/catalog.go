@@ -27,7 +27,6 @@ type Catalog struct {
 	list  func(ctx context.Context) ([]App, error) // what the system lists as installed (list_windows.go, list_darwin.go); tests replace it
 	alive func([]App) []App                        // drops entries whose file is gone; tests replace it, because that depends on the machine
 	now   func() time.Time
-	built atomic.Int64 // when the list was last made or loaded, unix nanoseconds
 	poke  chan struct{}
 	warm  atomic.Bool // icons are being made
 }
@@ -50,14 +49,6 @@ func (c *Catalog) warmIcons(ctx context.Context) {
 	}()
 }
 
-// RefreshIfStale asks for the list to be rebuilt when it is older than age. A system that cannot watch its application folders calls it each time the
-// bar opens: a rebuild that is not due costs nothing.
-func (c *Catalog) RefreshIfStale(age time.Duration) {
-	if c.now().Sub(time.Unix(0, c.built.Load())) > age {
-		c.Refresh()
-	}
-}
-
 // Refresh asks for the list to be rebuilt soon. Asking twice before it runs is the same as once.
 func (c *Catalog) Refresh() {
 	select {
@@ -74,9 +65,6 @@ func (c *Catalog) Run(ctx context.Context) {
 		log.Printf("apps: ignoring the cached list: %v", err)
 	}
 	c.Index.Set(apps)
-	if !saved.IsZero() {
-		c.built.Store(saved.UnixNano())
-	}
 	if len(apps) == 0 || c.now().Sub(saved) > refreshEvery {
 		c.rebuild(ctx)
 	}
@@ -96,7 +84,6 @@ func (c *Catalog) Run(ctx context.Context) {
 // rebuild asks the system for the list. A failure keeps the list there was.
 func (c *Catalog) rebuild(ctx context.Context) {
 	start := time.Now()
-	c.built.Store(c.now().UnixNano()) // tried now: a list that comes back empty or fails is not asked for again at every opening of the bar
 	apps, err := c.list(ctx)
 	if err != nil {
 		log.Printf("apps: could not list the installed apps: %v", err)

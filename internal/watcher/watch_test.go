@@ -1,5 +1,3 @@
-//go:build windows
-
 package watcher
 
 import (
@@ -21,7 +19,7 @@ func start(t *testing.T, root string) (<-chan string, func()) {
 		Watch(ctx, []string{root}, 200*time.Millisecond, time.Second, func(r string) { got <- r })
 		close(done)
 	}()
-	time.Sleep(200 * time.Millisecond) // the watch is registered with the operating system
+	time.Sleep(500 * time.Millisecond) // the watch is registered with the operating system
 	return got, func() {
 		cancel()
 		select {
@@ -53,7 +51,7 @@ func expectQuiet(t *testing.T, got <-chan string, why string) {
 	}
 }
 
-// settle waits out the late events Windows sometimes delivers after a change (a folder's own
+// settle waits out the late events the system sometimes delivers after a change (a folder's own
 // modified time, a virus scan touching the file) and drops what they cause. How a burst becomes one
 // report is tested on the debouncer, where time is exact.
 func settle(got <-chan string) {
@@ -63,6 +61,31 @@ func settle(got <-chan string) {
 		case <-got:
 		default:
 			return
+		}
+	}
+}
+
+func TestAFolderInsideAnotherWatchedFolderIsReportedForBoth(t *testing.T) {
+	outer := t.TempDir()
+	inner := filepath.Join(outer, "Projects")
+	if err := os.Mkdir(inner, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := make(chan string, 16)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go Watch(ctx, []string{outer, inner}, 200*time.Millisecond, time.Second, func(r string) { got <- r })
+	time.Sleep(1500 * time.Millisecond) // the watches are registered, and the system's look back is over
+	if err := os.WriteFile(filepath.Join(inner, "note.md"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for deadline := time.After(3 * time.Second); len(seen) < 2; {
+		select {
+		case r := <-got:
+			seen[r] = true
+		case <-deadline:
+			t.Fatalf("reported %v, want both %s and %s", seen, outer, inner)
 		}
 	}
 }
@@ -99,6 +122,7 @@ func TestNoiseIsNotReported(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, "app"), 0o755); err != nil { // a new folder would count
 		t.Fatal(err)
 	}
+	time.Sleep(1500 * time.Millisecond) // FSEvents also reports what happened just before it started listening
 	got, stop := start(t, root)
 	defer stop()
 	for _, name := range []string{
@@ -127,7 +151,7 @@ func TestAFolderThatCannotBeWatchedDoesNotStopTheOthers(t *testing.T) {
 		close(done)
 	}()
 	defer func() { cancel(); <-done }()
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 	if err := os.WriteFile(filepath.Join(good, "a.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
