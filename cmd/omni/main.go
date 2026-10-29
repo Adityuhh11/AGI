@@ -406,7 +406,7 @@ func run(afterUpdate bool) error {
 				chatWindow.OpenAt("new")
 			},
 			OpenChat: chatWindow.OpenAt,
-			Timer:     countdown,
+			Timer:    countdown,
 			Sound: &soundoffer.Service{
 				Settings: store, Surveys: surveys, Waivers: history, Now: time.Now,
 				// An engine from before audio search would refuse the sync the choice starts: it is offered after the update.

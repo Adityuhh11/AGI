@@ -137,7 +137,7 @@ type Service struct {
 	// openSettings shows the Settings window on a page (settingsui.Window.OpenAt).
 	openSettings func(section string)
 	dismiss      func()
-	now     func() time.Time
+	now          func() time.Time
 }
 
 // New returns a service. dismiss closes the bar after something was started, without giving the

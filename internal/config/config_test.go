@@ -463,13 +463,13 @@ func TestChatSettingsRoundTripAndAreValidated(t *testing.T) {
 	}
 
 	for name, change := range map[string]func(*Config){
-		"load":              func(c *Config) { c.Chat.Load = "always" },
-		"unload minutes":    func(c *Config) { c.Chat.UnloadAfterMinutes = 7 },
-		"context":           func(c *Config) { c.Chat.ContextTokens = 5000 },
-		"history days":      func(c *Config) { c.Chat.HistoryDays = -1 },
-		"history too long":  func(c *Config) { c.Chat.HistoryDays = 366 },
-		"launcher hotkey":   func(c *Config) { c.Chat.Hotkey = "alt+shift+space" },
-		"clipboard hotkey":  func(c *Config) { c.Clipboard.Hotkey = "Ctrl+Alt+A"; c.Chat.Hotkey = "Ctrl+Alt+A" },
+		"load":             func(c *Config) { c.Chat.Load = "always" },
+		"unload minutes":   func(c *Config) { c.Chat.UnloadAfterMinutes = 7 },
+		"context":          func(c *Config) { c.Chat.ContextTokens = 5000 },
+		"history days":     func(c *Config) { c.Chat.HistoryDays = -1 },
+		"history too long": func(c *Config) { c.Chat.HistoryDays = 366 },
+		"launcher hotkey":  func(c *Config) { c.Chat.Hotkey = "alt+shift+space" },
+		"clipboard hotkey": func(c *Config) { c.Clipboard.Hotkey = "Ctrl+Alt+A"; c.Chat.Hotkey = "Ctrl+Alt+A" },
 	} {
 		bad := Default()
 		change(&bad)
