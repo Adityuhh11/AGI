@@ -14,6 +14,8 @@ export function catchUnexpected() {
   let shown: HTMLElement | null = null;
 
   const show = (error: unknown) => {
+    // A browser notice, not a failure: layout settled over two frames instead of one.
+    if (typeof error === "string" && error.startsWith("ResizeObserver loop")) return;
     console.error(error);
     Status.PageError(describe(error)).catch(() => {}); // the log is where the message says the details are
     if (shown) return;

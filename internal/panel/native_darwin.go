@@ -3,13 +3,16 @@ package panel
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa
+#include <stdlib.h>
 #include "native_darwin.h"
 */
 import "C"
 
 import (
+	"log"
 	"math"
 	"os"
+	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -51,6 +54,7 @@ func isWindow(app uintptr) bool { return app != 0 && C.omniIsRunning(C.int(app))
 // cloak on a Mac is plain ordering: out when on, in when off. (ponytail: if the first frame after showing turns out stale or blank, keep
 // the panel ordered in at alpha 0 instead; the decision is in docs/superpowers/specs/2026-10-29-macos-design.md, section 0.)
 func cloak(window uintptr, on bool) {
+	log.Printf("panel: cloak on=%v", on) // TEMPORARY
 	if on {
 		C.omniOrderOut(C.uintptr_t(window))
 	} else {
@@ -60,6 +64,11 @@ func cloak(window uintptr, on bool) {
 
 // moveTopmost puts the window at r (points).
 func moveTopmost(window uintptr, r Rect) {
+	defer func() { // TEMPORARY
+		text := C.omniDescribe(C.uintptr_t(window))
+		log.Printf("panel: moved to %+v; %s", r, C.GoString(text))
+		C.free(unsafe.Pointer(text))
+	}()
 	C.omniSetFrame(C.uintptr_t(window), C.double(r.X), C.double(r.Y), C.double(r.W), C.double(r.H))
 }
 

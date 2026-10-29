@@ -15,5 +15,7 @@ void omniScreenUnderMouse(double *x, double *y, double *w, double *h);
 void omniWindowFrame(uintptr_t window, double *x, double *y, double *w, double *h);
 void omniSetFrame(uintptr_t window, double x, double y, double w, double h);
 void omniSetHeight(uintptr_t window, double h);
+// TEMPORARY: a line describing the window, for the log.
+const char *omniDescribe(uintptr_t window);
 
 #endif

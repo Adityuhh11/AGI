@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#include <string.h>
 #include "native_darwin.h"
 
 // AppKit may only be used from the main thread; the hotkey and the page call in from others.
@@ -94,4 +95,17 @@ void omniSetHeight(uintptr_t window, double h) {
 		frame.size.height = h;
 		[win setFrame:frame display:YES];
 	});
+}
+
+// TEMPORARY diagnostics.
+const char *omniDescribe(uintptr_t window) {
+	__block NSString *text = @"";
+	onMain(^{
+		NSWindow *win = windowOf(window);
+		text = [NSString stringWithFormat:@"class=%@ visible=%d key=%d level=%ld alpha=%.2f frame=%@ occlusion=%lu behavior=%lu style=%lu screens=%lu app.active=%d policy=%ld",
+			NSStringFromClass([win class]), win.isVisible, win.isKeyWindow, (long)win.level, win.alphaValue, NSStringFromRect(win.frame),
+			(unsigned long)win.occlusionState, (unsigned long)win.collectionBehavior, (unsigned long)win.styleMask,
+			(unsigned long)[NSScreen screens].count, [NSApp isActive], (long)[NSApp activationPolicy]];
+	});
+	return strdup([text UTF8String]);
 }
