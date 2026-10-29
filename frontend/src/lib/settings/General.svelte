@@ -22,6 +22,8 @@
   let clipboard = $state<ClipboardView | null>(null);
   let chat = $state<OmniAIView | null>(null);
   let notes = $state<NotesHotkeyView | null>(null);
+  let keysOpen = $state(false);
+  const keysSet = $derived([view.Hotkey, clipboard?.Hotkey, chat?.Hotkey, notes?.Hotkey].filter(Boolean).length);
   let error = $state("");
   let saved = $state(false);
   let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -103,39 +105,40 @@
 <h2>General</h2>
 <p class="lede">Hotkeys, and where web searches open. Changes apply at once.</p>
 
-<h3>Hotkeys</h3>
-<p class="help keys">Press a hotkey again while its window is in front to close it. Windows-key combinations cannot be recorded here; put them in config.toml.</p>
-
-<div class="field">
-  <span class="label" id="hotkey-label">Search bar</span>
-  <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
-  <p class="help">Opens the search bar from any app.</p>
+<!-- Four hotkeys would fill the page: they are one list that opens from its heading. -->
+<div class="keys">
+  <button type="button" class="head" aria-expanded={keysOpen} aria-controls="hotkey-list" onclick={() => (keysOpen = !keysOpen)}>
+    <span class="chevron" class:open={keysOpen} aria-hidden="true"></span>Hotkeys
+    <span class="count">{keysSet} set</span>
+  </button>
+  {#if keysOpen}
+    <ul id="hotkey-list">
+      <li title="Opens the search bar from any app. A hotkey pressed again while its window is in front closes it.">
+        <span class="label" id="hotkey-label">Search bar</span>
+        <HotkeyField labelId="hotkey-label" value={view.Hotkey} defaultValue={view.DefaultHotkey} onsave={saveHotkey} />
+      </li>
+      {#if clipboard && chat && notes}
+        <li title="Opens the bar already listing what you copied. Windows keeps Win+V for its own history.">
+          <span class="label" id="clip-hotkey-label">Clipboard history</span>
+          <HotkeyField labelId="clip-hotkey-label" value={clipboard.Hotkey} clearable onsave={saveClipboardKey} />
+        </li>
+        {#if clipboard.HotkeyError}<li class="error">{clipboard.HotkeyError}</li>{/if}
+        <li title="Opens the chat window.">
+          <span class="label" id="ai-hotkey-label">Omni AI</span>
+          <HotkeyField labelId="ai-hotkey-label" value={chat.Hotkey} clearable onsave={saveChatKey} />
+        </li>
+        {#if chat.HotkeyError}<li class="error">{chat.HotkeyError}</li>{/if}
+        <li title="Opens the notes window.">
+          <span class="label" id="notes-hotkey-label">Notes</span>
+          <HotkeyField labelId="notes-hotkey-label" value={notes.Hotkey} clearable onsave={saveNotesKey} />
+        </li>
+        {#if notes.Error}<li class="error">{notes.Error}</li>{/if}
+      {/if}
+    </ul>
+    <p class="help">Windows-key combinations cannot be recorded here; put them in config.toml.</p>
+  {/if}
 </div>
 
-{#if clipboard && chat && notes}
-  <div class="field">
-    <span class="label" id="clip-hotkey-label">Clipboard history</span>
-    <HotkeyField labelId="clip-hotkey-label" value={clipboard.Hotkey} clearable onsave={saveClipboardKey} />
-    {#if clipboard.HotkeyError}<p class="error">{clipboard.HotkeyError}</p>{/if}
-    <p class="help">Opens the bar already listing what you copied. Optional; Windows keeps Win+V for its own history.</p>
-  </div>
-
-  <div class="field">
-    <span class="label" id="ai-hotkey-label">Omni AI</span>
-    <HotkeyField labelId="ai-hotkey-label" value={chat.Hotkey} clearable onsave={saveChatKey} />
-    {#if chat.HotkeyError}<p class="error">{chat.HotkeyError}</p>{/if}
-    <p class="help">Opens the chat window. Optional.</p>
-  </div>
-
-  <div class="field">
-    <span class="label" id="notes-hotkey-label">Notes</span>
-    <HotkeyField labelId="notes-hotkey-label" value={notes.Hotkey} clearable onsave={saveNotesKey} />
-    {#if notes.Error}<p class="error">{notes.Error}</p>{/if}
-    <p class="help">Opens the notes window. Optional.</p>
-  </div>
-{/if}
-
-<h3>Behaviour</h3>
 
 <div class="field">
   <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
@@ -175,14 +178,77 @@
 <p class="ok" aria-live="polite">{saved ? "Saved" : ""}</p>
 
 <style>
-  h3 {
-    margin: 0 0 6px;
-    color: var(--text-2);
-    font: 600 11.5px/1.2 var(--sans);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
   .keys {
-    margin: 0 0 18px;
+    margin-bottom: 22px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px 14px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: 560 13px/1.2 var(--sans);
+    text-align: left;
+    cursor: pointer;
+  }
+  .head:focus-visible {
+    outline: 1px solid var(--chrome);
+    outline-offset: -2px;
+    border-radius: 12px;
+  }
+  .chevron {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 4px 0 2px;
+    border-right: 1.5px solid var(--text-3);
+    border-bottom: 1.5px solid var(--text-3);
+    transform: rotate(-45deg);
+    transition: transform 0.12s;
+  }
+  .chevron.open {
+    transform: rotate(45deg);
+  }
+  .count {
+    margin-left: auto;
+    color: var(--text-3);
+    font-weight: 450;
+    font-size: 12px;
+  }
+  ul {
+    margin: 0;
+    padding: 0 14px 4px;
+    list-style: none;
+  }
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-top: 1px solid var(--line);
+  }
+  li.error {
+    padding-top: 0;
+    border-top: 0;
+    color: var(--danger);
+    font-size: 12px;
+  }
+  .label {
+    font: 560 13px/1.2 var(--sans);
+  }
+  .keys .help {
+    margin: 0;
+    padding: 0 14px 12px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chevron {
+      transition: none;
+    }
   }
 </style>
