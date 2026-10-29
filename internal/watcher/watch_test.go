@@ -97,6 +97,7 @@ func TestNoiseIsNotReported(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, "app"), 0o755); err != nil { // a new folder would count
 		t.Fatal(err)
 	}
+	time.Sleep(1500 * time.Millisecond) // FSEvents also reports what happened just before it started listening
 	got, stop := start(t, root)
 	defer stop()
 	for _, name := range []string{
