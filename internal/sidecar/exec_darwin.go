@@ -12,8 +12,11 @@ type execProcess struct {
 	pgid int
 }
 
+// Wait returns when the process has ended. What it started and left running goes with it: the engine ending by itself would
+// otherwise leave its llama-server behind, holding the model's memory, with nobody to end it.
 func (p *execProcess) Wait() error {
 	err := p.cmd.Wait()
+	_ = p.Kill() // nothing left in the group is the usual case, and an error then only says so
 	forget(p.pgid)
 	return err
 }
