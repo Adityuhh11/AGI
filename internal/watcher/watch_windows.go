@@ -59,14 +59,27 @@ func openDirectory(path string) (windows.Handle, error) {
 // read waits for changes under root until ctx ends. The call blocks, so a second goroutine cancels
 // it when ctx ends; the handle is closed only after read has stopped using it.
 func read(ctx context.Context, handle windows.Handle, root string, fire *debouncer) error {
-	defer windows.CloseHandle(handle)
-	finished := make(chan struct{})
-	defer close(finished)
+	finished, canceller := make(chan struct{}), make(chan struct{})
+	defer func() {
+		close(finished)
+		<-canceller // so the handle is not closed while a cancel is still being sent to it
+		_ = windows.CloseHandle(handle)
+	}()
 	go func() {
+		defer close(canceller)
 		select {
 		case <-ctx.Done():
-			_ = windows.CancelIoEx(handle, nil)
 		case <-finished:
+			return
+		}
+		// A cancel that arrives before the read below has begun cancels nothing, so it is repeated until read has stopped.
+		for {
+			_ = windows.CancelIoEx(handle, nil)
+			select {
+			case <-finished:
+				return
+			case <-time.After(20 * time.Millisecond):
+			}
 		}
 	}()
 
