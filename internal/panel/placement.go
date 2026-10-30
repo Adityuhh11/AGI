@@ -27,3 +27,15 @@ func place(work Rect, dpi uint32, heightDIP int) Rect {
 	y = min(y, work.Y+work.H-h)
 	return Rect{X: x, Y: y, W: w, H: h}
 }
+
+// placeAt puts a panel of the size of base where the person last left its top-left corner (x, y), pulled back
+// in if it would hang off the usable area. ok is false when that corner is not on work at all (another monitor, or one
+// that was unplugged), and base is returned as it came so the panel opens in its usual place.
+func placeAt(base, work Rect, x, y int) (Rect, bool) {
+	if x < work.X || y < work.Y || x >= work.X+work.W || y >= work.Y+work.H {
+		return base, false
+	}
+	base.X = min(x, work.X+work.W-base.W)
+	base.Y = min(y, work.Y+work.H-base.H)
+	return base, true
+}

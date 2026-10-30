@@ -152,6 +152,8 @@ func (m *Manager) syncRoot(ctx context.Context, root string, exclude []string, o
 // follow reports the job's progress until it ends.
 func (m *Manager) follow(ctx context.Context, root, jobID string) error {
 	var worked time.Duration // time spent on the job while not paused, for the estimate
+	var eta estimator
+	pace := m.currentPace()
 	last := m.now()
 	for {
 		job, err := m.engine.Job(ctx, jobID)
@@ -176,7 +178,11 @@ func (m *Manager) follow(ctx context.Context, root, jobID string) error {
 			worked += now.Sub(last)
 		}
 		last = now
-		left := remaining(worked, job.FilesDone, job.FilesTotal)
+		if now := m.currentPace(); now != pace { // the person changed the speed: the old rate no longer says anything
+			pace = now
+			eta.restart(progress{worked, job.FilesDone})
+		}
+		left := eta.remaining(progress{worked, job.FilesDone}, job.FilesTotal)
 		m.setFolder(FolderStatus{Root: root, State: Indexing, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal, Remaining: left})
 		m.set(Status{State: Indexing, Root: root, FilesDone: job.FilesDone, FilesTotal: job.FilesTotal, Remaining: left})
 		select {

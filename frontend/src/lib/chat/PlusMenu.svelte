@@ -143,7 +143,7 @@
     background: var(--chrome);
   }
   .switch.on::after {
-    background: #000;
+    background: var(--on-chrome);
     transform: translateX(12px);
   }
   @media (prefers-reduced-motion: reduce) {

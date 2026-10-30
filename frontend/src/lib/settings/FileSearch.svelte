@@ -5,6 +5,7 @@
   import { changes, effects, type Choices, type Kind } from "../indexingPlan";
   import { CHOICES, SPEEDS } from "./choices";
   import { choiceHints, paceHints, surveyLine } from "./hints";
+  import IndexWindow from "./IndexWindow.svelte";
   import ChoiceGroup from "./ChoiceGroup.svelte";
   import { draft } from "./draft";
 
@@ -277,6 +278,7 @@
           Wait for power
         </label>
         <p class="help">Indexing stops while the computer runs on its battery and goes on when it is plugged in. Searching is not affected.</p>
+        <IndexWindow value={search.IndexBetween} onsave={(between) => run(() => Settings.SetIndexBetween(between))} />
       </div>
     </details>
   </section>
@@ -326,7 +328,7 @@
   }
   .callout {
     padding: 16px;
-    border: 1px solid rgba(230, 232, 236, 0.45);
+    border: 1px solid color-mix(in srgb, var(--chrome) 45%, transparent);
     border-radius: 12px;
     background: var(--lift);
   }
@@ -348,7 +350,7 @@
   }
   .dot.on {
     background: var(--chrome);
-    box-shadow: 0 0 0 3px rgba(230, 232, 236, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--chrome) 15%, transparent);
   }
   .dot.bad {
     background: var(--danger);
@@ -397,7 +399,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 14px;
-    border: 1px solid rgba(230, 232, 236, 0.45);
+    border: 1px solid color-mix(in srgb, var(--chrome) 45%, transparent);
     border-radius: 10px;
     background: var(--lift);
   }

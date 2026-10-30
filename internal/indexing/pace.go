@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"time"
+
+	"omni/internal/config"
 )
 
 // Duty is the share of the time indexing may keep the GPU busy at each speed of the settings. Measured in
@@ -26,6 +28,12 @@ func (m *Manager) SetPace(pace string) {
 	m.pace = pace
 	m.mu.Unlock()
 	m.tell(func(ctx context.Context) error { return m.engine.SetDuty(ctx, Duty(pace)) })
+}
+
+func (m *Manager) currentPace() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.pace
 }
 
 // Pause stops indexing at the next batch; searching goes on.
@@ -55,7 +63,17 @@ func (m *Manager) SetPauseOnBattery(on bool) {
 	m.checkPower()
 }
 
-// watchPower looks at the power source until ctx ends; plugging in or unplugging is noticed within a few seconds.
+// SetWindow limits indexing to the hours of w (nil lets it work at any hour). Outside them it waits the way it does on
+// battery, and the person's own pause is left alone.
+func (m *Manager) SetWindow(w *config.Window) {
+	m.mu.Lock()
+	m.window = w
+	m.mu.Unlock()
+	m.checkPower()
+}
+
+// watchPower looks at the power source and the clock until ctx ends; plugging in, unplugging and the window opening or
+// closing are noticed within a few seconds.
 func (m *Manager) watchPower(ctx context.Context) {
 	for {
 		m.checkPower()
@@ -70,14 +88,13 @@ func (m *Manager) watchPower(ctx context.Context) {
 const powerPoll = 5 * time.Second
 
 func (m *Manager) checkPower() {
-	if m.onBattery == nil {
-		return
-	}
-	hold := m.onBattery()
+	hold := m.onBattery != nil && m.onBattery()
+	now := m.now()
 	m.mu.Lock()
 	hold = hold && m.holdOnBattery
-	changed := m.held != hold
-	m.held = hold
+	closed := !m.window.Open(now)
+	changed := m.held != hold || m.closed != closed
+	m.held, m.closed = hold, closed
 	m.mu.Unlock()
 	if changed {
 		m.pushPause()
@@ -113,7 +130,7 @@ func (m *Manager) tell(request func(ctx context.Context) error) {
 // applyPace makes the engine match what was asked: its speed and whether it is paused.
 func (m *Manager) applyPace(ctx context.Context) {
 	m.mu.Lock()
-	pace, paused := m.pace, m.paused || m.held
+	pace, paused := m.pace, m.paused || m.held || m.closed
 	m.mu.Unlock()
 	if err := m.engine.SetDuty(ctx, Duty(pace)); err != nil {
 		log.Printf("indexing: setting the speed: %v", err)

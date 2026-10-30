@@ -69,7 +69,7 @@ main select {
 main input[type="text"]:hover:not(:focus),
 main input[type="number"]:hover:not(:focus),
 main select:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: color-mix(in srgb, var(--ink) 16%, transparent);
 }
 main input[type="text"]:disabled,
 main input[type="number"]:disabled,
@@ -93,7 +93,7 @@ main input[type="text"]:focus,
 main input[type="number"]:focus,
 main select:focus {
   outline: none;
-  border-color: rgba(230, 232, 236, 0.45);
+  border-color: color-mix(in srgb, var(--chrome) 45%, transparent);
 }
 main input::placeholder {
   color: var(--text-3);
@@ -127,11 +127,11 @@ main .btn:disabled {
 main .btn.primary {
   border-color: transparent;
   background: var(--chrome);
-  color: #000;
+  color: var(--on-chrome);
   font-weight: 620;
 }
 main .btn.primary:hover:not(:disabled) {
-  background: #fff; /* the plain hover fill is translucent and would leave black text on black */
+  background: var(--chrome-hot); /* the plain hover fill is translucent and would leave black text on black */
 }
 main .btn.primary:active:not(:disabled) {
   background: var(--text-2);

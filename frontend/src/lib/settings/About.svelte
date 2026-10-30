@@ -89,7 +89,15 @@
         {#if installable}<button type="button" class="btn primary" onclick={startUpdate}>Update to {found}</button>{/if}
         <button type="button" class="btn {installable ? 'quiet' : 'primary'}" onclick={async () => (error = await Settings.OpenUpdate())}>Open the release page</button>
       </div>
-      {#if !installable}<p class="help">This release has no download that can be checked, so it cannot be installed from here.</p>{/if}
+      {#if !installable}
+        <p class="help">
+          {#if isMac}
+            Omni cannot replace itself on a Mac yet. Run the install line from the release page in Terminal again; it keeps your settings and your index.
+          {:else}
+            This release has no download that can be checked, so it cannot be installed from here.
+          {/if}
+        </p>
+      {/if}
       {#if progress?.Stage === "failed"}<p class="error">{progress.Error} You can try again, or download it from the release page.</p>{/if}
     {/if}
   {:else if outcome}

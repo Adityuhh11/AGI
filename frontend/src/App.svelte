@@ -17,7 +17,8 @@
   import SearchGlyph from "./lib/SearchGlyph.svelte";
   import LiquidRing from "./lib/LiquidRing.svelte";
   import Loader from "./lib/Loader.svelte";
-  import { METALS, nextMetal } from "./lib/palettes";
+  import { nextMetal, ringsFor } from "./lib/palettes";
+  import { currentTheme, onTheme } from "./lib/theme";
   import ResultRow from "./lib/ResultRow.svelte";
   import { actionsFor, available, type Way } from "./lib/actions";
   import { filePathOf, flatten, openLine, pathOf, pinIdOf, step, tagIdOf, timeOf, type Item } from "./lib/flatten";
@@ -41,7 +42,9 @@
   let expanded = $state(new Set<string>());
   let problem = $state("");
   let active = $state(false); // the panel has the keyboard
-  let metal = $state(0); // which of METALS the ring is made of; changes whenever the panel closes
+  let theme = $state(currentTheme());
+  let metal = $state(0); // which of the theme's rings the bar wears; changes whenever the panel closes
+  const rings = $derived(ringsFor(theme));
   let pending = $state(false); // a search is in flight
   let typing = $state(false); // a key was pressed in the last moment
   let target = $state<Item | null>(null); // the row the open action panel acts on (null: panel closed)
@@ -188,7 +191,7 @@
     query = "";
     clearAnswer();
     loadPins();
-    metal = nextMetal(metal);
+    metal = nextMetal(metal, Math.random, rings.length);
   }
 
   // What is pinned, for the empty bar and for the marks on rows. Asked again whenever it may have changed.
@@ -507,6 +510,7 @@
     item.kind === "entry" ? item.entry.ID : item.kind === "row" ? item.row.Path : item.row.Path + "#" + item.match.Line;
 
   onMount(() => {
+    const stopTheme = onTheme((id) => ((theme = id), (metal = 0)));
     takeFocus();
     loadPins();
     // The observer fires after layout, whenever what the card holds changes size (results arriving,
@@ -516,6 +520,7 @@
     // While something is loading the numbers move; keep the bar honest without waiting for a refocus.
     const poll = setInterval(() => active && waiting && refreshInfo(), 1500);
     return () => {
+      stopTheme();
       observer.disconnect();
       clearInterval(poll);
     };
@@ -526,7 +531,7 @@
 
 <main>
   <div class="card" style:height="{cardHeight}px">
-    <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={METALS[metal]} />
+    <LiquidRing speed={typing || pending ? 1.5 : 0.6} running={active} metal={rings[metal] ?? rings[0]} />
     <div class="surface">
       <div class="content" class:acting={target || picker} bind:this={content}>
         <header class="bar">
@@ -617,7 +622,7 @@
     position: relative;
     border-radius: var(--radius);
     /* The ring's fallback and its first frame: static chrome, in case the shader cannot run. */
-    background: linear-gradient(135deg, #565963, #e4e8f0 45%, #565963 70%, #c9ced9);
+    background: var(--ring-fallback);
     box-shadow: var(--shadow);
     /* Height is animated on purpose: one small element, its content is absolutely positioned inside,
        and it only runs for 240 ms when results appear or go. */
@@ -637,8 +642,8 @@
     pointer-events: none;
     /* The edge: a lit top rim and a hairline all round, as on a machined card. */
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.13),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.045);
+      inset 0 1px 0 color-mix(in srgb, var(--ink) 13%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--ink) 4.5%, transparent);
   }
   .content {
     position: relative;
@@ -654,9 +659,12 @@
     gap: 14px;
     height: 60px;
     padding: 0 24px 0 24px;
+    /* The bar is moved by holding it anywhere but the text field; the panel remembers where it was left. */
+    --wails-draggable: drag;
   }
   .glass {
     flex: none;
+    cursor: grab;
     display: grid;
     color: var(--text-3);
     transition: color 200ms var(--ease);
@@ -672,6 +680,7 @@
     border: 0;
     outline: 0;
     background: transparent;
+    --wails-draggable: no-drag;
     color: var(--text);
     font: 400 19px/1 var(--display);
     letter-spacing: -0.01em;
@@ -760,10 +769,10 @@
   .results.keying :global(.item.selected) {
     position: relative;
     z-index: 1;
-    background-color: rgba(255, 255, 255, 0.115);
+    background-color: color-mix(in srgb, var(--ink) 11.5%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.2),
-      0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 color-mix(in srgb, var(--ink) 20%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent),
       0 8px 16px -8px rgba(0, 0, 0, 0.95);
   }
   .section {
@@ -782,7 +791,7 @@
   .results::-webkit-scrollbar-thumb {
     border: 3px solid transparent;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.14) padding-box;
+    background: color-mix(in srgb, var(--ink) 14%, transparent) padding-box;
   }
   .live {
     position: absolute;

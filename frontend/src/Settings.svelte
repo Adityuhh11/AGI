@@ -5,6 +5,7 @@
   import "./lib/settings/forms.css";
   import { Window } from "@wailsio/runtime";
   import Card from "./lib/Card.svelte";
+  import Icon from "./lib/Icon.svelte";
   import RoundButton from "./lib/RoundButton.svelte";
   import About from "./lib/settings/About.svelte";
   import Clipboard from "./lib/settings/Clipboard.svelte";
@@ -16,14 +17,14 @@
   import TimerSettings from "./lib/settings/TimerSettings.svelte";
 
   const SECTIONS = [
-    { id: "general", label: "General" },
-    { id: "quicklinks", label: "Quicklinks" },
-    { id: "snippets", label: "Snippets" },
-    { id: "search", label: "File search" },
-    { id: "clipboard", label: "Clipboard" },
-    { id: "omni-ai", label: "Omni AI" },
-    { id: "timer", label: "Timer" },
-    { id: "about", label: "About" },
+    { id: "general", label: "General", icon: "settings" },
+    { id: "quicklinks", label: "Quicklinks", icon: "link" },
+    { id: "snippets", label: "Snippets", icon: "snippet" },
+    { id: "search", label: "File search", icon: "search" },
+    { id: "clipboard", label: "Clipboard", icon: "clip" },
+    { id: "omni-ai", label: "Omni AI", icon: "spark" },
+    { id: "timer", label: "Timer", icon: "timer" },
+    { id: "about", label: "About", icon: "info" },
   ] as const;
 
   // A window opened on a section ("#settings/about", after an update) starts there.
@@ -56,6 +57,7 @@
     <h1>Settings</h1>
     {#each SECTIONS as s (s.id)}
       <button type="button" class:on={section === s.id} aria-current={section === s.id ? "page" : undefined} onclick={() => (section = s.id)}>
+        <Icon name={s.icon} size={18} />
         {s.label}
       </button>
     {/each}
@@ -124,6 +126,9 @@
     letter-spacing: -0.01em;
   }
   nav button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     height: 36px;
     padding: 0 12px;
     border: 0;

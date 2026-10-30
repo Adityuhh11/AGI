@@ -519,3 +519,33 @@ func TestAPausedPersonStaysPausedWhenThePowerComesBack(t *testing.T) {
 		t.Fatalf("engine paused %v, status %+v; the person's pause must outlast the battery's", engine.paused, m.Status())
 	}
 }
+
+func TestIndexingWaitsOutsideItsDailyHours(t *testing.T) {
+	engine := newFake()
+	m := New(engine, nil, func() bool { return true }, nil)
+	clock := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	m.now = func() time.Time { return clock }
+	window, err := config.ParseWindow("22:00-07:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m.SetWindow(window)
+	if s := m.Status(); s.WaitingForWindow != "22:00" || s.Paused || !engine.paused {
+		t.Fatalf("at noon: status %+v, engine paused %v; want waiting for 22:00 with the engine paused", s, engine.paused)
+	}
+	if got := (Status{State: Indexing, WaitingForWindow: "22:00"}).String(); got != "Indexing waits for 22:00" {
+		t.Errorf("status text = %q", got)
+	}
+	clock = time.Date(2026, 10, 30, 23, 0, 0, 0, time.UTC)
+	m.checkPower()
+	if s := m.Status(); s.WaitingForWindow != "" || engine.paused {
+		t.Fatalf("at 23:00: status %+v, engine paused %v; want indexing to go on", s, engine.paused)
+	}
+	m.Pause()
+	clock = time.Date(2026, 10, 30, 23, 30, 0, 0, time.UTC)
+	m.SetWindow(nil) // the person turns the hours off while paused themselves
+	if !engine.paused || !m.Status().Paused {
+		t.Fatalf("engine paused %v, status %+v; the person's pause must outlast the hours", engine.paused, m.Status())
+	}
+}

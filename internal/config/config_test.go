@@ -119,6 +119,7 @@ func TestLoadRejectsBadFiles(t *testing.T) {
 		{"unknown photo mode", "[search]\npace = 'fast'\nphotos = 'pixels'\n", "photos"},
 		{"unknown video mode", "[search]\npace = 'fast'\nvideos = 'off'\n", "videos"},
 		{"unknown audio mode", "[search]\npace = 'fast'\naudio = 'on'\n", "audio"},
+		{"unknown theme", "[ui]\ntheme = 'neon'\n", "ui theme"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

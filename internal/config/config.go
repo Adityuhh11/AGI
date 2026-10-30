@@ -59,7 +59,12 @@ type Config struct {
 type UI struct {
 	// SelectionEffect lifts the selected result and dims the others while the arrow keys move through the list.
 	SelectionEffect bool `toml:"selection_effect"`
+	// Theme is the colours of every window: one of Themes.
+	Theme string `toml:"theme"`
 }
+
+// Themes are the allowed values of UI.Theme, the default first. The page draws each one (frontend/src/theme.css).
+var Themes = []string{"black", "midnight", "forest", "cream", "blush", "coral"}
 
 // Timer holds the lengths of a pomodoro and how it goes on.
 type Timer struct {
@@ -167,6 +172,8 @@ type Search struct {
 	// PauseOnBattery holds indexing while the computer runs on its battery and goes on when it is plugged in. On by
 	// default: a big sync would drain a laptop.
 	PauseOnBattery bool `toml:"pause_on_battery"`
+	// IndexBetween, as "22:00-07:00", limits indexing to those hours of the day (see Window); empty lets it work at any hour.
+	IndexBetween string `toml:"index_between"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
 	// PDFPages, Photos, Videos and Audio say what each kind of file is searched by (docs/superpowers/specs/
@@ -282,6 +289,9 @@ func (c Config) Validate() error {
 	if c.Search.DataDir != "" && (!filepath.IsAbs(c.Search.DataDir) || strings.HasPrefix(filepath.VolumeName(c.Search.DataDir), `\\`)) {
 		return fmt.Errorf("data_dir %q must be an absolute path on a local drive", c.Search.DataDir)
 	}
+	if _, err := ParseWindow(c.Search.IndexBetween); err != nil {
+		return err
+	}
 	if err := c.validateWeb(); err != nil {
 		return err
 	}
@@ -303,6 +313,7 @@ func (c Config) Validate() error {
 		name, value string
 		allowed     []string
 	}{
+		{"ui theme", c.UI.Theme, Themes},
 		{"search pace", c.Search.Pace, Paces},
 		{"pdf_pages", c.Search.PDFPages, PDFPageModes},
 		{"photos", c.Search.Photos, PhotoModes},

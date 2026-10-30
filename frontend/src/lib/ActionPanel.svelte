@@ -90,7 +90,7 @@
     z-index: 5;
     width: 290px;
     padding: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
     border-radius: 16px;
     background: var(--plate);
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.7);

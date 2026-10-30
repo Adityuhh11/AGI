@@ -2,6 +2,31 @@ package panel
 
 import "testing"
 
+func TestPlaceAtKeepsWhereThePersonLeftIt(t *testing.T) {
+	work := Rect{0, 0, 1920, 1040}
+	base := Rect{600, 187, 720, 72}
+	tests := []struct {
+		name   string
+		x, y   int
+		want   Rect
+		wantOK bool
+	}{
+		{"left where it was dragged", 100, 300, Rect{100, 300, 720, 72}, true},
+		{"pulled in from the right edge", 1800, 300, Rect{1200, 300, 720, 72}, true},
+		{"pulled up from the bottom edge", 100, 1030, Rect{100, 968, 720, 72}, true},
+		{"on another monitor: usual place", 2500, 300, base, false},
+		{"above the screen: usual place", 100, -40, base, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := placeAt(base, work, tt.x, tt.y)
+			if got != tt.want || ok != tt.wantOK {
+				t.Fatalf("placeAt(%d, %d) = %+v, %v; want %+v, %v", tt.x, tt.y, got, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestPlaceCentresTheBarNearTheTopOfTheUsableArea(t *testing.T) {
 	tests := []struct {
 		name      string

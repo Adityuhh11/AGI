@@ -51,23 +51,23 @@
   }
   .tile:hover:not(:disabled) {
     color: var(--text);
-    background: rgba(255, 255, 255, 0.13);
+    background: color-mix(in srgb, var(--ink) 13%, transparent);
   }
   /* a switch that is on is lit like the search card's metal: bright fill, black glyph */
   .tile.on {
     background: var(--chrome);
-    color: #000;
+    color: var(--on-chrome);
   }
   .tile.on:hover:not(:disabled) {
-    background: #fff;
-    color: #000;
+    background: var(--chrome-hot);
+    color: var(--on-chrome);
   }
   .solid {
     background: var(--chrome);
-    color: #000;
+    color: var(--on-chrome);
   }
   .solid:hover:not(:disabled) {
-    background: #fff;
+    background: var(--chrome-hot);
   }
   .round:disabled {
     background: var(--lift);
