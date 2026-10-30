@@ -1,6 +1,6 @@
 # 0009: Web search is two tools over DuckDuckGo's HTML page, run by Omni's own loop
 
-Date: 2026-10-29. Status: accepted. Spec: `superpowers/specs/2026-10-29-web-search-design.md`.
+Date: 2026-10-29. Status: accepted.
 
 ## Decision
 

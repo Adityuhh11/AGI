@@ -1,7 +1,7 @@
 # The clipboard hotkey, end to end (2026-10-19)
 
-Phase P3 of `superpowers/specs/2026-10-19-pins-clipboard-snippets-design.md`: an optional second global hotkey
-(`[clipboard] hotkey`) that opens the bar with `clip: ` already typed in. Acceptance in the spec: opens in the Clipboard mode in
+Phase P3 of the pins, clipboard and snippets work: an optional second global hotkey
+(`[clipboard] hotkey`) that opens the bar with `clip: ` already typed in. Acceptance: opens in the Clipboard mode in
 under 100 ms. Run in a clean profile with the history switched on, a window of another program in front, three copies in
 the history, driven by synthetic key events (`keybd_event`), every key guarded to fire only while one of my own windows
 was in front.

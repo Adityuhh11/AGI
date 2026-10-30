@@ -1,7 +1,7 @@
 # 0005: Update check, opt-in; installing is a button the person presses
 
 Status: accepted, 2026-10-19. Amended 2026-10-20: the program can now install the update when its person presses the button
-(see the end of this note and `superpowers/specs/2026-10-20-one-click-update-design.md`).
+(see the end of this note).
 
 ## Context
 
@@ -45,7 +45,7 @@ except calls to a configured LLM provider, and that there is no telemetry.
 
 ## Amendment, 2026-10-20: one-click install
 
-The person asked for the update to be installable from About. Built as the spec says: **a button the person presses, never
+The person asked for the update to be installable from About. Built as designed: **a button the person presses, never
 automatic**. "Update to X" downloads the release's zip from this project's releases only, checks it against the SHA-256 GitHub
 publishes for the file (nothing is installed without one), takes the file named `omni.exe` out of it, renames the running
 program to `omni.exe.old`, puts the new one in its place (undoing the first rename if the second fails), and starts it with

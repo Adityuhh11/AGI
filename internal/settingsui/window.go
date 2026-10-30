@@ -44,7 +44,7 @@ const overlayMargin = 16
 type Window struct {
 	app  *application.App
 	spec windowSpec
-	// onTop, when set, decides whether the window is above other windows each time it is built; the spec's choice otherwise.
+	// onTop, when set, decides whether the window is above other windows each time it is built; the default otherwise.
 	onTop func() bool
 
 	build sync.Mutex // one window is made at a time, so two requests at once cannot make two

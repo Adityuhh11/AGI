@@ -27,14 +27,12 @@ class ChunkKind(enum.StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class IndexOptions:
-    """What a person chose to index, per kind of file (docs/superpowers/specs/
-    2026-10-20-indexing-choices-design.md).
+    """What a person chose to index, per kind of file.
 
     `pdf_pages`: "auto" embeds a page's image when it looks visual, "all" every page, "text" none.
     `photos`: "content" embeds the pixels, "name" only the file name. `videos`: "name" the file
     name, "content" also eight frames. `audio`: "name" the file name, "content" also what is said
-    and played, in audio files and in the soundtrack of videos (docs/superpowers/specs/
-    2026-10-28-audio-search-design.md).
+    and played, in audio files and in the soundtrack of videos.
     """
 
     pdf_pages: str = "auto"

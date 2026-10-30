@@ -10,7 +10,7 @@ export const SPEEDS: Option[] = [
   { id: "gentle", name: "Gentle", how: "Takes about six times as long. Your computer stays free and search stays quick." },
 ];
 
-// What each kind of file is searched by (docs/superpowers/specs/2026-10-20-indexing-choices-design.md). Pictures are
+// What each kind of file is searched by. Pictures are
 // what indexing time goes on: about 0.16 s each on a graphics card, about 5 s on a processor alone.
 export const CHOICES: { kind: Kind; label: string; options: Option[] }[] = [
   {

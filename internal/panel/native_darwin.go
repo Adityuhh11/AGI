@@ -57,7 +57,7 @@ func setForeground(app uintptr) { C.omniActivate(C.int(app)) }
 func isWindow(app uintptr) bool { return app != 0 && C.omniIsRunning(C.int(app)) != 0 }
 
 // cloak on a Mac is plain ordering: out when on, in when off. (ponytail: if the first frame after showing turns out stale or blank, keep
-// the panel ordered in at alpha 0 instead; the decision is in docs/superpowers/specs/2026-10-29-macos-design.md, section 0.)
+// the panel ordered in at alpha 0 instead.)
 func cloak(window uintptr, on bool) {
 	if on {
 		C.omniOrderOut(C.uintptr_t(window))

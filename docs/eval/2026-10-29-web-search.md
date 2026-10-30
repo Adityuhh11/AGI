@@ -1,6 +1,6 @@
 # Web search for Omni AI: what was measured
 
-Date: 2026-10-29. Spec: `superpowers/specs/2026-10-29-web-search-design.md`. ADR 0009. Machine: the owner's laptop, real network, the installed
+Date: 2026-10-29. ADR 0009. Machine: the owner's laptop, real network, the installed
 LFM3-1.7B (QAD Q4_0) on the graphics card. Throwaway `curl` calls and the gated test `TestRealModelUsesTheWeb`
 (`OMNI_CHAT_DIR=<chat folder> go test ./internal/chat -run Real -v`; `OMNI_CHAT_THINKING=1` for thinking on).
 

@@ -116,7 +116,7 @@ type Notes struct {
 	Hotkey string `toml:"hotkey,omitempty"`
 }
 
-// Chat holds the settings of Omni AI (docs/superpowers/specs/2026-10-28-ai-chat-design.md).
+// Chat holds the settings of Omni AI.
 type Chat struct {
 	// Enabled switches Omni AI on: the model is downloaded and `ask` opens the chat. Off until the person turns it on.
 	Enabled bool `toml:"enabled"`
@@ -177,8 +177,7 @@ type Search struct {
 	IndexBetween string `toml:"index_between"`
 	// Pace is how much of the time indexing may keep the GPU busy: one of Paces.
 	Pace string `toml:"pace"`
-	// PDFPages, Photos, Videos and Audio say what each kind of file is searched by (docs/superpowers/specs/
-	// 2026-10-20-indexing-choices-design.md, 2026-10-28-audio-search-design.md): one of PDFPageModes, PhotoModes,
+	// PDFPages, Photos, Videos and Audio say what each kind of file is searched by: one of PDFPageModes, PhotoModes,
 	// VideoModes and AudioModes, the first the default. Audio covers audio files and the soundtrack of videos.
 	PDFPages string `toml:"pdf_pages"`
 	Photos   string `toml:"photos"`

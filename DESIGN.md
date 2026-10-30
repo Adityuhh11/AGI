@@ -1,7 +1,7 @@
 # Design
 
 The visual system of the launcher panel, recorded from the built page (`frontend/src`) on 2026-10-15. Tokens live in
-`frontend/src/theme.css`; the rationale and measurements are in `docs/superpowers/specs/2026-10-15-launcher-visual-design.md`.
+`frontend/src/theme.css`.
 
 ## World
 

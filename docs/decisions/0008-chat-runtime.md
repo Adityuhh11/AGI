@@ -1,6 +1,6 @@
 # 0008: Omni AI runs its own llama.cpp server, owned by the launcher
 
-Date: 2026-10-28. Status: accepted. Evidence: `eval/2026-10-28-chat-model.md`. Spec: `superpowers/specs/2026-10-28-ai-chat-design.md`.
+Date: 2026-10-28. Status: accepted. Evidence: `eval/2026-10-28-chat-model.md`.
 
 ## Decision
 

@@ -13,3 +13,10 @@ frontend/bindings/
 dist/
 
 /Digup Userflow
+
+# Personal, local-only agent files
+CLAUDE.local.md
+.claude/settings.local.json
+.superpowers/
+PRODUCT.md
+docs/specs/
