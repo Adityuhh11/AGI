@@ -485,11 +485,11 @@ func TestAnIdleInstallerSaysSo(t *testing.T) {
 
 func TestThePageIsGivenASentenceNotAnErrorMessage(t *testing.T) {
 	for in, want := range map[string]string{
-		"the download does not match the checksum":        "The download does not match the checksum.",
+		"the download does not match the checksum":         "The download does not match the checksum.",
 		"cannot write next to omni.exe: access is denied.": "Cannot write next to omni.exe: access is denied.",
-		"The update was cancelled.":                       "The update was cancelled.",
-		"édition":                                         "Édition.",
-		"":                                                "",
+		"The update was cancelled.":                        "The update was cancelled.",
+		"édition":                                          "Édition.",
+		"":                                                 "",
 	} {
 		if got := sentence(in); got != want {
 			t.Errorf("sentence(%q) = %q, want %q", in, got, want)

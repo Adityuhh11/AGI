@@ -77,11 +77,13 @@ func TestTheOfferCountsAudioAndVideosAndPricesTheSoundOnThisComputer(t *testing.
 func TestNoOfferUnlessEverythingIsInPlace(t *testing.T) {
 	noSound := map[string]sidecar.RouteCount{"code": {Files: 9}}
 	for name, change := range map[string]func(*Service, *fakeSettings, *fakeWaivers){
-		"file search is off":              func(_ *Service, f *fakeSettings, _ *fakeWaivers) { f.cfg.Search.Enabled = false },
-		"sound is already searched":       func(_ *Service, f *fakeSettings, _ *fakeWaivers) { f.cfg.Search.Audio = "content" },
-		"the engine is not ready":         func(s *Service, _ *fakeSettings, _ *fakeWaivers) { s.Ready = func() bool { return false } },
-		"not now was said recently":       func(_ *Service, _ *fakeSettings, w *fakeWaivers) { w.at = now.Add(-Quiet + time.Hour) },
-		"the folders are not counted yet": func(s *Service, _ *fakeSettings, _ *fakeWaivers) { s.Surveys = fakeSurveys{testpath.P(`C:\Media`): {State: survey.Running}} },
+		"file search is off":        func(_ *Service, f *fakeSettings, _ *fakeWaivers) { f.cfg.Search.Enabled = false },
+		"sound is already searched": func(_ *Service, f *fakeSettings, _ *fakeWaivers) { f.cfg.Search.Audio = "content" },
+		"the engine is not ready":   func(s *Service, _ *fakeSettings, _ *fakeWaivers) { s.Ready = func() bool { return false } },
+		"not now was said recently": func(_ *Service, _ *fakeSettings, w *fakeWaivers) { w.at = now.Add(-Quiet + time.Hour) },
+		"the folders are not counted yet": func(s *Service, _ *fakeSettings, _ *fakeWaivers) {
+			s.Surveys = fakeSurveys{testpath.P(`C:\Media`): {State: survey.Running}}
+		},
 		"there is no sound in the folders": func(s *Service, _ *fakeSettings, _ *fakeWaivers) {
 			s.Surveys = fakeSurveys{testpath.P(`C:\Media`): {State: survey.Done, Survey: sidecar.Survey{Routes: noSound}}}
 		},

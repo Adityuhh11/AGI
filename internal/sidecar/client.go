@@ -133,7 +133,9 @@ func (c *Client) SetDuty(ctx context.Context, duty float64) error {
 }
 
 // Pause stops indexing at the next batch; Resume lets it go on. Searching is not affected.
-func (c *Client) Pause(ctx context.Context) error { return c.do(ctx, http.MethodPost, "/pause", nil, nil) }
+func (c *Client) Pause(ctx context.Context) error {
+	return c.do(ctx, http.MethodPost, "/pause", nil, nil)
+}
 
 // Resume lets a paused index job go on.
 func (c *Client) Resume(ctx context.Context) error {

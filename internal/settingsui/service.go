@@ -128,7 +128,9 @@ type Service struct {
 }
 
 // New returns the service.
-func New(o Options) *Service { return &Service{o: o, movedTo: movedTo, known: knownFolder, blocked: blocked} }
+func New(o Options) *Service {
+	return &Service{o: o, movedTo: movedTo, known: knownFolder, blocked: blocked}
+}
 
 // View is everything the window shows.
 type View struct {

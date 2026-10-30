@@ -148,7 +148,7 @@ type lookup struct {
 	allowed map[string]bool
 	read    []Source // pages the model opened
 	found   []Source // results of its searches
-	logf   func(format string, args ...any)
+	logf    func(format string, args ...any)
 }
 
 // addSource adds s unless its address is listed already: two searches overlap, and a redirect can land on a listed page.

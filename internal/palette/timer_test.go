@@ -18,12 +18,12 @@ type fakeTimer struct {
 func (f *fakeTimer) Start(d time.Duration, label string) {
 	f.calls = append(f.calls, "start "+d.String()+" "+label)
 }
-func (f *fakeTimer) StartPomodoro()         { f.calls = append(f.calls, "pomodoro") }
-func (f *fakeTimer) Pause()                 { f.calls = append(f.calls, "pause") }
-func (f *fakeTimer) Resume()                { f.calls = append(f.calls, "resume") }
-func (f *fakeTimer) Stop()                  { f.calls = append(f.calls, "stop") }
-func (f *fakeTimer) Skip()                  { f.calls = append(f.calls, "skip") }
-func (f *fakeTimer) State() timer.State     { return f.state }
+func (f *fakeTimer) StartPomodoro()     { f.calls = append(f.calls, "pomodoro") }
+func (f *fakeTimer) Pause()             { f.calls = append(f.calls, "pause") }
+func (f *fakeTimer) Resume()            { f.calls = append(f.calls, "resume") }
+func (f *fakeTimer) Stop()              { f.calls = append(f.calls, "stop") }
+func (f *fakeTimer) Skip()              { f.calls = append(f.calls, "skip") }
+func (f *fakeTimer) State() timer.State { return f.state }
 func (f *fakeTimer) Settings() config.Timer {
 	c := config.Default().Timer
 	if f.presets != nil {

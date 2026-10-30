@@ -9,8 +9,8 @@ import (
 	"omni/internal/apps"
 	"omni/internal/config"
 	"omni/internal/state"
-	"omni/internal/web"
 	"omni/internal/testpath"
+	"omni/internal/web"
 )
 
 // fakeBrowser records what the bar opened.

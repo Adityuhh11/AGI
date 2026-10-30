@@ -250,7 +250,7 @@ func NewPaster(setText func(string) bool, previous func() uintptr, release func(
 			}
 			return nil
 		},
-		SendPaste:  sendCtrlV,
-		Sleep:      time.Sleep,
+		SendPaste: sendCtrlV,
+		Sleep:     time.Sleep,
 	}
 }

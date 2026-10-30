@@ -23,7 +23,7 @@ type Catalog struct {
 	Index *Index
 
 	cache string
-	icons string                                    // where icons are cached; empty to not warm them
+	icons string                                   // where icons are cached; empty to not warm them
 	list  func(ctx context.Context) ([]App, error) // what the system lists as installed (list_windows.go, list_darwin.go); tests replace it
 	alive func([]App) []App                        // drops entries whose file is gone; tests replace it, because that depends on the machine
 	now   func() time.Time
