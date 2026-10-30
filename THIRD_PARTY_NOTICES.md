@@ -82,8 +82,8 @@ publisher's, at the address given. Read it before you switch the feature on.
 
 | Model | Used for | Terms |
 |---|---|---|
-| EmbeddingGemma 2 (GGUF, by ggml-org; original by Google) | file search | The publisher's terms: https://huggingface.co/ggml-org/embeddinggemma-2-GGUF and Google's Gemma Terms of Use, https://ai.google.dev/gemma/terms |
-| LFM3-1.7B (GGUF, by Liquid AI) | Omni AI | The publisher's license: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/blob/main/LICENSE |
+| EmbeddingGemma 2 (GGUF, by ggml-org; original by Google) | file search | Apache License 2.0. The model page is the authority if it says otherwise: https://huggingface.co/ggml-org/embeddinggemma-2-GGUF |
+| LFM3-1.7B (GGUF, by Liquid AI) | Omni AI | Liquid AI's LFM Open License. Read its terms, including any limit on commercial use: https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/blob/main/LICENSE |
 
 ## License texts
 
