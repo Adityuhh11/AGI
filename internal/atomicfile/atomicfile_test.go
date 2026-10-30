@@ -22,6 +22,19 @@ func TestWriteReplacesTheFileAndLeavesNothingBehind(t *testing.T) {
 	}
 }
 
+func TestAStaleTempFileFromACrashIsReplacedByTheNextWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.json")
+	if err := os.WriteFile(path+".tmp", []byte("half a fi"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(path, []byte("whole")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Errorf("the temporary file was left behind: %v", err)
+	}
+}
+
 func TestWriteFailsCleanlyWhenTheFolderIsMissing(t *testing.T) {
 	if err := Write(filepath.Join(t.TempDir(), "no", "such", "a.txt"), []byte("x")); err == nil {
 		t.Fatal("writing into a missing folder was accepted")
