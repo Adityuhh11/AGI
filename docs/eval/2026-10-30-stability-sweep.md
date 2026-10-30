@@ -46,6 +46,25 @@ calculator and timer parsing (fuzzed, depth and length capped); the Windows clip
 garbage, truncated, 300 MB document bomb, 144-megapixel picture, a sparse 50 GB file, link loops, 60-deep folders, odd names): every one was skipped or
 reported, none crashed the run.
 
+## Round 2: a fresh review of the fixed branch
+
+Everything from the start of round 1 was run again on the final code, then new angles that round 1 had not used.
+
+| Check | Result |
+|---|---|
+| `gofmt`, `go vet` for Windows, Go suite under `-race -shuffle=on -count=3` (Linux-buildable packages, and Windows and macOS runners for the rest), page types and tests, `ruff`, `pyright`, `pytest` | All pass. The Windows and Mac runners both ran the whole Go suite three times under the race detector |
+| The repository's own `ci.yml` run by hand on the branch (Windows build, installer built and installed, Mac package built and installed, Mac program started) | Pass |
+| Engine under load: 6 threads sending about 15,800 searches, health and source requests while 3 sources of 150 files were added and deleted 6 times | No server error. A second "add" while a job runs correctly answers 409 |
+| Index consistency over add / delete / re-add cycles (450 chunks, 300 after a delete, 450 again) and deleting a source while its own job runs (409 while running; no chunks come back afterwards) | Consistent |
+| Page: every `addEventListener`, `Events.On` and `setInterval` has its matching removal (`$effect` runs the unsubscribe that `Events.On` returns) | Sound |
+| Fuzzing: file-search scope prefixes, the app ranker and the launch-history score | No panic, no NaN |
+
+### Found in round 2
+
+| # | Severity | Finding | Where | Result |
+|---|---|---|---|---|
+| 8 | Medium | On a Mac, `llama-server` was only ended when the launcher stopped the engine. If the engine died by itself (a crash in a library, the system ending it for memory) the server lived on holding the model's memory, and the restart started another, once per crash. (On Windows the engine's own kill-on-close job already does this.) | `internal/sidecar/exec_darwin.go` | Fixed: the group is ended when the engine ends. Test written first (its logic was run on Linux and fails without the fix); it runs on the Mac runner |
+
 ## For a person on a real machine
 
 - Windows: press the hotkey 20 times quickly; open the bar at 100%, 125% and 150% scale; sleep and wake with file search on; unplug a USB drive that is an indexed folder, plug it back, and change a file on it (it should be indexed within a minute: finding 2); run the installer on a clean user.
