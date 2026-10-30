@@ -1,6 +1,6 @@
 # llama.cpp as the embedding runtime (spike, 2026-10-18)
 
-Plan: `superpowers/plans/2026-10-18-llamacpp-embedder-spike.md`. Decision: `decisions/0004-embedding-runtime.md`.
+Decision: `decisions/0004-embedding-runtime.md`.
 Machine: RTX 4050 Laptop (6 GB), Intel UHD as second Vulkan device, launcher stopped, nothing else on the GPU.
 Spike code: `sidecar/spikes/` (an `Embedder` over `llama-server`, and the scripts named below).
 

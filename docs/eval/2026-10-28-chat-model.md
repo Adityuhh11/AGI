@@ -1,6 +1,6 @@
 # Chat model spike: LFM3-1.7B on llama.cpp
 
-Date: 2026-10-28. Spec: `superpowers/specs/2026-10-28-ai-chat-design.md` section 12. Machine: the owner's laptop, RTX 4050 (6 GB), Vulkan.
+Date: 2026-10-28. Machine: the owner's laptop, RTX 4050 (6 GB), Vulkan.
 The Omni engine's own `llama-server` (the embedder, 1,111 MiB) was running throughout, so every VRAM figure is *next to* the embedder.
 Scripts were throwaway Python in the session scratchpad (a server started with the flags below, requests over HTTP); the numbers are
 what they printed.
@@ -86,7 +86,7 @@ Embedder 1,111 MiB + chat at 8,192 = about 2,290 MiB of 6,141 MiB, with the Wind
   runs (about 60 turns) it never happened, on fresh and on reused servers. It is not a shader-compile cost (prompts of 8 to 5,112
   tokens were fast on a fresh process). Cause unknown; most likely another program using the GPU at that moment. The window must show
   progress ("Reading…" until the first token) so a stall looks like work, and the acceptance step looks for it again.
-- The quality comparison is not the blind 30-prompt test the spec asked for; see above.
+- The quality comparison is not the blind 30-prompt test that was planned; see above.
 
 ## In the real app (build of `feat/ai-chat`, clean profile, `OMNI_INSTANCE`, the spike's files as `OMNI_CHAT_DIR`)
 

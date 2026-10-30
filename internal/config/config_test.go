@@ -74,7 +74,7 @@ func TestLoadKeepsDefaultsForKeysThatAreNotSet(t *testing.T) {
 
 func TestLoadReplacesTheRootListWhenItIsSet(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "roots = ['" + testpath.P(`C:\Docs`) + "', '" + testpath.P(`D:\Photos`) + "']\n")
+	writeFile(t, path, "roots = ['"+testpath.P(`C:\Docs`)+"', '"+testpath.P(`D:\Photos`)+"']\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -179,7 +179,7 @@ func TestAFreshInstallIndexesNothingAndHasFileSearchOff(t *testing.T) {
 
 func TestTheRetiredSidecarTableLoadsAndIsNotWrittenBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = '" + testpath.P(`C:\\dev\\Omni\\sidecar`) + "'\n")
+	writeFile(t, path, "hotkey = 'Ctrl+Alt+K'\n\n[sidecar]\ndir = '"+testpath.P(`C:\\dev\\Omni\\sidecar`)+"'\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatalf("a file with the retired [sidecar] table must still load: %v", err)
@@ -288,7 +288,7 @@ func TestExcludedUnderGivesPathsBelowTheRootInTheEnginesForm(t *testing.T) {
 
 func TestLoadReadsExcludedFolders(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
-	writeFile(t, path, "roots = ['" + testpath.P(`C:\Docs`) + "']\nexclude = ['" + testpath.P(`C:\Docs\vendor`) + "']\n")
+	writeFile(t, path, "roots = ['"+testpath.P(`C:\Docs`)+"']\nexclude = ['"+testpath.P(`C:\Docs\vendor`)+"']\n")
 	got, err := Load(path)
 	if err != nil {
 		t.Fatal(err)

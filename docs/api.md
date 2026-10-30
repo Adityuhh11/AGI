@@ -75,8 +75,7 @@ fields are rejected. `exclude` is optional: folders below `path` to leave out, w
 an indexed source shrinks it. Each counts once in `ignored`.
 
 `options` is optional: `{"pdf_pages": "auto" | "all" | "text", "photos": "content" | "name", "videos": "name" |
-"content", "audio": "name" | "content"}`, defaults first (specs: `superpowers/specs/2026-10-20-indexing-choices-design.md`,
-`superpowers/specs/2026-10-28-audio-search-design.md`). `audio: "content"` also searches what is said and played in audio
+"content", "audio": "name" | "content"}`, defaults first. `audio: "content"` also searches what is said and played in audio
 files and in the soundtrack of videos (30 s windows every 15 s; silence is skipped). A sync with
 options different from the source's last ones processes every PDF, picture, video or audio file again (whichever option changed)
 and reuses every vector it already has, so only chunks that did not exist before are embedded. The options and the

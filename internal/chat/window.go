@@ -6,7 +6,7 @@ import (
 )
 
 // The context window is how much of a conversation the model is shown. The page keeps every message; the model is shown the
-// newest whole turns that fit (docs/superpowers/specs/2026-10-28-ai-chat-design.md, section 7).
+// newest whole turns that fit.
 
 // messageOverhead is what the chat template adds around a message (the role marker and the end marker), in tokens.
 const messageOverhead = 6

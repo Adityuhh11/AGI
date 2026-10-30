@@ -59,8 +59,8 @@ jobs:
           Remove-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -ErrorAction SilentlyContinue
           ./scripts/test-installer.ps1 -Setup (Get-ChildItem dist/*-setup.exe).FullName
 
-  # The Mac code is Objective-C through cgo, which cannot be compiled from Windows, so this runner is the only compiler it has
-  # (docs/superpowers/specs/2026-10-29-macos-design.md). It builds, vets and tests everything the Windows job does that makes sense
+  # The Mac code is Objective-C through cgo, which cannot be compiled from Windows, so this runner is the only compiler it has.
+  # It builds, vets and tests everything the Windows job does that makes sense
   # on a Mac, then packages it as a release does (the last two steps).
   launcher-macos:
     runs-on: macos-latest
@@ -82,6 +82,9 @@ jobs:
         run: ./scripts/build-mac.sh ci
       - name: The program is for Apple Silicon
         run: lipo -archs bin/omni | grep -qx arm64
+      # Here and not on the Windows runner, where a checkout may turn line endings into CRLF, which gofmt would report.
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: Go vet
         run: go vet ./...
       - name: Go tests

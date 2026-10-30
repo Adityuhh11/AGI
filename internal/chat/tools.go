@@ -12,7 +12,7 @@ import (
 	"omni/internal/websearch"
 )
 
-// The model may look things up on the web when the person switches that on (docs/superpowers/specs/2026-10-29-web-search-design.md).
+// The model may look things up on the web when the person switches that on (docs/decisions/0009-web-search-tool.md).
 // It asks for a tool in place of text; Omni runs it, gives the result back as a "tool" message and the model goes on.
 
 const (
@@ -148,7 +148,7 @@ type lookup struct {
 	allowed map[string]bool
 	read    []Source // pages the model opened
 	found   []Source // results of its searches
-	logf   func(format string, args ...any)
+	logf    func(format string, args ...any)
 }
 
 // addSource adds s unless its address is listed already: two searches overlap, and a redirect can land on a listed page.

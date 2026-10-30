@@ -2,7 +2,7 @@
 
 A video is never read whole (its identity is `media_identity`). Frames are taken by seeking to the
 middle of each of `FRAMES` equal parts, so a 30-minute video costs about what a 5-second one does
-(0.25 to 0.5 s for eight frames, docs/superpowers/specs/2026-10-20-indexing-choices-design.md).
+(0.25 to 0.5 s for eight frames, measured in docs/eval/2026-10-20-indexing-choices.md).
 """
 
 from __future__ import annotations

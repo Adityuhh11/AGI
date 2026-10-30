@@ -1,7 +1,7 @@
 # 0002: One blended score, file-name titles, 768 dimensions, a path signal and a confidence flag
 
 Date: 2026-10-15. Status: accepted. Supersedes the 256-d vectors and rank-fusion parts of 0001 and of the 2026-10-12
-memory engine spec. Design: `superpowers/specs/2026-10-15-search-quality-design.md`. Numbers:
+memory engine spec. Numbers:
 `eval/2026-10-13-fusion-experiments.md`, `eval/2026-10-15-search-quality-experiments.md`.
 
 ## Decision

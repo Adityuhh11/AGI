@@ -1,7 +1,6 @@
 # Architecture
 
 Living document. Update it in the same commit as the code it describes.
-Spec: `superpowers/specs/2026-10-12-memory-engine-design.md`.
 
 ## Overview
 
@@ -13,7 +12,7 @@ Omni is a local-first, AI-native launcher for Windows. Two processes cooperate:
 They talk over authenticated localhost HTTP. The GPU hosts only models: the embedding model, which runs in a llama.cpp server the
 engine owns (about 1.1 GB of VRAM), and, when the person turns Omni AI on, a chat model in a second llama.cpp server the launcher owns (about 1.2 GB);
 index storage and search run on the CPU. The engine is installed under
-`%LOCALAPPDATA%\Omni\engine\` and is optional: the launcher works without it (see `superpowers/specs/2026-10-18-packaging-design.md`).
+`%LOCALAPPDATA%\Omni\engine\` and is optional: the launcher works without it.
 
 ## Launcher packages (`cmd/omni`, `internal/`)
 
@@ -32,7 +31,8 @@ the engine only after the page asks.
 | `indexing`, `watcher` | Keep the engine's index in step with the folders: sync every root when the engine is ready and on Rescan, sync just the changed root after the watcher's debounce, speed and pause |
 | `sidecar`, `enginesetup` | Run the engine (supervised process tree, typed HTTP client, on/off switch) and install it (pinned downloads, resumable, manifest written last) |
 | `config`, `settings`, `settingsui` | `config.toml` (validated, unknown keys are errors), the live store that notifies subscribers, and the Settings window's service |
-| `llm`, `chat` | Omni AI (`superpowers/specs/2026-10-28-ai-chat-design.md`, ADR 0008). `llm` is the model as a process: it installs the pinned llama.cpp (b11970, Vulkan) and LFM3-1.7B (QAD Q4_0), picks the graphics card by name (the processor if it fails or runs out of memory), starts `llama-server` on a loopback port behind a random key, and ends it after the idle time the person chose. `chat` is the conversations (one JSON file each in `%APPDATA%\Omni\chats`), the context window (whole turns, newest kept, trimmed from the front; exact token counts from the server), the streaming client for the OpenAI-style `/v1/chat/completions` (thinking per request, `</think>` as a stop when it is off) and the `Service` the chat window calls. With web search switched on the service also runs a tool loop (`tools.go`, `internal/websearch`, ADR 0009). It needs nothing of the engine; `palette` adds the `ask:` mode, `settingsui.OmniAI` the settings page, `hotkey` the chat's own hotkey |
+| `atomicfile` | Replaces a file so a crash or power cut leaves the old content or the new, never an empty file (written aside, flushed, renamed); used by the settings, notes, chats, state, clipboard history and the app list |
+| `llm`, `chat` | Omni AI (ADR 0008). `llm` is the model as a process: it installs the pinned llama.cpp (b11970, Vulkan) and LFM3-1.7B (QAD Q4_0), picks the graphics card by name (the processor if it fails or runs out of memory), starts `llama-server` on a loopback port behind a random key, and ends it after the idle time the person chose. `chat` is the conversations (one JSON file each in `%APPDATA%\Omni\chats`), the context window (whole turns, newest kept, trimmed from the front; exact token counts from the server), the streaming client for the OpenAI-style `/v1/chat/completions` (thinking per request, `</think>` as a stop when it is off) and the `Service` the chat window calls. With web search switched on the service also runs a tool loop (`tools.go`, `internal/websearch`, ADR 0009). It needs nothing of the engine; `palette` adds the `ask:` mode, `settingsui.OmniAI` the settings page, `hotkey` the chat's own hotkey |
 | `hotkey` | One extra global hotkey that can be moved while the program runs (the chat's, the notes') |
 | `update`, `autostart`, `tray`, `status` | Release check and one-click update, start at sign-in, the notification-area icon, the status line |
 
@@ -114,7 +114,7 @@ Schema version 3 adds `path_words` and `chunks_path_tri`; version 2 added `sourc
 
 ## Platform code: what is for Windows and what is for a Mac
 
-Omni runs on Windows 11 and, being added (`superpowers/specs/2026-10-29-macos-design.md`), on macOS for Apple Silicon. The two are kept
+Omni runs on Windows 11 and on macOS for Apple Silicon. The two are kept
 visibly apart so a bug can be sent to the right system by looking at the file name.
 
 **The rule.** A package's shared logic lives in `x.go`. Code that calls the system lives in `x_windows.go` (Win32, the registry, PowerShell)

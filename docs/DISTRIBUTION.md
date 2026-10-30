@@ -71,8 +71,7 @@ Each release's Mac files are built and attested by the same Release workflow.
 
 ## Decisions the owner has to make
 
-1. **A licence.** The repo is public with none, so by default nobody may use or copy it, and SignPath requires an OSI licence. MIT or
-   Apache-2.0 are the usual choices for this kind of project; Apache-2.0 adds an explicit patent grant.
+1. **A licence.** Done: MIT (`LICENSE`), which SignPath's OSI requirement accepts.
 2. **The publisher name Windows will show** (a person, an organisation, or "SignPath Foundation") and where the owner lives, which
    decides whether Azure Artifact Signing is open to them.
 3. **The project name.** "Omni" is hard to search for and hard to defend as a trademark; changing it is cheapest before the first

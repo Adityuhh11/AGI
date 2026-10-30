@@ -1,6 +1,6 @@
 # One-click update, tested (2026-10-20)
 
-Spec `superpowers/specs/2026-10-20-one-click-update-design.md`, plan `plans/2026-10-20-one-click-update.md`. Everything below was
+Everything below was
 run on the real binary on this laptop, in a clean profile (`APPDATA` and `LOCALAPPDATA` in a scratch folder), from a folder with
 spaces in its name where noted, with the owner's own launcher stepped aside by process id and brought back.
 

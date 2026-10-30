@@ -24,26 +24,48 @@ const (
 
 // Watch calls changed(root) for each folder in roots whenever something relevant under it has
 // changed and then been quiet for quiet (or after longest, if it never goes quiet). It blocks until
-// ctx ends. A folder that cannot be watched is logged and left out; the others still work.
+// ctx ends. A folder that cannot be watched is logged and tried again later; the others still work.
 func Watch(ctx context.Context, roots []string, quiet, longest time.Duration, changed func(root string)) {
 	fire := newDebouncer(quiet, longest, changed)
 	defer fire.stop()
 	var running sync.WaitGroup
 	for _, root := range roots {
-		handle, err := openDirectory(root)
-		if err != nil {
-			log.Printf("watcher: cannot watch %s: %v", root, err)
-			continue
-		}
 		running.Add(1)
 		go func() {
 			defer running.Done()
-			if err := read(ctx, handle, root, fire); err != nil {
-				log.Printf("watcher: stopped watching %s: %v", root, err)
-			}
+			keepWatching(ctx, root, fire)
 		}()
 	}
 	running.Wait()
+}
+
+// retryAfter is how long a folder that cannot be watched (a drive that was unplugged, a share that dropped, a folder not made yet)
+// waits before it is tried again. A variable so a test need not wait for it.
+var retryAfter = 30 * time.Second
+
+// keepWatching watches root until ctx ends, and when the watch fails, or the folder cannot be opened, tries again every
+// retryAfter. When it works again the folder is reported as changed, since what happened while it was not watched is unknown.
+func keepWatching(ctx context.Context, root string, fire *debouncer) {
+	for failed := false; ctx.Err() == nil; failed = true {
+		handle, err := openDirectory(root)
+		if err == nil {
+			if failed {
+				fire.poke(root)
+			}
+			err = read(ctx, handle, root, fire)
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if !failed { // once, not every retry: a folder on a drive that stays away would fill the log
+			log.Printf("watcher: cannot watch %s, trying again every %s: %v", root, retryAfter, err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(retryAfter):
+		}
+	}
 }
 
 func openDirectory(path string) (windows.Handle, error) {
@@ -59,14 +81,27 @@ func openDirectory(path string) (windows.Handle, error) {
 // read waits for changes under root until ctx ends. The call blocks, so a second goroutine cancels
 // it when ctx ends; the handle is closed only after read has stopped using it.
 func read(ctx context.Context, handle windows.Handle, root string, fire *debouncer) error {
-	defer windows.CloseHandle(handle)
-	finished := make(chan struct{})
-	defer close(finished)
+	finished, canceller := make(chan struct{}), make(chan struct{})
+	defer func() {
+		close(finished)
+		<-canceller // so the handle is not closed while a cancel is still being sent to it
+		_ = windows.CloseHandle(handle)
+	}()
 	go func() {
+		defer close(canceller)
 		select {
 		case <-ctx.Done():
-			_ = windows.CancelIoEx(handle, nil)
 		case <-finished:
+			return
+		}
+		// A cancel that arrives before the read below has begun cancels nothing, so it is repeated until read has stopped.
+		for {
+			_ = windows.CancelIoEx(handle, nil)
+			select {
+			case <-finished:
+				return
+			case <-time.After(20 * time.Millisecond):
+			}
 		}
 	}()
 

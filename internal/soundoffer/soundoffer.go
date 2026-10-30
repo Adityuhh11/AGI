@@ -1,6 +1,5 @@
 // Package soundoffer decides when the bar offers to search the sound of audio files and videos, and turns that on.
-// The offer is for someone who has file search but left the choice at file names (docs/superpowers/specs/
-// 2026-10-28-audio-search-design.md): it appears next to a file search, says what it would cost for their own folders,
+// The offer is for someone who has file search but left the choice at file names: it appears next to a file search, says what it would cost for their own folders,
 // and "not now" is remembered for a month.
 package soundoffer
 

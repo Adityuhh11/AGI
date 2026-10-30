@@ -1,6 +1,6 @@
 # Indexing choices: measurements (2026-10-20)
 
-Spec: `../superpowers/specs/2026-10-20-indexing-choices-design.md`. RTX 4050 Laptop, llama.cpp b11719 Vulkan, real model,
+RTX 4050 Laptop, llama.cpp b11719 Vulkan, real model,
 a fresh index for every run; the launcher's own engine was running beside it.
 
 ## What a machine without a graphics card faces

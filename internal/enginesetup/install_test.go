@@ -44,8 +44,8 @@ type rig struct {
 func newRig(t *testing.T) *rig {
 	t.Helper()
 	r := &rig{source: fstest.MapFS{
-		"pyproject.toml":                    {Data: []byte("[project]\nname='x'\n")},
-		"uv.lock":                           {Data: []byte("lock")},
+		"pyproject.toml":                     {Data: []byte("[project]\nname='x'\n")},
+		"uv.lock":                            {Data: []byte("lock")},
 		"src/omni_memory/__init__.py":        {Data: []byte("")},
 		"src/omni_memory/__pycache__/a.pyc":  {Data: []byte("junk")},
 		"src/omni_memory/embedding/llama.py": {Data: []byte("code")},
@@ -356,7 +356,7 @@ func TestTheHostsAndTheSizeAreWhatThePinsSay(t *testing.T) {
 		t.Fatalf("DownloadBytes = %d MB, want about 1 GB", got>>20)
 	}
 	for _, art := range []Artifact{UV, Llama, TextModel, VisionModel} {
-		host := art.URL[len("https://"):strings.Index(art.URL[len("https://"):], "/")+len("https://")]
+		host := art.URL[len("https://") : strings.Index(art.URL[len("https://"):], "/")+len("https://")]
 		found := false
 		for _, h := range Hosts {
 			found = found || h == host

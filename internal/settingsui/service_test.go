@@ -14,8 +14,8 @@ import (
 	"omni/internal/settings"
 	"omni/internal/sidecar"
 	"omni/internal/survey"
-	"omni/internal/update"
 	"omni/internal/testpath"
+	"omni/internal/update"
 )
 
 // fakeSetup plays the installer: it is installed or not, and says what it was asked to do.

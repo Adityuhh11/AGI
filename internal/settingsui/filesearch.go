@@ -15,9 +15,9 @@ import (
 // SearchView is the File search page: what is installed, how an install is going, and how the engine is.
 type SearchView struct {
 	Enabled        bool
-	InLauncher     bool // files are among the results of the default search
-	GroupResults   bool // file results are shown under a heading per kind
-	PauseOnBattery bool // indexing waits while the computer runs on its battery
+	InLauncher     bool   // files are among the results of the default search
+	GroupResults   bool   // file results are shown under a heading per kind
+	PauseOnBattery bool   // indexing waits while the computer runs on its battery
 	IndexBetween   string // the hours of the day indexing may work in ("22:00-07:00"), or "" for any hour
 	Installed      bool
 	Installing     bool

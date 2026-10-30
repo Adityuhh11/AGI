@@ -13,4 +13,6 @@ import (
 var templateIcon []byte
 
 // setIcon gives the tray the template icon.
-func setIcon(t *application.SystemTray) *application.SystemTray { return t.SetTemplateIcon(templateIcon) }
+func setIcon(t *application.SystemTray) *application.SystemTray {
+	return t.SetTemplateIcon(templateIcon)
+}

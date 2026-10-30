@@ -1,6 +1,6 @@
 # 0007: Audio is embedded by the model's own audio encoder, not transcribed
 
-Date: 2026-10-28. Status: accepted. Numbers: `eval/2026-10-28-audio-embedding.md`. Spec: `superpowers/specs/2026-10-28-audio-search-design.md`.
+Date: 2026-10-28. Status: accepted. Numbers: `eval/2026-10-28-audio-embedding.md`.
 
 ## Decision
 

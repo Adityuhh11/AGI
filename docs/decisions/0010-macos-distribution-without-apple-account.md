@@ -1,6 +1,6 @@
 # 0010: macOS without a paid Apple account
 
-Date: 2026-10-29. Status: proposed (owner to confirm with the macOS spec, `superpowers/specs/2026-10-29-macos-design.md`).
+Date: 2026-10-29. Status: proposed (owner to confirm).
 
 ## Decision
 

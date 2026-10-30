@@ -25,6 +25,7 @@ $stage = "dist\omni-$version-windows-x64"
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item bin\omni.exe $stage
+Copy-Item LICENSE, THIRD_PARTY_NOTICES.md $stage
 (Get-Content "$PSScriptRoot\release-readme.txt" -Raw).Replace('{VERSION}', $version) | Set-Content "$stage\README.txt" -Encoding utf8
 
 $zip = "$stage.zip"
