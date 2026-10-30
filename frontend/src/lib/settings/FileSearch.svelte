@@ -5,6 +5,7 @@
   import { changes, effects, type Choices, type Kind } from "../indexingPlan";
   import { CHOICES, SPEEDS } from "./choices";
   import { choiceHints, paceHints, surveyLine } from "./hints";
+  import IndexWindow from "./IndexWindow.svelte";
   import ChoiceGroup from "./ChoiceGroup.svelte";
   import { draft } from "./draft";
 
@@ -277,6 +278,7 @@
           Wait for power
         </label>
         <p class="help">Indexing stops while the computer runs on its battery and goes on when it is plugged in. Searching is not affected.</p>
+        <IndexWindow value={search.IndexBetween} onsave={(between) => run(() => Settings.SetIndexBetween(between))} />
       </div>
     </details>
   </section>

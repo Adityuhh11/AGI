@@ -3,6 +3,7 @@
   import type { SearchView, View } from "../../../bindings/omni/internal/settingsui";
   import { duration } from "../format";
   import { keycaps } from "../keycaps";
+  import IndexWindow from "../settings/IndexWindow.svelte";
 
   interface Props {
     view: View;
@@ -21,6 +22,8 @@
   const percent = $derived(search.Total > 0 ? Math.min(100, Math.round((search.Done / search.Total) * 100)) : 0);
   const megabytes = (bytes: number) => (bytes / (1024 * 1024)).toFixed(0);
   const hasFolders = $derived((view.Roots ?? []).length > 0);
+  // A first index of hours is worth offering the night for.
+  const LONG = 2 * 3600;
 
   async function start() {
     error = await Settings.StartIndexing();
@@ -76,6 +79,10 @@
         </p>
       {:else}
         <p class="help">Counting what is in your folders to say how long it will take...</p>
+      {/if}
+      {#if search.Estimate.Complete && search.Estimate.Seconds > LONG}
+        <p class="help">That is a long time. Omni can work only at night and leave the computer alone by day.</p>
+        <IndexWindow value={search.IndexBetween} onsave={async (between) => { error = await Settings.SetIndexBetween(between); await refresh(); }} />
       {/if}
       <div><button type="button" class="btn primary" onclick={start}>Start indexing</button></div>
     {:else}

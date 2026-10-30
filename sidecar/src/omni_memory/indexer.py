@@ -257,7 +257,6 @@ class Indexer:
             # By name the file is not opened at all (a cloud-only OneDrive file would be fetched to
             # read its ends), and its size notices a move.
             data, digest = b"", name_identity(file.size)
-            data, digest = b"", name_identity(file.size)  # only the name counts
         else:
             data = file.path.read_bytes()
             digest = hashlib.sha256(data).hexdigest()

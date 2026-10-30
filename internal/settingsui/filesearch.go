@@ -3,6 +3,7 @@ package settingsui
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"omni/internal/config"
 	"omni/internal/enginesetup"
@@ -17,6 +18,7 @@ type SearchView struct {
 	InLauncher     bool // files are among the results of the default search
 	GroupResults   bool // file results are shown under a heading per kind
 	PauseOnBattery bool // indexing waits while the computer runs on its battery
+	IndexBetween   string // the hours of the day indexing may work in ("22:00-07:00"), or "" for any hour
 	Installed      bool
 	Installing     bool
 	NeedsUpdate    bool
@@ -75,7 +77,7 @@ func (s *Service) Search() SearchView {
 	return SearchView{
 		Surveys: s.surveys(cfg, onCPU), Estimate: s.estimates(cfg, onCPU),
 		IndexState: string(index.State), IndexText: index.String(), Paused: index.Paused, Folders: s.folders(string(engine.State), cfg.Search.HoldIndexing),
-		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, GroupResults: cfg.Search.GroupResults, PauseOnBattery: cfg.Search.PauseOnBattery, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
+		Enabled: cfg.Search.Enabled, InLauncher: cfg.Search.InLauncher, GroupResults: cfg.Search.GroupResults, PauseOnBattery: cfg.Search.PauseOnBattery, IndexBetween: cfg.Search.IndexBetween, Installed: st.Installed, Installing: st.Installing, NeedsUpdate: st.NeedsUpdate,
 		Step: st.Progress.Step, Steps: st.Progress.Steps, StepName: st.Progress.Name,
 		Done: st.Progress.Done, Total: st.Progress.Total, Message: st.Progress.Message, Error: st.Error,
 		EngineState: string(engine.State), EngineMessage: engine.Message, Device: engine.Device,
@@ -239,6 +241,12 @@ func (s *Service) SetInLauncher(on bool) string {
 // SetGroupResults shows file results under a heading per kind of file with the best match first, or as one list.
 func (s *Service) SetGroupResults(on bool) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.GroupResults = on }))
+}
+
+// SetIndexBetween limits indexing to the hours of the day in between ("22:00-07:00", across midnight if it needs to); empty
+// lets it work at any hour. A text that is not a window is refused.
+func (s *Service) SetIndexBetween(between string) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.Search.IndexBetween = strings.TrimSpace(between) }))
 }
 
 // SetPauseOnBattery makes indexing wait while the computer runs on its battery, or lets it work there.

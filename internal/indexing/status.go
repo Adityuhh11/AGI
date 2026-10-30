@@ -49,6 +49,8 @@ type Status struct {
 	Paused bool
 	// WaitingForPower says that indexing is stopped because the computer runs on its battery.
 	WaitingForPower bool
+	// WaitingForWindow is when indexing may work again ("22:00") while it is stopped for being outside its daily hours; else "".
+	WaitingForWindow string
 }
 
 // String is the one-line form for the tray.
@@ -58,6 +60,9 @@ func (s Status) String() string {
 	}
 	if s.State == Indexing && s.WaitingForPower {
 		return "Indexing paused on battery"
+	}
+	if s.State == Indexing && s.WaitingForWindow != "" {
+		return "Indexing waits for " + s.WaitingForWindow
 	}
 	switch s.State {
 	case Waiting:

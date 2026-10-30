@@ -7,6 +7,42 @@ import (
 	"omni/internal/testpath"
 )
 
+func remaining(worked time.Duration, done, total int) time.Duration {
+	var e estimator
+	return e.remaining(progress{worked, done}, total)
+}
+
+func TestEstimatorFollowsTheSpeedOfNowNotTheAverage(t *testing.T) {
+	var e estimator
+	// Gentle: a file every 10 s for 10 minutes, then Fast: a file a second.
+	at := progress{}
+	var left time.Duration
+	for i := 0; i < 60; i++ {
+		at = progress{at.worked + 10*time.Second, at.done + 1}
+		e.remaining(at, 1000)
+	}
+	e.restart(at)
+	for i := 0; i < 120; i++ { // two minutes of Fast
+		at = progress{at.worked + time.Second, at.done + 1}
+		left = e.remaining(at, 1000)
+	}
+	// 820 files left at one a second is about 14 minutes; the average over the whole job would say over 2 hours.
+	if want := 14 * time.Minute; left != want {
+		t.Errorf("left after the speed went up = %v, want %v", left, want)
+	}
+}
+
+func TestEstimatorSaysNothingJustAfterTheSpeedChanges(t *testing.T) {
+	var e estimator
+	at := progress{5 * time.Minute, 30}
+	e.remaining(at, 1000)
+	e.restart(at)
+	at = progress{at.worked + 2*time.Second, at.done + 2}
+	if left := e.remaining(at, 1000); left != 0 {
+		t.Errorf("left 2 s after a change = %v, want no estimate", left)
+	}
+}
+
 func TestRemainingNeedsEnoughWorkToBeWorthSaying(t *testing.T) {
 	tests := []struct {
 		name        string

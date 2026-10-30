@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"omni/internal/config"
 	"omni/internal/sidecar"
 )
 
@@ -52,6 +53,8 @@ type Manager struct {
 	paused        bool            // the person paused indexing
 	held          bool            // indexing waits for the computer to be plugged in
 	holdOnBattery bool
+	window        *config.Window // the hours indexing may work in; nil = any hour
+	closed        bool           // it is outside those hours
 	states        map[string]FolderStatus // where each folder is, for the settings window
 }
 
@@ -87,7 +90,7 @@ func (m *Manager) Folders() []FolderStatus {
 func (m *Manager) isPaused() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.paused || m.held
+	return m.paused || m.held || m.closed
 }
 
 func (m *Manager) failed(root string) bool {
@@ -108,6 +111,9 @@ func (m *Manager) Status() Status {
 	defer m.mu.Unlock()
 	s := m.status
 	s.Paused, s.WaitingForPower = m.paused, m.held
+	if m.closed {
+		s.WaitingForWindow = m.window.Start()
+	}
 	return s
 }
 

@@ -511,6 +511,9 @@ func run(afterUpdate bool) error {
 		if old.Search.PauseOnBattery != updated.Search.PauseOnBattery {
 			indexer.SetPauseOnBattery(updated.Search.PauseOnBattery)
 		}
+		if old.Search.IndexBetween != updated.Search.IndexBetween {
+			indexer.SetWindow(indexWindow(updated.Search.IndexBetween))
+		}
 		if old.Search.HoldIndexing != updated.Search.HoldIndexing {
 			refresh() // the tray says whether file search waits to be started
 		}
@@ -619,6 +622,7 @@ func run(afterUpdate bool) error {
 		// Set here, not with the other indexer settings: being unplugged reports a change, and the tray is not made yet there.
 		indexer.WatchBattery(power.OnBattery)
 		indexer.SetPauseOnBattery(cfg.Search.PauseOnBattery)
+		indexer.SetWindow(indexWindow(cfg.Search.IndexBetween))
 		go indexer.Run(ctx)
 		go countdown.Run(ctx)
 		go surveys.Run(ctx)
@@ -643,6 +647,12 @@ func run(afterUpdate bool) error {
 		log.Print("the search engine did not stop in time")
 	}
 	return runErr
+}
+
+// indexWindow is the hours indexing may work in; the settings were validated, so a text that does not parse cannot be here.
+func indexWindow(text string) *config.Window {
+	w, _ := config.ParseWindow(text)
+	return w
 }
 
 // indexOptions are the indexing choices of the settings in the engine's terms.
