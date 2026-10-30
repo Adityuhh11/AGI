@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,11 +17,14 @@ import (
 
 type fakeEngine struct {
 	respond func(ctx context.Context, req sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error)
+	mu      sync.Mutex // searches overlap in the stale-answer tests
 	asked   []sidecar.SearchFilesRequest
 }
 
 func (f *fakeEngine) SearchFiles(ctx context.Context, req sidecar.SearchFilesRequest) (sidecar.SearchFilesResponse, error) {
+	f.mu.Lock()
 	f.asked = append(f.asked, req)
+	f.mu.Unlock()
 	return f.respond(ctx, req)
 }
 
