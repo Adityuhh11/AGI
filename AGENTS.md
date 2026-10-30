@@ -1,57 +1,75 @@
 # AGENTS.md
 
-Shared project rules for every coding agent (Claude Code imports this file from `CLAUDE.md`).
+Rules for any coding agent working in this repository (Claude Code imports this file from `CLAUDE.md`). They are the same rules a human
+contributor follows; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the process around them (issue first, setup, pull requests).
 
-Personal, local-first AI launcher for Windows. Go core + Wails v3 + Svelte UI + Python sidecar for local models.
+Omni is a local-first launcher for Windows 11 and macOS 13+ (Apple Silicon): a Go core, Wails v3 with a Svelte + TypeScript page for the
+UI, and a Python sidecar (the "memory engine") that runs local models for file search.
+
+## Orient first
+
+`docs/README.md` is the index. Read `docs/STATUS.md` (what is built, what is next) and `docs/ARCHITECTURE.md` (how it fits together,
+the invariants, which code is for which system) before changing anything non-trivial. `DESIGN.md` comes first for work in `frontend/`.
+
+## Checks
+
+Run what you touched before you say it is done; CI runs all of it.
+
+```sh
+gofmt -l .                       # prints nothing when clean
+go vet ./... && go test ./...    # launcher; add -race for concurrent code
+cd frontend && npm ci && npm test && npm run check     # page
+cd sidecar && uv sync && uv run ruff check && uv run pyright && uv run pytest   # engine
+```
+
+Build: `.\scripts\build.ps1` (Windows) or `./scripts/build-mac.sh` (Mac). Tests that need a model or a large index skip themselves.
 
 ## How we work
 
-- **Product first.** Build the best product we can; learning is a side effect, not a constraint. Don't slow down or simplify for teaching. Briefly explain non-obvious decisions; the owner is still new to Go, Svelte, and Wails, so say what's idiomatic there. Custom-built components (e.g. our own vector store) are welcome when they beat off-the-shelf for this use case.
-- **Measure, don't guess.** Choices that affect speed, memory, or quality get a benchmark on real data (`Sample Data/`, git-ignored) before they go in a spec.
-- **Spec → plan → build.** New features get a spec in `docs/superpowers/specs/` and a plan before code. Small fixes skip this.
-- **No slop.** Every file, function, and dependency must earn its place. No speculative abstractions, no "for later" scaffolding, no unused config.
+- **Measure, don't guess.** A choice that affects speed, memory or search quality gets a benchmark before and after, on the same machine
+  (`cmd/panelbench` for the hotkey path; the retrieval eval in `sidecar`), and the numbers go in the pull request or a record in `docs/eval/`.
+- **Design before code for a feature.** Think it through in writing first: the issue is the place (`docs/specs/` is git-ignored, for a private
+  scratch spec); a design choice worth keeping gets a record in `docs/decisions/`. Small fixes skip this. Fix a bug test-first.
+- **No slop.** Every file, function and dependency earns its place: no speculative abstractions, no "for later" scaffolding, no unused
+  configuration. A new dependency needs a reason, and goes into `THIRD_PARTY_NOTICES.md`.
+- **Stay in scope.** Do what the issue asks. No drive-by rewrites, renames or "improvements" across files nobody mentioned.
 
 ## Code rules
 
 - **Modular:** one package = one job. `internal/<name>/` packages expose a small API; their internals stay private.
-- **Two systems, kept apart:** shared logic in `x.go`, Windows code only in `x_windows.go`, Mac code only in `x_darwin.go` (tests likewise); no
-  system API in a shared file. The table is in `docs/ARCHITECTURE.md`; keep it current in the same commit.
+- **Two systems, kept apart:** shared logic in `x.go`, Windows code only in `x_windows.go`, Mac code only in `x_darwin.go` (tests likewise);
+  no system API in a shared file. The table is in `docs/ARCHITECTURE.md`; keep it current in the same commit.
 - **Small files.** If a file needs scrolling to understand, split it by responsibility.
 - **Names over comments.** Comment the *why*, never the *what*. Every Go package has a package doc comment.
 - **Errors:** wrap with context (`fmt.Errorf("load config: %w", err)`); never swallow.
-- **Go:** stdlib first; `gofmt` + `go vet` clean. **Python:** `uv` for env/deps; `ruff` clean. **Frontend:** Svelte + TypeScript.
-- **Tests:** Go `testing` package, table tests for logic. Trivial glue needs no test.
+- **Go:** standard library first; `gofmt` and `go vet` clean. **Python:** `uv` for the environment and dependencies; `ruff` and `pyright` clean.
+  **Frontend:** Svelte + TypeScript.
+- **Tests:** Go `testing` package, table tests for logic; `pytest` for the engine; the page has its own. Trivial glue needs no test.
 
 ## Constraints
 
-- Windows 11 only (for now). RTX 4050, **6 GB VRAM**: models must fit together. Only models use the GPU; index storage
-  and search run on the CPU.
-- The hotkey → panel path must never wait on a model. Launcher opens in < 100 ms.
-- Sharp at every display scale: the process is per-monitor DPI aware (declared in `build/windows/omni.manifest`) and
+- Windows 11 and macOS 13+ on Apple Silicon. Linux is not a target (the engine and page tests run there; the launcher does not build).
+- The model budget is 6 GB of graphics memory on a laptop GPU: the models must fit together. Only models use the GPU; index storage and search
+  run on the CPU.
+- The hotkey → panel path never waits on a model. The launcher opens in under 100 ms.
+- Sharp at every display scale: the Windows process is per-monitor DPI aware (declared in `build/windows/omni.manifest`) and
   `scripts/build.ps1` fails a build that is not (`docs/decisions/0006-dpi-awareness.md`). Look at any new window at 125%.
-- Privacy: nothing leaves the machine except explicit calls to a configured LLM provider and requests the user
-  starts or switches on (the file-search and Omni AI downloads, the opt-in update check and the update the user presses to install, `docs/decisions/0005-update-check.md`).
-  No telemetry.
-- Config in `%APPDATA%\Omni\config.toml`; API keys in Windows Credential Manager, never in files or git.
+- Privacy: nothing leaves the machine except explicit calls to a configured LLM provider and requests the user starts or switches on (the
+  file-search and Omni AI downloads, the opt-in update check and the update the user presses to install, `docs/decisions/0005-update-check.md`).
+  No telemetry. The README's privacy table is the full list; do not add to it casually.
+- Settings live in `config.toml` in the per-user app folder (`%APPDATA%\Omni` on Windows). API keys go in the system credential store (Windows
+  Credential Manager, macOS Keychain), never in files or git.
 
 ## Docs
 
-Start here: `docs/README.md` (index), then `docs/STATUS.md` (what is built, what is next) and
-`docs/ARCHITECTURE.md` (how it fits together).
+Update the docs that describe the code in the same commit as the code (`docs/README.md` says which). Decision records are short: what we chose,
+the alternatives, why. Reports of measurements go in `docs/eval/`. `Sample Data/` is git-ignored and never committed.
 
-- `docs/superpowers/specs/`: design specs (one per feature/phase); the current one is the memory engine spec
-- `docs/superpowers/plans/`: implementation plans
-- `docs/decisions/`: short decision records (what we chose, alternatives, why)
-- Update docs in the same commit as the code they describe.
+## Branches and commits
 
-## Branches
-
-`main` holds the stable product and only changes by pull request that the owner merges. Work happens on `dev`, or on a
-feature branch cut from `dev` and merged back into it. After `dev` goes into `main`, `dev` is brought up to date with `main`
-(rebase or merge) before more work starts. Never push to `main` directly.
-
-## Commits
-
-Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`). Small and focused.
-
-No AI attribution: never add `Co-Authored-By` or 'Generated with' trailers to commits or PR descriptions.
+- `main` holds the stable product and changes only by a pull request that the maintainer merges. Work on a branch cut from `dev`, and open the
+  pull request into `dev`. Never push to `main`.
+- Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), small and focused.
+- Commits are signed off with the [DCO](CONTRIBUTING.md#sign-your-commits) by the human who submits them (`git commit -s`). An agent does not
+  sign off for them and adds no `Co-Authored-By` or "Generated with" trailers to commits or pull request descriptions; the pull request template
+  asks the human to say when an assistant wrote a significant part.

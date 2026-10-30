@@ -168,7 +168,7 @@ For a security problem, use **Report a vulnerability** on the repository's Secur
 
 ## Behaviour
 
-Be kind and be specific. Disagree with the code, not the person. Harassment, insults and personal attacks have no place in issues, pull requests
+The [Code of Conduct](CODE_OF_CONDUCT.md) in short: be kind and be specific. Disagree with the code, not the person. Harassment, insults and personal attacks have no place in issues, pull requests
 or reviews, and the maintainer may edit, close or delete such comments and block the people who write them.
 
 ## What to expect
