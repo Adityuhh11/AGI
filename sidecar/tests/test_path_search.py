@@ -102,3 +102,10 @@ def test_results_are_ordered_by_id(filled):
     store, _ = filled
     ids = [h.id for h in store.path_search("src")]
     assert ids == sorted(ids)
+
+
+def test_a_nul_character_in_a_query_is_ignored_and_does_not_fail(filled):
+    store, _ = filled
+    assert store.path_search("emailService\x00") == store.path_search("emailService") != []
+    assert store.path_search("jw\x00t.js") == store.path_search("jwt.js") != []
+    assert store.path_search("\x00\x00\x00") == []
