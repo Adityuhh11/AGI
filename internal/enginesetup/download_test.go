@@ -24,12 +24,12 @@ func artifactOf(url string, data []byte) Artifact {
 // fileServer serves named files, with ranges, and records what it was asked for.
 type fileServer struct {
 	*httptest.Server
-	mu      sync.Mutex
-	files   map[string][]byte
-	asked   []string // "path range"
-	cutAt   int      // when positive, the next response ends after this many bytes (a dropped connection)
-	noRange bool     // ignore Range and send the whole file with 200
-	block   chan struct{} // when set, requests for blockPath wait for it to close (or for the client to give up)
+	mu        sync.Mutex
+	files     map[string][]byte
+	asked     []string      // "path range"
+	cutAt     int           // when positive, the next response ends after this many bytes (a dropped connection)
+	noRange   bool          // ignore Range and send the whole file with 200
+	block     chan struct{} // when set, requests for blockPath wait for it to close (or for the client to give up)
 	blockPath string
 }
 

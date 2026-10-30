@@ -89,7 +89,9 @@ func windowRect(window uintptr) Rect {
 func windowDPI(uintptr) uint32 { return 96 }
 
 // resizeHeight changes the height in place, keeping the top edge.
-func resizeHeight(window uintptr, heightPx int) { C.omniSetHeight(C.uintptr_t(window), C.double(heightPx)) }
+func resizeHeight(window uintptr, heightPx int) {
+	C.omniSetHeight(C.uintptr_t(window), C.double(heightPx))
+}
 
 func rect(x, y, w, h C.double) Rect {
 	return Rect{X: int(math.Round(float64(x))), Y: int(math.Round(float64(y))), W: int(math.Round(float64(w))), H: int(math.Round(float64(h)))}

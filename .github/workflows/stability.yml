@@ -1,0 +1,69 @@
+# Stability sweep: the Go tests under the race detector, repeated and in a shuffled order, on the Windows and the Mac runner,
+# plus the engine's tests. Runs on pushes to test/** branches only; it is not part of the normal pull request checks.
+name: Stability
+
+on:
+  push:
+    branches: ["test/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  launcher:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Wails CLI
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29
+      - name: Bindings and page
+        shell: bash
+        run: |
+          (cd frontend && npm ci --no-audit --no-fund)
+          wails3 generate bindings -clean=true -ts -i ./cmd/omni
+          (cd frontend && npm run build --silent)
+      - name: gofmt
+        if: runner.os == 'macOS' # on Windows a checkout may turn line endings into CRLF, which gofmt would report
+        shell: bash
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: Go vet
+        run: go vet ./...
+      - name: Go tests, race detector, shuffled, three times
+        run: go test -race -shuffle=on -count=3 -timeout 25m ./...
+      - name: Page tests and types
+        working-directory: frontend
+        run: |
+          npm test
+          npm run check
+
+  engine:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: sidecar
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - run: uv sync --frozen --python 3.12
+      - run: uv run ruff check
+      - run: uv run pyright
+      - run: uv run pytest

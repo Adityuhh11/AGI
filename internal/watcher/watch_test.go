@@ -157,3 +157,23 @@ func TestAFolderThatCannotBeWatchedDoesNotStopTheOthers(t *testing.T) {
 	}
 	expectChange(t, got, good, "the folder that exists")
 }
+
+// A context that ends before the operating system has been asked to wait must still end the watch: the cancelling call
+// that arrives too early finds nothing to cancel, and the wait that starts after it must not be left to a file change.
+func TestWatchReturnsWhenItsContextEndedBeforeItStarted(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < 50; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		done := make(chan struct{})
+		go func() {
+			Watch(ctx, []string{root}, 200*time.Millisecond, time.Second, func(string) {})
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("Watch did not return for a context that had already ended (attempt %d)", i)
+		}
+	}
+}

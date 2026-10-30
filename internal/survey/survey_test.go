@@ -78,7 +78,10 @@ func TestEveryFolderIsCountedOnceTheEngineIsUp(t *testing.T) {
 	mu.Lock()
 	up = true
 	mu.Unlock()
-	eventually(t, "both folders", func() bool { r := m.Results(); return r[testpath.P(`C:\a`)].State == Done && r[testpath.P(`C:\b`)].State == Done })
+	eventually(t, "both folders", func() bool {
+		r := m.Results()
+		return r[testpath.P(`C:\a`)].State == Done && r[testpath.P(`C:\b`)].State == Done
+	})
 	if got := m.Results()[testpath.P(`C:\a`)].Survey.Routes["code"].Files; got != 7 {
 		t.Fatalf("files = %d", got)
 	}

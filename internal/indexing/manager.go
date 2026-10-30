@@ -53,8 +53,8 @@ type Manager struct {
 	paused        bool            // the person paused indexing
 	held          bool            // indexing waits for the computer to be plugged in
 	holdOnBattery bool
-	window        *config.Window // the hours indexing may work in; nil = any hour
-	closed        bool           // it is outside those hours
+	window        *config.Window          // the hours indexing may work in; nil = any hour
+	closed        bool                    // it is outside those hours
 	states        map[string]FolderStatus // where each folder is, for the settings window
 }
 

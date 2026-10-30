@@ -117,7 +117,9 @@ func newCatalog(t *testing.T, list func(context.Context) ([]App, error)) *Catalo
 }
 
 func TestRebuildReplacesTheListAndCachesIt(t *testing.T) {
-	c := newCatalog(t, func(context.Context) ([]App, error) { return []App{{ID: "a", Name: "Alpha"}, {ID: "b", Name: "Beta"}}, nil })
+	c := newCatalog(t, func(context.Context) ([]App, error) {
+		return []App{{ID: "a", Name: "Alpha"}, {ID: "b", Name: "Beta"}}, nil
+	})
 	c.rebuild(context.Background())
 	if c.Index.Len() != 2 {
 		t.Fatalf("index holds %d apps, want 2", c.Index.Len())

@@ -55,6 +55,29 @@ func TestKillingAProcessKillsWhatItStarted(t *testing.T) {
 	_ = proc.Wait()
 }
 
+// The engine can die by itself (a crash in a library, the system ending it for memory) while its llama-server lives on in the
+// same group, holding gigabytes of memory; nothing else would ever end it, and the restarted engine would start another.
+func TestWhatAProcessLeftRunningWhenItEndedOnItsOwnIsKilledToo(t *testing.T) {
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer read.Close()
+	proc, err := ExecStarter(context.Background(), Spec{Exe: "/bin/sh", Args: []string{"-c", "sleep 60 & echo $!"}}, write)
+	write.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 32)
+	n, _ := read.Read(buf)
+	child, err := strconv.Atoi(strings.TrimSpace(string(buf[:n])))
+	if err != nil {
+		t.Fatalf("the shell did not report its child: %q", buf[:n])
+	}
+	_ = proc.Wait() // the shell has ended; its child has not
+	waitGone(t, child)
+}
+
 func TestTheReaperKillsWhatItWasToldAboutWhenTheLauncherEnds(t *testing.T) {
 	proc, child := shellTree(t)
 	defer proc.Kill()

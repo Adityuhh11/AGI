@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"omni/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"slices"
@@ -127,12 +128,8 @@ func (s *Store) save() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("create state folder: %w", err)
 	}
-	temp := s.path + ".tmp"
-	if err := os.WriteFile(temp, raw, 0o644); err != nil {
+	if err := atomicfile.Write(s.path, raw); err != nil {
 		return fmt.Errorf("write state: %w", err)
-	}
-	if err := os.Rename(temp, s.path); err != nil {
-		return fmt.Errorf("replace state: %w", err)
 	}
 	return nil
 }

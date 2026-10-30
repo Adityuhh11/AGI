@@ -139,7 +139,8 @@ def path_search(db: sqlite3.Connection, query: str, filters: Filters | None) -> 
     queries under 3 characters, or when the fragment is found in more than `_MAX_PATH_CHUNKS` chunks
     or `_MAX_PATH_FILES` files of the searched scope.
     """
-    needle = query.strip().replace('"', '""')
+    # A NUL would end the quoted string early and make SQLite refuse the expression.
+    needle = query.replace("\x00", "").strip().replace('"', '""')
     if len(needle) < 3:
         return []
     sql = (

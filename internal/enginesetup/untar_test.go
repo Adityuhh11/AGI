@@ -144,3 +144,19 @@ func TestUntarRefusesALinkToAnAbsolutePlaceAndAKindOfEntryItDoesNotUnpack(t *tes
 		}
 	}
 }
+
+// A link that points back at the folder makes the same place reachable under many names, so a later link written
+// "inside" it can be judged by its name while it really sits higher up; nothing may be written through one.
+func TestUntarDoesNotWriteThroughALinkToEscape(t *testing.T) {
+	outer := t.TempDir()
+	dir := filepath.Join(outer, "a", "b", "into")
+	archive := makeTarGz(t,
+		entry{name: "p", link: ".", typeflag: tar.TypeSymlink, mode: 0o755},
+		entry{name: "p/p/p/up", link: "../../..", typeflag: tar.TypeSymlink, mode: 0o755},
+		entry{name: "p/p/p/up/escaped.txt", body: "x", typeflag: tar.TypeReg, mode: 0o644},
+	)
+	_ = Untar(archive, dir, false)
+	if _, err := os.Stat(filepath.Join(outer, "escaped.txt")); err == nil {
+		t.Fatal("a file was written outside the folder, through a chain of links")
+	}
+}

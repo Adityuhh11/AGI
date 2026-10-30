@@ -54,7 +54,7 @@ type Work struct {
 	TextChunks float64
 	Pictures   float64
 	Files      int
-	Videos     int // videos whose frames are read
+	Videos     int     // videos whose frames are read
 	Windows    float64 // 30 s windows of sound
 }
 

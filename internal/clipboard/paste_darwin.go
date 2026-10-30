@@ -23,7 +23,7 @@ var askedOnce sync.Once
 // permission, and does not work while a password field has the keyboard to itself.
 func NewPaster(setText func(string) bool, previous func() uintptr, release func()) Paster {
 	return Paster{
-		SetText: func(text string) bool { return OwnCopy(func() bool { return setText(text) }) },
+		SetText:    func(text string) bool { return OwnCopy(func() bool { return setText(text) }) },
 		Previous:   previous,
 		Release:    release,
 		Foreground: func() uintptr { return uintptr(C.omniClipFrontmostPID()) },
