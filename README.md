@@ -1,10 +1,17 @@
 # Omni
 
-A fast, private launcher for Windows. Press a hotkey, type, and open an app, search the web, paste a snippet, or find a
+[![CI](https://github.com/Adityuhh11/Omni/actions/workflows/ci.yml/badge.svg)](https://github.com/Adityuhh11/Omni/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/Adityuhh11/Omni?display_name=tag)](https://github.com/Adityuhh11/Omni/releases/latest)
+
+A fast, private launcher for Windows and Mac. Press a hotkey, type, and open an app, search the web, paste a snippet, or find a
 file by what it *says*, not just what it is called. Everything runs on your computer.
 
-> **Status: early (0.5.x), Windows 11, and macOS (Apple Silicon) being added.** It is used daily by its author and a few friends. Expect rough edges;
-> please open an issue when you meet one. The Mac build has not run on a real Mac yet. Linux is planned, not started.
+[What it does](#what-it-does) · [Install](#install) · [Privacy](#privacy-and-the-network) · [Build from source](#build-from-source) · [Contributing](#contributing) · [License](#license)
+
+> **Status: 1.x, early.** Windows 11 and macOS 13 or later on Apple Silicon. It is used daily by its author and a few friends. The Mac build is
+> the newer of the two and has had less use. Expect rough edges; please [open an issue](https://github.com/Adityuhh11/Omni/issues/new/choose)
+> when you meet one. Linux is planned, not started.
 
 - **Instant.** The bar is painted about 33 ms after the hotkey (median, measured), and never waits on a model.
 - **Light.** Idle, the launcher uses no CPU and about 270 MB of memory including its web view. File search is optional;
@@ -28,7 +35,7 @@ file by what it *says*, not just what it is called. Everything runs on your comp
 | **System** | `lock`, `sleep`, `task manager`, `recycle bin`, `windows settings`. Shut down and restart are left out on purpose. |
 | **Tags and pins** | `Ctrl+T` tags an app or file, `#work` lists everything tagged. `Ctrl+P` pins up to eight rows that show the moment the bar opens. |
 
-Keys: `Tab` switches between All / Apps / Files / Web, `Ctrl+K` shows what you can do with the selected row,
+Keys (on a Mac they are drawn as `⌃ ⌥ ⇧ ⌘`, and Explorer is Finder): `Tab` switches between All / Apps / Files / Web, `Ctrl+K` shows what you can do with the selected row,
 `Ctrl+Enter` reveals a file in Explorer, `Alt+Enter` searches the web from any row, `Ctrl+,` opens Settings (so does typing `settings`, or `settings file` for one page), `Esc` closes.
 In file search, `code:` `img:` `pdf:` `doc:` `vid:` before a query limit it to one kind of file.
 
@@ -62,7 +69,7 @@ macOS asks for, and how to update and remove it. Press **⌥⇧Space** for the b
 To update on Windows, open Settings > About and press **Update** (it checks the release's SHA-256 first), or run the newer installer over it.
 To remove it: Settings > Apps > Installed apps > Omni > Uninstall. It asks whether to delete what Omni saved too (the engine and models,
 the index, the Omni AI model, chats, clipboard history and settings, up to about 2.5 GB); your own files are never touched. For the zip, quit from the tray
-icon and delete the folder and the folders under [Where things are](#where-things-are).
+icon and delete the folder and the folders under [Where things are](#settings-and-where-things-are).
 
 ### Turning on file search
 
@@ -178,30 +185,45 @@ audio    = 'name'        # name | content: audio files and the soundtrack of vid
 | Omni AI model and its server | `%LOCALAPPDATA%\Omni\chat` (only after you turn Omni AI on; in the folder chosen for the downloads if you chose one) |
 | What you launched, tags, pins | `%APPDATA%\Omni\state.json` |
 
+The table is for Windows. On a Mac the settings, the index, the engine and the rest are under `~/Library/Application Support/Omni` and the log is
+`~/Library/Logs/Omni/omni.log` ([details](docs/INSTALL-MAC.md)).
+
 ## Build from source
 
-Windows 11, PowerShell, and:
+You need, on Windows 11 (with PowerShell) or on a Mac with Apple Silicon (with the Xcode command line tools):
 
 - [Go](https://go.dev/dl/) 1.27 or newer
 - [Node.js](https://nodejs.org/) 24 (any current LTS should do) and npm
-- the [Wails v3 CLI](https://v3alpha.wails.io/) (`go install github.com/wailsapp/wails/v3/cmd/wails3@latest`; the project is on `v3.0.0-beta.29`)
-- [uv](https://docs.astral.sh/uv/) for the Python engine's tests (not needed to build or run the launcher: the engine's source is embedded in `omni.exe`)
+- the [Wails v3 CLI](https://v3alpha.wails.io/): `go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.29` (the version the project is built with)
+- [uv](https://docs.astral.sh/uv/) for the Python engine's tests (not needed to build or run the launcher: the engine's source is embedded in the program)
 
 ```powershell
+# Windows
 git clone https://github.com/Adityuhh11/Omni.git
 cd Omni
 .\scripts\build.ps1            # bindings, frontend, then bin\omni.exe  (-Console keeps the log window)
 .\bin\omni.exe
 ```
 
-Tests and checks:
-
-```powershell
-go vet ./... ; go test ./...                                  # launcher
-cd frontend ; npm test ; npm run check                        # page
-cd ..\sidecar ; uv run pytest ; uv run ruff check             # engine (add -m model to use the real model)
-uv run python -m omni_memory.eval                              # retrieval quality against docs/eval/baseline.json
+```sh
+# macOS
+git clone https://github.com/Adityuhh11/Omni.git
+cd Omni
+./scripts/build-mac.sh         # bindings, frontend, then bin/omni
+./bin/omni
 ```
+
+Tests and checks (the same ones CI runs on every pull request, on a Windows and a Mac machine):
+
+```sh
+gofmt -l .                                                    # prints nothing when clean
+go vet ./... && go test ./...                                 # launcher
+cd frontend && npm test && npm run check                      # page
+cd ../sidecar && uv run pytest && uv run ruff check && uv run pyright   # engine (add -m model to use the real model)
+uv run python -m omni_memory.eval                              # retrieval quality against docs/eval/baseline.json (needs the maintainer's sample folder)
+```
+
+The Go launcher builds on Windows and macOS only; the engine and page tests also run on Linux.
 
 `.\scripts\release.ps1 -Version X.Y.Z` makes the release zip; the full procedure is in [`docs/RELEASING.md`](docs/RELEASING.md).
 
@@ -221,11 +243,24 @@ uv run python -m omni_memory.eval                              # retrieval quali
 
 ## Contributing
 
-Not open to pull requests yet while the project is being made ready for others; issues and bug reports are welcome. How it will work is
-in [`CONTRIBUTING.md`](CONTRIBUTING.md), the working rules (small focused commits, measure before deciding, no speculative code) in
-[`AGENTS.md`](AGENTS.md), and vulnerabilities go through [`SECURITY.md`](SECURITY.md).
-Where the project stands and what is next: [`docs/STATUS.md`](docs/STATUS.md).
+Bug reports, ideas and testing on hardware the maintainer does not have are welcome now. Open an [issue](https://github.com/Adityuhh11/Omni/issues/new/choose)
+first: pull requests are by invitation, once an issue says go. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the whole process (setup, checks, the DCO
+sign-off, using AI tools); the code rules, which coding agents read too, are in [`AGENTS.md`](AGENTS.md). A vulnerability goes through
+[`SECURITY.md`](SECURITY.md), not a public issue. Where the project stands and what is next: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## License
 
-No license has been chosen yet; until one is added to this repository, all rights are reserved.
+Omni is released under the [MIT License](LICENSE). The libraries it is built on, the programs its setup installs and the models it can download
+have their own licenses; they are listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+| Model (downloaded on request, not part of Omni) | License |
+|---|---|
+| EmbeddingGemma 2, for file search | Apache License 2.0 |
+| LFM3-1.7B by Liquid AI, for Omni AI | Liquid AI's LFM Open License ([terms](https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/blob/main/LICENSE)) |
+
+## Acknowledgements
+
+Omni stands on [llama.cpp](https://github.com/ggml-org/llama.cpp) (runs both models), [Wails](https://wails.io) (the desktop shell), [Svelte](https://svelte.dev),
+[uv](https://github.com/astral-sh/uv), [SQLite](https://sqlite.org), [FastAPI](https://fastapi.tiangolo.com), [PDFium](https://pdfium.googlesource.com/pdfium/) through
+[pypdfium2](https://github.com/pypdfium2-team/pypdfium2), [PyAV](https://github.com/PyAV-Org/PyAV), and the Geist and Sora typefaces.
+Thanks to the people who built them, and to Google and Liquid AI for releasing their models.
