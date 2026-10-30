@@ -9,6 +9,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"omni/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"slices"
@@ -249,13 +250,8 @@ func (c Config) Save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create config folder: %w", err)
 	}
-	temp := path + ".tmp"
-	if err := os.WriteFile(temp, body, 0o644); err != nil {
+	if err := atomicfile.Write(path, body); err != nil {
 		return fmt.Errorf("write config: %w", err)
-	}
-	if err := os.Rename(temp, path); err != nil {
-		_ = os.Remove(temp)
-		return fmt.Errorf("replace config: %w", err)
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"omni/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -124,12 +125,7 @@ func (s *Store) Save(c *Conversation) error {
 	if err != nil {
 		return fmt.Errorf("encode the conversation: %w", err)
 	}
-	temp := p + ".tmp"
-	if err := os.WriteFile(temp, body, 0o644); err != nil {
-		return fmt.Errorf("write the conversation: %w", err)
-	}
-	if err := os.Rename(temp, p); err != nil {
-		_ = os.Remove(temp)
+	if err := atomicfile.Write(p, body); err != nil {
 		return fmt.Errorf("save the conversation: %w", err)
 	}
 	return nil

@@ -5,6 +5,7 @@ package notes
 import (
 	"errors"
 	"fmt"
+	"omni/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -126,12 +127,7 @@ func (s *Store) Save(id, text string) (Note, error) {
 	if err != nil {
 		return Note{}, err
 	}
-	temp := p + ".tmp"
-	if err := os.WriteFile(temp, []byte(text), 0o644); err != nil {
-		return Note{}, fmt.Errorf("write the note: %w", err)
-	}
-	if err := os.Rename(temp, p); err != nil {
-		_ = os.Remove(temp)
+	if err := atomicfile.Write(p, []byte(text)); err != nil {
 		return Note{}, fmt.Errorf("save the note: %w", err)
 	}
 	return s.read(id)

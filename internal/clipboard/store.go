@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"omni/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"strings"
@@ -219,12 +220,8 @@ func (s *Store) save() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("create the clipboard history folder: %w", err)
 	}
-	temp := s.path + ".tmp"
-	if err := os.WriteFile(temp, raw, 0o600); err != nil {
+	if err := atomicfile.Write(s.path, raw); err != nil {
 		return fmt.Errorf("write the clipboard history: %w", err)
-	}
-	if err := os.Rename(temp, s.path); err != nil {
-		return fmt.Errorf("replace the clipboard history: %w", err)
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"omni/internal/atomicfile"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -133,9 +134,5 @@ func saveCache(path string, apps []App, now time.Time) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	temp := path + ".tmp"
-	if err := os.WriteFile(temp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(temp, path)
+	return atomicfile.Write(path, data)
 }

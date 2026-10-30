@@ -214,7 +214,7 @@ uv run python -m omni_memory.eval                              # retrieval quali
 | `internal/panel`, `settingsui`, `tray` | the bar window, the Settings window, the tray icon |
 | `internal/apps`, `rank`, `palette`, `state`, `web`, `snippets`, `clipboard` | what the bar can answer instantly |
 | `internal/search`, `indexing`, `watcher`, `sidecar`, `enginesetup` | file search from the launcher's side: querying, syncing folders, running and installing the engine |
-| `internal/config`, `settings`, `update`, `autostart`, `files` | settings file and live store, update check and install, start at sign-in, opening results |
+| `internal/config`, `settings`, `update`, `autostart`, `files`, `atomicfile` | settings file and live store, update check and install, start at sign-in, opening results, crash-safe file writes |
 | `frontend/` | the Svelte 5 + TypeScript page (the bar and Settings) |
 | `sidecar/` | the Python memory engine (`omni_memory`): chunking, embedding, store, search, eval |
 | `docs/` | architecture, status, API, decision records, specs, plans, measurements |
