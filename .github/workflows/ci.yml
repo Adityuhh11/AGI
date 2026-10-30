@@ -82,6 +82,9 @@ jobs:
         run: ./scripts/build-mac.sh ci
       - name: The program is for Apple Silicon
         run: lipo -archs bin/omni | grep -qx arm64
+      # Here and not on the Windows runner, where a checkout may turn line endings into CRLF, which gofmt would report.
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - name: Go vet
         run: go vet ./...
       - name: Go tests
