@@ -39,6 +39,8 @@ Name: "desktopicon"; Description: "A shortcut on the desktop"; Flags: unchecked
 
 [Files]
 Source: "..\bin\omni.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Omni"; Filename: "{app}\omni.exe"

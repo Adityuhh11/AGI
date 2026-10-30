@@ -228,4 +228,5 @@ Where the project stands and what is next: [`docs/STATUS.md`](docs/STATUS.md).
 
 ## License
 
-No license has been chosen yet; until one is added to this repository, all rights are reserved.
+Omni is released under the [MIT License](LICENSE). The libraries it is built on, the programs its setup installs and the models it can download
+have their own licenses; they are listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), which also says where each model's terms are.

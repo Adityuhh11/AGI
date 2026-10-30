@@ -26,6 +26,7 @@ rm -rf dist
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp bin/omni "$app/Contents/MacOS/omni"
 cp build/darwin/omni.icns "$app/Contents/Resources/omni.icns"
+cp LICENSE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 sed "s/{VERSION}/${plistversion:-0.0.0}/g" build/darwin/Info.plist > "$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist" >/dev/null
 
