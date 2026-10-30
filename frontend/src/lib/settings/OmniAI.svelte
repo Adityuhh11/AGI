@@ -232,7 +232,7 @@
   }
   .dot.on {
     background: var(--chrome);
-    box-shadow: 0 0 0 3px rgba(230, 232, 236, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--chrome) 15%, transparent);
   }
   .dot.bad {
     background: var(--danger);

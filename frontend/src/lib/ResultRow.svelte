@@ -103,7 +103,7 @@
   }
   .item.selected {
     background: var(--lift);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent);
   }
   .tile {
     flex: none;
@@ -118,7 +118,7 @@
   }
   .selected .tile {
     color: var(--chrome);
-    background: rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
   }
   .pdf {
     font: 600 11px/1 var(--mono);
@@ -184,7 +184,7 @@
   }
   mark {
     background: none;
-    color: #fff;
+    color: var(--chrome-hot);
     font-weight: 620;
   }
   .pin {

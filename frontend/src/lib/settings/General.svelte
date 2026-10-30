@@ -4,6 +4,7 @@
   import { OmniAI, Service as Settings } from "../../../bindings/omni/internal/settingsui";
   import type { ClipboardView, NotesHotkeyView, OmniAIView, View } from "../../../bindings/omni/internal/settingsui";
   import HotkeyField from "./HotkeyField.svelte";
+  import { applyTheme, THEMES } from "../theme";
 
   let { view }: { view: View } = $props();
 
@@ -18,6 +19,8 @@
   let startup = $state(view.Autostart);
   // svelte-ignore state_referenced_locally
   let lift = $state(view.SelectionEffect);
+  // svelte-ignore state_referenced_locally
+  let theme = $state(view.Theme);
   let browsers = $state<string[]>([]);
   // The other hotkeys live on pages of their own services; they are shown here, beside the search bar's, and saved there.
   let clipboard = $state<ClipboardView | null>(null);
@@ -96,6 +99,17 @@
     else flashSaved();
   }
 
+  async function saveTheme(id: string) {
+    const before = theme;
+    theme = id;
+    applyTheme(id);
+    error = await Settings.SetTheme(id);
+    if (error !== "") {
+      theme = before;
+      applyTheme(before);
+    } else flashSaved();
+  }
+
   async function saveStartup() {
     error = await Settings.SetAutostart(startup);
     if (error !== "") startup = !startup;
@@ -140,6 +154,19 @@
   {/if}
 </div>
 
+
+<div class="field">
+  <span class="label" id="theme-label">Theme</span>
+  <div class="themes" role="radiogroup" aria-labelledby="theme-label">
+    {#each THEMES as t (t.id)}
+      <button type="button" role="radio" aria-checked={theme === t.id} class:on={theme === t.id} onclick={() => saveTheme(t.id)}>
+        <span class="swatch" style:background={t.plate} style:color={t.text}>Aa</span>
+        {t.label}
+      </button>
+    {/each}
+  </div>
+  <p class="help">The colours of the search bar and of every window. They change at once.</p>
+</div>
 
 <div class="field">
   <label class="check"><input type="checkbox" bind:checked={startup} onchange={saveStartup} /> Start when I sign in</label>
@@ -246,6 +273,40 @@
   .keys .help {
     margin: 0;
     padding: 0 14px 12px;
+  }
+  .themes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .themes button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px 5px 5px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--tile);
+    color: var(--text-2);
+    font: 500 13px/1 var(--sans);
+    cursor: pointer;
+  }
+  .themes button:hover {
+    background: var(--lift);
+  }
+  .themes button.on {
+    border-color: color-mix(in srgb, var(--chrome) 45%, transparent);
+    color: var(--text);
+  }
+  .swatch {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 26px;
+    border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+    border-radius: 7px;
+    font: 620 12px/1 var(--sans);
   }
   @media (prefers-reduced-motion: reduce) {
     .chevron {

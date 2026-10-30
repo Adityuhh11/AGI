@@ -10,7 +10,8 @@
   import RoundButton from "./lib/RoundButton.svelte";
   import Icon from "./lib/Icon.svelte";
   import PlusMenu from "./lib/chat/PlusMenu.svelte";
-  import { METALS } from "./lib/palettes";
+  import { ringsFor } from "./lib/palettes";
+  import { currentTheme, onTheme } from "./lib/theme";
   import { dot, escapeStep, lastQuestion, meter, sends, thoughtFor, unloadsIn, waiting, type Phase } from "./lib/chat/chat";
   import { copyable } from "./lib/chat/copy";
   import { when } from "./lib/format";
@@ -24,6 +25,7 @@
   let error = $state("");
   // The answer being written: it is shown from the events, and replaced by the finished message when the answer ends.
   let live = $state<{ text: string; thinking: string; phase: Phase; status: string } | null>(null);
+  let theme = $state(currentTheme()); // the composer's ring is the first ring of the theme
   let focused = $state(false); // the composer has the keyboard: its ring moves
   let historyOpen = $state(false);
   let menuOpen = $state(false); // the + menu above the composer
@@ -267,6 +269,7 @@
     follow().then(() => tick().then(() => box?.focus()));
 
     const offs = [
+      onTheme((id) => (theme = id)),
       Events.On("chat:model", (e) => {
         info = e.data as Info;
         now = Date.now(); // the countdown to the unload is read against this
@@ -445,7 +448,7 @@
       <!-- The composer floats over the end of the conversation. Its rim is the search card's ring; it moves only while the box
            has the keyboard or an answer is coming, and rests as a still metal edge otherwise. -->
       <form class="composer" onsubmit={(event) => { event.preventDefault(); submit(); }}>
-        <LiquidRing speed={busy ? 1.5 : 0.6} running={focused || busy} metal={METALS[0]} radius={27} />
+        <LiquidRing speed={busy ? 1.5 : 0.6} running={focused || busy} metal={ringsFor(theme)[0]} radius={27} />
         {#if info?.thinking || info?.web_search}
           <!-- What is switched on floats over the box's top edge, so it takes no room in the row: a click turns it off. -->
           <div class="pills">
@@ -540,7 +543,7 @@
   }
   .dot.tone-ready {
     background: var(--chrome);
-    box-shadow: 0 0 0 3px rgba(230, 232, 236, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--chrome) 15%, transparent);
   }
   .dot.tone-busy {
     background: var(--text-2);
@@ -817,7 +820,7 @@
     left: 0;
     z-index: 1;
     height: 22px;
-    background: linear-gradient(to bottom, #000, rgba(0, 0, 0, 0));
+    background: linear-gradient(to bottom, var(--plate), color-mix(in srgb, var(--plate) 0%, transparent));
     pointer-events: none;
   }
   /* The end of the conversation fades under the composer. Its corners follow the card's, or they would paint over the clear window. */
@@ -828,7 +831,7 @@
     left: 0;
     height: 150px;
     border-radius: 0 0 26px 26px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0), #000 62%);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--plate) 0%, transparent), var(--plate) 62%);
     pointer-events: none;
   }
   .dock {

@@ -24,7 +24,7 @@ the engine only after the page asks.
 
 | Package | Job |
 |---|---|
-| `panel` | The search bar window: global hotkey, cloaked (not hidden) window, keyboard hand-back to the previous program |
+| `panel` | The search bar window: global hotkey, cloaked (not hidden) window, keyboard hand-back to the previous program, and the place the person last dragged it to |
 | `palette`, `rank`, `apps`, `web`, `state`, `snippets`, `clipboard` | What the bar answers instantly: ranking (`rank`), the Start Menu list and launching (`apps`), web and quicklinks (`web`), launch history, tags and pins (`state`), pasted text (`snippets`, `clipboard`); `palette` decides which rows show and what Enter does |
 | `notes`, `timer`, `calc`, `system` | Quick markdown notes kept as `.md` files, the countdown and pomodoro (its state lives in Go; its window only shows it), arithmetic and unit conversion, and the few Windows actions the bar offers (lock, sleep, Task Manager, Recycle Bin, Windows Settings). `palette` turns each into rows; `settingsui.Window` is the one host of the settings, setup, notes and timer windows |
 | `search`, `files` | File search from the launcher's side: ask the engine, place each hit on disk, open or reveal it (only inside indexed folders; a moment in a recording opens in VLC, mpv or Media Player Classic at that moment), thumbnails |

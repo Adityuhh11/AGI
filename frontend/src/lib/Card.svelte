@@ -35,8 +35,8 @@
     border-radius: 26px;
     background: var(--plate);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      inset 0 1px 0 color-mix(in srgb, var(--ink) 16%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
     color: var(--text);
   }
   .grip {

@@ -127,7 +127,7 @@
     background: var(--tile);
   }
   .keys:has(.prompt) {
-    border-color: rgba(230, 232, 236, 0.45);
+    border-color: color-mix(in srgb, var(--chrome) 45%, transparent);
   }
   .change {
     margin-left: 8px;

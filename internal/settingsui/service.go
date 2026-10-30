@@ -146,6 +146,7 @@ type View struct {
 	CheckUpdates  bool
 	// SelectionEffect is the arrow-key lift in the bar; Timer is the pomodoro's lengths.
 	SelectionEffect bool
+	Theme           string
 	Timer           config.Timer
 	UpdateFound     string // the version of a newer release the last check saw, or ""
 	// UpdateInstallable says that release has a zip that can be checked, so the page can offer to install it.
@@ -161,7 +162,7 @@ func (s *Service) View() View {
 	return View{
 		Hotkey: c.Hotkey, DefaultHotkey: config.DefaultHotkey, Browser: c.Browser, SearchURL: c.SearchURL, Quicklinks: c.Quicklinks, Snippets: c.Snippets,
 		Roots: c.Roots, FileSearch: c.Search.Enabled, Pace: c.Search.Pace,
-		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, SelectionEffect: c.UI.SelectionEffect, Timer: c.Timer, UpdateFound: s.updateFound(), UpdateInstallable: s.updateInstallable(),
+		Autostart: s.o.Autostart(), CheckUpdates: c.CheckUpdates, SelectionEffect: c.UI.SelectionEffect, Theme: c.UI.Theme, Timer: c.Timer, UpdateFound: s.updateFound(), UpdateInstallable: s.updateInstallable(),
 		ConfigPath: s.o.Store.Path(), LogDir: s.o.LogDir, Version: s.o.Version,
 	}
 }
@@ -208,6 +209,14 @@ func (s *Service) SetAutostart(on bool) string {
 // SetSelectionEffect turns the lift of the selected result (while the arrow keys move) on or off.
 func (s *Service) SetSelectionEffect(on bool) string {
 	return reason(s.o.Store.Update(func(c *config.Config) { c.UI.SelectionEffect = on }))
+}
+
+// Theme is the colours every window wears; each window asks once when it opens and then follows the "ui:theme" event.
+func (s *Service) Theme() string { return s.o.Store.Get().UI.Theme }
+
+// SetTheme changes the colours of every window; a name that is not one of config.Themes is refused.
+func (s *Service) SetTheme(name string) string {
+	return reason(s.o.Store.Update(func(c *config.Config) { c.UI.Theme = name }))
 }
 
 // SaveTimer sets the pomodoro's lengths; a value out of range is refused and nothing changes.

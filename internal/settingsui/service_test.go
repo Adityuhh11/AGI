@@ -740,3 +740,22 @@ func TestTheFeelAndTimerSettingsAreShownAndChanged(t *testing.T) {
 		t.Fatalf("a timer of zero was accepted: %q", msg)
 	}
 }
+
+func TestTheDailyHoursAndTheThemeAreSavedAndABadValueIsRefused(t *testing.T) {
+	h := newHarness(t)
+	if msg := h.svc.SetIndexBetween(" 22:00-07:00 "); msg != "" || h.svc.Search().IndexBetween != "22:00-07:00" {
+		t.Fatalf("SetIndexBetween: %q, page shows %q", msg, h.svc.Search().IndexBetween)
+	}
+	if msg := h.svc.SetIndexBetween("tonight"); msg == "" || h.store.Get().Search.IndexBetween != "22:00-07:00" {
+		t.Fatalf("a bad window was accepted: %q", msg)
+	}
+	if msg := h.svc.SetIndexBetween(""); msg != "" || h.store.Get().Search.IndexBetween != "" {
+		t.Fatalf("turning the hours off: %q", msg)
+	}
+	if msg := h.svc.SetTheme("cream"); msg != "" || h.svc.Theme() != "cream" {
+		t.Fatalf("SetTheme: %q", msg)
+	}
+	if msg := h.svc.SetTheme("neon"); msg == "" || h.svc.Theme() != "cream" {
+		t.Fatalf("an unknown theme was accepted: %q", msg)
+	}
+}

@@ -83,8 +83,8 @@
     border-radius: 26px;
     background: var(--plate);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      inset 0 1px 0 color-mix(in srgb, var(--ink) 16%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
     color: var(--text);
     --wails-draggable: drag; /* the window is moved by holding it anywhere but on a button */
     user-select: none;
@@ -145,12 +145,12 @@
     padding: 0 12px;
     white-space: nowrap;
     background: var(--chrome);
-    color: #000;
+    color: var(--on-chrome);
     font: 600 12px/1 var(--sans);
   }
   .next:hover {
-    background: #fff;
-    color: #000;
+    background: var(--chrome-hot);
+    color: var(--on-chrome);
   }
   .track {
     height: 4px;
@@ -171,8 +171,8 @@
   @keyframes pulse {
     50% {
       box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.3),
-        inset 0 0 0 2px rgba(230, 232, 236, 0.75);
+        inset 0 1px 0 color-mix(in srgb, var(--ink) 30%, transparent),
+        inset 0 0 0 2px color-mix(in srgb, var(--chrome) 75%, transparent);
     }
   }
 </style>

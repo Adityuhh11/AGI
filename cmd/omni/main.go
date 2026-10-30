@@ -505,6 +505,9 @@ func run(afterUpdate bool) error {
 	// first and only saves the change if that worked.
 	store.Subscribe(func(old, updated config.Config) {
 		browser.Update(updated.Browser, updated.SearchURL, updated.Quicklinks)
+		if old.UI.Theme != updated.UI.Theme {
+			app.Event.Emit("ui:theme", updated.UI.Theme) // every open window repaints
+		}
 		if old.Search.Pace != updated.Search.Pace {
 			indexer.SetPace(updated.Search.Pace)
 		}

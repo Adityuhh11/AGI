@@ -328,7 +328,7 @@
   }
   .callout {
     padding: 16px;
-    border: 1px solid rgba(230, 232, 236, 0.45);
+    border: 1px solid color-mix(in srgb, var(--chrome) 45%, transparent);
     border-radius: 12px;
     background: var(--lift);
   }
@@ -350,7 +350,7 @@
   }
   .dot.on {
     background: var(--chrome);
-    box-shadow: 0 0 0 3px rgba(230, 232, 236, 0.15);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--chrome) 15%, transparent);
   }
   .dot.bad {
     background: var(--danger);
@@ -399,7 +399,7 @@
     flex-direction: column;
     gap: 8px;
     padding: 14px;
-    border: 1px solid rgba(230, 232, 236, 0.45);
+    border: 1px solid color-mix(in srgb, var(--chrome) 45%, transparent);
     border-radius: 10px;
     background: var(--lift);
   }

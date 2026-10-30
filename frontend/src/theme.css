@@ -1,16 +1,22 @@
-/* Pure black: the plate is #000, flat, like an OLED screen or black paint on a sports car; the premium
+/* Pure black (the default theme; the others are at the end of this file): the plate is #000, flat, like an OLED screen or black paint on a sports car; the premium
    comes from the lit edge and the ring, not from texture or gradient. One metal for the ring. No accent hue; emphasis is weight and brightness. The plate is opaque, so it stays dark
    whatever is behind the panel. */
 :root {
   --plate: #000;
-  --lift: rgba(255, 255, 255, 0.075);
-  --tile: rgba(255, 255, 255, 0.055);
-  --line: rgba(255, 255, 255, 0.07);
+  /* The colour that lifts and outlines things on the plate (white on a dark theme, near black on a light one); every tint
+     below and in the components is this colour at some strength, so a theme only has to set its few colours. */
+  --ink: #fff;
+  --lift: color-mix(in srgb, var(--ink) 7.5%, transparent);
+  --tile: color-mix(in srgb, var(--ink) 5.5%, transparent);
+  --line: color-mix(in srgb, var(--ink) 7%, transparent);
 
   --text: #eceef2;
   --text-2: #aaacb2;
   --text-3: #8a8c93;
+  /* The bright accent: the focus ring, the caret, filled buttons (--on-chrome is their text, --chrome-hot their hover). */
   --chrome: #e6e8ec;
+  --chrome-hot: #fff;
+  --on-chrome: #000;
   --danger: #e0877f;
 
   /* The window around the card is clear and only 20 px wider on each side, 12 above and 40 below: a
@@ -20,6 +26,8 @@
 
   --ring: 2.5px;
   --radius: 30px;
+  /* The ring's first frame, and its stand-in when WebGL cannot run: the first ring of the theme, as a still gradient. */
+  --ring-fallback: linear-gradient(135deg, #565963, #e4e8f0 45%, #565963 70%, #c9ced9);
   --ease: cubic-bezier(0.16, 1, 0.3, 1); /* exponential ease-out */
 
   /* The words you type and the placeholder: a geometric, open face, the one voice that is not Geist. */
@@ -53,8 +61,8 @@ body {
 }
 
 ::selection {
-  background: rgba(223, 228, 238, 0.28);
-  color: #fff;
+  background: color-mix(in srgb, var(--chrome) 28%, transparent);
+  color: var(--chrome-hot);
 }
 
 input {
@@ -71,7 +79,7 @@ input {
 /* Scrollbars in the plate's own colours instead of the system's. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-color: color-mix(in srgb, var(--ink) 18%, transparent) transparent;
 }
 
 /* The panel is cloaked, not hidden, so its page keeps running: everything that moves holds still
@@ -100,7 +108,7 @@ html[data-surface="card"] body {
 }
 html[data-surface="card"] * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: color-mix(in srgb, var(--ink) 20%, transparent) transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -110,4 +118,66 @@ html[data-surface="card"] * {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Themes: the page sets data-theme on <html> (lib/theme.ts) in every window. Black is the root above; each of the others sets only
+   the plate, the ink and the five text and accent colours. Light ones say color-scheme: light so form controls and scrollbars follow. */
+html[data-theme="midnight"] {
+  --ring-fallback: linear-gradient(135deg, #3b62c4, #cfe0ff 45%, #3b62c4 70%, #8fb0ee);
+  --plate: #0a0f1e;
+  --text: #e6ebf7;
+  --text-2: #a3acc4;
+  --text-3: #7f89a6;
+  --chrome: #c9d6f7;
+  --chrome-hot: #f1f5ff;
+  --on-chrome: #0a0f1e;
+}
+html[data-theme="forest"] {
+  --ring-fallback: linear-gradient(135deg, #4d8a4b, #e3f7c9 45%, #4d8a4b 70%, #9ccf8a);
+  --plate: #09140f;
+  --text: #e4efe8;
+  --text-2: #a2b7aa;
+  --text-3: #7f9688;
+  --chrome: #c7e6d3;
+  --chrome-hot: #effbf3;
+  --on-chrome: #09140f;
+}
+html[data-theme="cream"] {
+  --ring-fallback: linear-gradient(135deg, #6b4a2f, #e9cfae 45%, #6b4a2f 70%, #b08a63);
+  --plate: #f6f0e2;
+  --ink: #1c1a16;
+  --text: #2a2620;
+  --text-2: #5a5346;
+  --text-3: #6f6757;
+  --chrome: #2a2620;
+  --chrome-hot: #000;
+  --on-chrome: #f6f0e2;
+  --danger: #b3392f;
+  color-scheme: light;
+}
+html[data-theme="blush"] {
+  --ring-fallback: linear-gradient(135deg, #c2556f, #ffd3de 45%, #c2556f 70%, #e79bb0);
+  --plate: #f8e8e6;
+  --ink: #2b1716;
+  --text: #33201f;
+  --text-2: #664644;
+  --text-3: #7d5a57;
+  --chrome: #3b2423;
+  --chrome-hot: #1c0d0c;
+  --on-chrome: #f8e8e6;
+  --danger: #b3261e;
+  color-scheme: light;
+}
+html[data-theme="coral"] {
+  --ring-fallback: linear-gradient(135deg, #d0534a, #ffd2cb 45%, #d0534a 70%, #ee9a92);
+  --plate: #f1c9c2;
+  --ink: #3a1512;
+  --text: #3a1512;
+  --text-2: #64302b;
+  --text-3: #76433d;
+  --chrome: #4a1a16;
+  --chrome-hot: #260b09;
+  --on-chrome: #f6d7d2;
+  --danger: #9e1b12;
+  color-scheme: light;
 }
