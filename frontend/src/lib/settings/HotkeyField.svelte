@@ -39,9 +39,14 @@
     }),
   );
 
+  let button: HTMLButtonElement;
+
+  // Safari's engine (a Mac's web view) does not focus a button when it is clicked, so the key presses would go to the page
+  // body and neither the combination nor Esc would ever reach the field: take the focus by hand.
   function startCapture() {
     capturing = true;
     hint = "";
+    button.focus();
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -72,7 +77,7 @@
 </script>
 
 <div class="keyrow">
-  <button type="button" class="keys" aria-labelledby={labelId} onclick={startCapture} onkeydown={onKeydown} onblur={() => (capturing = false)}>
+  <button type="button" class="keys" bind:this={button} aria-labelledby={labelId} onclick={startCapture} onkeydown={onKeydown} onblur={() => (capturing = false)}>
     {#if capturing}
       <span class="prompt">Press the new combination. Esc cancels.</span>
     {:else if shown === ""}

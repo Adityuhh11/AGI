@@ -58,6 +58,23 @@ type Panel struct {
 	hotkeyErrMsg string
 	fill         string // the second hotkey, which opens the bar with text typed in; "" when there is none
 	fillErrMsg   string
+
+	// placed is where the last opening put the window; a window found elsewhere when it closes was dragged, and its corner
+	// (leftX, leftY) is where the next opening starts, until the person drags it again. Kept for the run, not saved.
+	placed       Rect
+	moved        bool
+	leftX, leftY int
+}
+
+// moveSlack is how far (in pixels) the closing window may differ from where it was put before it counts as dragged: the
+// system rounds a position, and a bar that was never touched must keep following the mouse to its monitor.
+const moveSlack = 3
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // New creates the (still invisible) window and arranges to bind hotkey once the app runs.
@@ -235,7 +252,14 @@ func (p *Panel) Show() {
 	p.mu.Unlock()
 
 	work, dpi := cursorMonitor()
-	moveTopmost(hwnd, place(work, dpi, height))
+	spot := place(work, dpi, height)
+	p.mu.Lock()
+	if p.moved {
+		spot, _ = placeAt(spot, work, p.leftX, p.leftY)
+	}
+	p.placed = spot
+	p.mu.Unlock()
+	moveTopmost(hwnd, spot)
 	cloak(hwnd, false)
 	p.win.Focus()
 	if p.OnShow != nil {
@@ -288,9 +312,13 @@ func (p *Panel) hide(restoreFocus bool) {
 	if hwnd == 0 || !p.shown.Swap(false) {
 		return
 	}
+	at := windowRect(hwnd) // read before the window is hidden
 	cloak(hwnd, true)
 	p.mu.Lock()
 	previous := p.previous
+	if abs(at.X-p.placed.X) > moveSlack || abs(at.Y-p.placed.Y) > moveSlack {
+		p.moved, p.leftX, p.leftY = true, at.X, at.Y // dragged: the next opening starts here
+	}
 	p.mu.Unlock()
 	if restoreFocus && isWindow(previous) {
 		setForeground(previous)

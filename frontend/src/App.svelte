@@ -654,9 +654,12 @@
     gap: 14px;
     height: 60px;
     padding: 0 24px 0 24px;
+    /* The bar is moved by holding it anywhere but the text field; the panel remembers where it was left. */
+    --wails-draggable: drag;
   }
   .glass {
     flex: none;
+    cursor: grab;
     display: grid;
     color: var(--text-3);
     transition: color 200ms var(--ease);
@@ -672,6 +675,7 @@
     border: 0;
     outline: 0;
     background: transparent;
+    --wails-draggable: no-drag;
     color: var(--text);
     font: 400 19px/1 var(--display);
     letter-spacing: -0.01em;
