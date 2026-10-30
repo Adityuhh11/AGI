@@ -2,7 +2,7 @@
 
 For a Mac with Apple Silicon (M1 or later) and macOS 13 or later. Omni is not signed by Apple (that costs $99 a year; the reasons and the plan are in
 [decision 0010](decisions/0010-macos-distribution-without-apple-account.md)), so macOS treats a download from a browser with suspicion. The first route below avoids that.
-Nothing on this page has been tried on a real Mac yet; the wording of the macOS dialogs is from Apple's documentation and may differ a little.
+It has been run on a real Mac since 1.1.0 (install, the bar, downloads, the AI chat); the wording of the macOS dialogs below is from Apple's documentation and may differ a little.
 
 ## 1. One line in Terminal (recommended)
 
